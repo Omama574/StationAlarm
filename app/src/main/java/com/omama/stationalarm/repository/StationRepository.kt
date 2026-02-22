@@ -56,7 +56,7 @@ object StationRepository {
                 .addGeofencesForStation(
                     appContext,
                     activeStation.stationId,
-                    activeStation.alertDistanceKm
+                    activeStation.alertDistanceKm.toFloat()  // ← Add .toFloat()
                 )
         } catch (e: Exception) {
             Logger.log("ERROR", extra = "Failed to register geofence: ${e.message}")
