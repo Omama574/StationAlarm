@@ -7,7 +7,9 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.service.LocationService
+import com.omama.stationalarm.util.Logger
 
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
@@ -22,6 +24,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         if (geofencingEvent.hasError()) {
             Log.e(TAG, "Geofence error: ${geofencingEvent.errorCode}")
+            Logger.log("GEOFENCE_ERROR", extra = "errorCode=${geofencingEvent.errorCode}")
             return
         }
 
@@ -31,14 +34,46 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             return
         }
 
-        val transition = geofencingEvent.geofenceTransition
-        if (transition == Geofence.GEOFENCE_TRANSITION_ENTER) {
-            Log.d(TAG, "Entered geofence – starting location service")
+        // Use goAsync to allow long-running operation
+        val pendingResult = goAsync()
 
-            val serviceIntent = Intent(context, LocationService::class.java).apply {
-                action = "START_ALARM_SERVICE"
+        // Process in background thread
+        Thread {
+            try {
+                for (geofence in triggeringGeofences) {
+                    val requestId = geofence.requestId ?: continue
+                    // Parse requestId: expected format "geofence_<stationId>_<layer>"
+                    val parts = requestId.split("_")
+                    if (parts.size != 3) {
+                        Log.w(TAG, "Invalid requestId format: $requestId")
+                        continue
+                    }
+                    val stationId = parts[1]
+                    val layer = parts[2]
+
+                    // Verify station is still active
+                    if (!StationRepository.isActive(stationId)) {
+                        Log.d(TAG, "Station $stationId is no longer active, ignoring geofence")
+                        continue
+                    }
+
+                    Log.d(TAG, "Geofence triggered: $stationId, layer=$layer")
+                    Logger.log("GEOFENCE_TRIGGERED", stationId, layer)
+
+                    // Start LocationService with the station info
+                    val serviceIntent = Intent(context, LocationService::class.java).apply {
+                        action = LocationService.ACTION_GEOFENCE_TRIGGERED
+                        putExtra("stationId", stationId)
+                        putExtra("layer", layer)
+                    }
+                    ContextCompat.startForegroundService(context, serviceIntent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error processing geofence", e)
+                Logger.log("ERROR", extra = "Geofence processing: ${e.message}")
+            } finally {
+                pendingResult.finish()
             }
-            ContextCompat.startForegroundService(context, serviceIntent)
-        }
+        }.start()
     }
 }

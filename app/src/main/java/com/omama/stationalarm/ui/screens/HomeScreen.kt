@@ -1,129 +1,175 @@
 package com.omama.stationalarm.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.livedata.observeAsState
 import com.omama.stationalarm.data.ActiveStation
-import com.omama.stationalarm.repository.StationRepository
+import com.omama.stationalarm.ui.viewmodel.StationViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen() {
-
-    var activeStations by remember {
-        mutableStateOf(StationRepository.getAllActiveStations())
-    }
-
-    var showDialog by remember { mutableStateOf(false) }
+fun HomeScreen(
+    onAddClick: () -> Unit,
+    onShareLogs: () -> Unit,
+    viewModel: StationViewModel = viewModel()
+) {
+    val activeStations by viewModel.activeStations.observeAsState(emptyList())
+    val haptic = LocalHapticFeedback.current
 
     Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("StationAlarm") })
-        },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showDialog = true }) {
-                Text("+")
+            FloatingActionButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onAddClick()
+                },
+                containerColor = Color.Black,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .shadow(8.dp, RoundedCornerShape(16.dp))
+                    .animateContentSize()
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Station")
             }
         }
-    ) { padding ->
-
-        Box(
+    ) { paddingValues ->
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            contentAlignment = Alignment.Center
+                .background(Color.White)
+                .padding(paddingValues)
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "My Stations",
+                    fontSize = 28.sp,
+                    color = Color.Black,
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                IconButton(
+                    onClick = onShareLogs,
+                    modifier = Modifier
+                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .background(Color.Black, RoundedCornerShape(12.dp))
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = "Share Logs", tint = Color.White)
+                }
+            }
 
             if (activeStations.isEmpty()) {
-                Text("No Active Stations")
+                EmptyState()
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(activeStations) { station ->
-                        StationRow(
+                    items(activeStations, key = { it.stationId }) { station ->
+                        StationCard(
                             station = station,
                             onRemove = {
-                                StationRepository.removeStation(station.stationId)
-                                activeStations =
-                                    StationRepository.getAllActiveStations()
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                viewModel.removeActiveStation(station.stationId)
                             }
                         )
                     }
                 }
             }
         }
-
-        if (showDialog) {
-            AddStationDialog(
-                onDismiss = { showDialog = false },
-                onAdd = { id ->
-                    val active = ActiveStation(
-                        stationId = id,
-                        alertDistanceKm = 5.0,
-                        notify = true,
-                        vibrate = true,
-                        sound = true
-                    )
-                    StationRepository.addStation(active)
-                    activeStations =
-                        StationRepository.getAllActiveStations()
-                    showDialog = false
-                }
-            )
-        }
     }
 }
 
 @Composable
-fun StationRow(
-    station: ActiveStation,
-    onRemove: () -> Unit
-) {
-    Row(
+fun StationCard(station: ActiveStation, onRemove: () -> Unit) {
+    val stationData = station.getStation()
+    val name = stationData?.name ?: station.stationId
+    val distanceText = station.currentDistanceKm?.let { "%.1f km".format(it) } ?: "—"
+
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .shadow(8.dp, RoundedCornerShape(16.dp))
+            .animateContentSize(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Text(station.stationId)
-        Button(onClick = onRemove) {
-            Text("Remove")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = name,
+                    fontSize = 18.sp,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Alert at ${station.alertDistanceKm} km • Distance: $distanceText",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier
+                    .shadow(4.dp, RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+            ) {
+                Text(
+                    text = "✕",
+                    color = Color.Black,
+                    fontSize = 16.sp
+                )
+            }
         }
     }
 }
 
 @Composable
-fun AddStationDialog(
-    onDismiss: () -> Unit,
-    onAdd: (String) -> Unit
-) {
-    var query by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            Button(onClick = { onAdd(query) }) {
-                Text("Add")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-        title = { Text("Add Station (Enter ID)") },
-        text = {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text("Station ID") }
-            )
-        }
-    )
+fun EmptyState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "No active stations\nTap + to add one",
+            fontSize = 18.sp,
+            color = Color.Gray,
+            lineHeight = 24.sp
+        )
+    }
 }

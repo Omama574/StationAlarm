@@ -2,11 +2,14 @@ package com.omama.stationalarm.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.data.StationData
+import com.omama.stationalarm.geofence.GeofenceManager
 import com.omama.stationalarm.util.Logger
 
 object StationRepository {
@@ -18,103 +21,112 @@ object StationRepository {
     private lateinit var appContext: Context
 
     private val gson = Gson()
-    private val activeStations = mutableMapOf<String, ActiveStation>()
+
+    private val activeStationsMap = mutableMapOf<String, ActiveStation>()
+    private val _activeStationsLiveData = MutableLiveData<List<ActiveStation>>(emptyList())
+    val activeStationsLiveData: LiveData<List<ActiveStation>> = _activeStationsLiveData
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
         prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        loadFromPrefs()
+        StationData.initialize(appContext) // StationData now loads once
+        loadActiveStations()
     }
 
-    // --------------------------------
-    // Station master access
-    // --------------------------------
+    // Station master access – no Context needed now
+    fun getStationById(id: String): Station? = StationData.getStationById(id)
+    fun searchStations(query: String): List<Station> = StationData.searchStations(query)
+    fun getAllStations(): List<Station> = StationData.getAllStations()
 
-    fun getStationById(id: String): Station? {
-        return StationData.getStationById(appContext, id)
-    }
+    fun addActiveStation(activeStation: ActiveStation) {
+        synchronized(activeStationsMap) {
+            activeStationsMap[activeStation.stationId] = activeStation
+            saveToPrefs()
+            updateLiveData()
 
-    fun searchStations(query: String): List<Station> {
-        return StationData.searchStations(appContext, query)
-    }
-
-    fun getAllStations(): List<Station> {
-        return StationData.getAllStations(appContext)
-    }
-
-    // --------------------------------
-    // Active station management
-    // --------------------------------
-
-    fun addStation(activeStation: ActiveStation) {
-        activeStations[activeStation.stationId] = activeStation
-        saveToPrefs()
-
-        // Register geofences
-        try {
-            com.omama.stationalarm.geofence.GeofenceManager
-                .addGeofencesForStation(
-                    appContext,
-                    activeStation.stationId,
-                    activeStation.alertDistanceKm.toFloat()  // ← Add .toFloat()
-                )
-        } catch (e: Exception) {
-            Logger.log("ERROR", extra = "Failed to register geofence: ${e.message}")
+            GeofenceManager.addGeofencesForStation(
+                context = appContext,
+                stationId = activeStation.stationId,
+                outerRadiusM = (activeStation.outerRadiusKm * 1000).toFloat(),
+                midRadiusM = (activeStation.midRadiusKm * 1000).toFloat(),
+                innerRadiusM = (activeStation.innerRadiusKm * 1000).toFloat()
+            )
         }
     }
 
-    fun removeStation(stationId: String) {
-        if (activeStations.containsKey(stationId)) {
-            activeStations.remove(stationId)
-            saveToPrefs()
-
-            // Remove geofences
-            try {
-                com.omama.stationalarm.geofence.GeofenceManager
-                    .removeGeofencesForStation(appContext, stationId)
-            } catch (e: Exception) {
-                Logger.log("ERROR", extra = "Failed to remove geofence: ${e.message}")
+    fun removeActiveStation(stationId: String) {
+        synchronized(activeStationsMap) {
+            if (activeStationsMap.remove(stationId) != null) {
+                saveToPrefs()
+                updateLiveData()
+                GeofenceManager.removeGeofencesForStation(appContext, stationId)
+                Logger.log("STATION_REMOVED", stationId)
             }
+        }
+    }
+
+    fun updateStationDistance(stationId: String, distanceKm: Double) {
+        synchronized(activeStationsMap) {
+            activeStationsMap[stationId]?.currentDistanceKm = distanceKm
+            updateLiveData()
         }
     }
 
     fun getAllActiveStations(): List<ActiveStation> {
-        return activeStations.values.toList()
+        synchronized(activeStationsMap) {
+            return activeStationsMap.values.toList()
+        }
     }
 
     fun isActive(stationId: String): Boolean {
-        return activeStations.containsKey(stationId)
+        synchronized(activeStationsMap) {
+            return activeStationsMap.containsKey(stationId)
+        }
     }
 
-    // --------------------------------
-    // Persistence
-    // --------------------------------
+    fun reRegisterAllGeofences() {
+        val activeList = getAllActiveStations()
+        for (active in activeList) {
+            GeofenceManager.addGeofencesForStation(
+                context = appContext,
+                stationId = active.stationId,
+                outerRadiusM = (active.outerRadiusKm * 1000).toFloat(),
+                midRadiusM = (active.midRadiusKm * 1000).toFloat(),
+                innerRadiusM = (active.innerRadiusKm * 1000).toFloat()
+            )
+        }
+    }
 
-    private fun loadFromPrefs() {
+    private fun loadActiveStations() {
         try {
-            val jsonString = prefs.getString(KEY_ACTIVE_STATIONS, null)
-            if (!jsonString.isNullOrEmpty()) {
+            val json = prefs.getString(KEY_ACTIVE_STATIONS, null)
+            if (!json.isNullOrBlank()) {
                 val type = object : TypeToken<List<ActiveStation>>() {}.type
-                val stations: List<ActiveStation> =
-                    gson.fromJson(jsonString, type)
-
-                activeStations.clear()
-                stations.forEach {
-                    activeStations[it.stationId] = it
+                val list: List<ActiveStation> = gson.fromJson(json, type)
+                synchronized(activeStationsMap) {
+                    activeStationsMap.clear()
+                    list.forEach { activeStationsMap[it.stationId] = it }
                 }
             }
         } catch (e: Exception) {
             Logger.log("ERROR", extra = "Failed to load active stations: ${e.message}")
-            activeStations.clear()
+        } finally {
+            updateLiveData()
         }
     }
 
     private fun saveToPrefs() {
         try {
-            val jsonString = gson.toJson(activeStations.values.toList())
-            prefs.edit().putString(KEY_ACTIVE_STATIONS, jsonString).apply()
+            val list = activeStationsMap.values.toList()
+            val json = gson.toJson(list)
+            prefs.edit().putString(KEY_ACTIVE_STATIONS, json).apply()
         } catch (e: Exception) {
             Logger.log("ERROR", extra = "Failed to save active stations: ${e.message}")
         }
+    }
+
+    private fun updateLiveData() {
+        val list = activeStationsMap.values.toList()
+        _activeStationsLiveData.postValue(list)
     }
 }

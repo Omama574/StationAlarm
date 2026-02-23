@@ -42,6 +42,8 @@ android {
 }
 
 dependencies {
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.0")
+// or version matching your Compose
     implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
