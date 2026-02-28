@@ -35,15 +35,14 @@ object GeofenceManager {
         return PendingIntent.getBroadcast(context, 0, intent, flags)
     }
 
-    /**
-     * Register three geofences for a station with the given radii (in meters).
-     */
     fun addGeofencesForStation(
         context: Context,
         stationId: String,
-        outerRadiusM: Float,
-        midRadiusM: Float,
-        innerRadiusM: Float
+        radiusLevel5M: Float,
+        radiusLevel4M: Float,
+        radiusLevel3M: Float,
+        radiusLevel2M: Float,
+        radiusLevel1M: Float
     ) {
         if (ActivityCompat.checkSelfPermission(
                 context,
@@ -64,9 +63,11 @@ object GeofenceManager {
         }
 
         val geofences = listOf(
-            buildGeofence(stationId, "outer", station.lat, station.lon, outerRadiusM),
-            buildGeofence(stationId, "mid", station.lat, station.lon, midRadiusM),
-            buildGeofence(stationId, "inner", station.lat, station.lon, innerRadiusM)
+            buildGeofence(stationId, "level5", station.lat, station.lon, radiusLevel5M),
+            buildGeofence(stationId, "level4", station.lat, station.lon, radiusLevel4M),
+            buildGeofence(stationId, "level3", station.lat, station.lon, radiusLevel3M),
+            buildGeofence(stationId, "level2", station.lat, station.lon, radiusLevel2M),
+            buildGeofence(stationId, "level1", station.lat, station.lon, radiusLevel1M)
         )
 
         val request = GeofencingRequest.Builder()
@@ -78,7 +79,7 @@ object GeofenceManager {
             .addGeofences(request, getGeofencePendingIntent(context))
             .addOnSuccessListener {
                 Log.d(TAG, "Geofences added for $stationId")
-                Logger.log("GEOFENCE_REGISTERED", stationId, "radii=${outerRadiusM}m,${midRadiusM}m,${innerRadiusM}m")
+                Logger.log("GEOFENCE_REGISTERED", stationId, "radii=[$radiusLevel5M, $radiusLevel4M, $radiusLevel3M, $radiusLevel2M, $radiusLevel1M]")
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to add geofences for $stationId", e)
@@ -87,13 +88,15 @@ object GeofenceManager {
     }
 
     /**
-     * Remove all three geofences for a station.
+     * Remove all five geofences for a station.
      */
     fun removeGeofencesForStation(context: Context, stationId: String) {
         val requestIds = listOf(
-            "geofence_${stationId}_outer",
-            "geofence_${stationId}_mid",
-            "geofence_${stationId}_inner"
+            "geofence_${stationId}_level5",
+            "geofence_${stationId}_level4",
+            "geofence_${stationId}_level3",
+            "geofence_${stationId}_level2",
+            "geofence_${stationId}_level1"
         )
         geofencingClient(context)
             .removeGeofences(requestIds)

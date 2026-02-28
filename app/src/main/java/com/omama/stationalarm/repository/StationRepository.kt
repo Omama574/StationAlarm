@@ -47,9 +47,11 @@ object StationRepository {
             GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = activeStation.stationId,
-                outerRadiusM = (activeStation.outerRadiusKm * 1000).toFloat(),
-                midRadiusM = (activeStation.midRadiusKm * 1000).toFloat(),
-                innerRadiusM = (activeStation.innerRadiusKm * 1000).toFloat()
+                radiusLevel5M = (activeStation.radiusLevel5Km * 1000).toFloat(),
+                radiusLevel4M = (activeStation.radiusLevel4Km * 1000).toFloat(),
+                radiusLevel3M = (activeStation.radiusLevel3Km * 1000).toFloat(),
+                radiusLevel2M = (activeStation.radiusLevel2Km * 1000).toFloat(),
+                radiusLevel1M = (activeStation.radiusLevel1Km * 1000).toFloat()
             )
         }
     }
@@ -90,9 +92,11 @@ object StationRepository {
             GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = active.stationId,
-                outerRadiusM = (active.outerRadiusKm * 1000).toFloat(),
-                midRadiusM = (active.midRadiusKm * 1000).toFloat(),
-                innerRadiusM = (active.innerRadiusKm * 1000).toFloat()
+                radiusLevel5M = (active.radiusLevel5Km * 1000).toFloat(),
+                radiusLevel4M = (active.radiusLevel4Km * 1000).toFloat(),
+                radiusLevel3M = (active.radiusLevel3Km * 1000).toFloat(),
+                radiusLevel2M = (active.radiusLevel2Km * 1000).toFloat(),
+                radiusLevel1M = (active.radiusLevel1Km * 1000).toFloat()
             )
         }
     }

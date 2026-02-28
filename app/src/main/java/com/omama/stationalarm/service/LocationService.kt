@@ -2,16 +2,17 @@ package com.omama.stationalarm.service
 
 import android.app.*
 import android.content.Context
-import android.media.AudioManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -19,6 +20,7 @@ import com.google.android.gms.location.*
 import com.omama.stationalarm.MainActivity
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.repository.StationRepository
+import com.omama.stationalarm.ui.screens.AlarmActivity
 import com.omama.stationalarm.util.Logger
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -28,10 +30,15 @@ class LocationService : Service() {
     private val NOTIFICATION_ID = 12345
     private val CHANNEL_ID = "location_channel"
     private val CHANNEL_NAME = "Station Alarm Service"
+    private val ALARM_CHANNEL_ID = "alarm_channel"
+    private val ALARM_CHANNEL_NAME = "Station Alarm Alerts"
+
+    private var wakeLock: PowerManager.WakeLock? = null
 
     companion object {
         const val ACTION_GEOFENCE_TRIGGERED = "com.omama.stationalarm.ACTION_GEOFENCE_TRIGGERED"
         const val ACTION_START_FOR_ACTIVE_STATIONS = "START_FOR_ACTIVE_STATIONS"
+        const val ACTION_DISMISS_ALARM = "com.omama.stationalarm.ACTION_DISMISS_ALARM"
     }
 
     private val trackedStations = CopyOnWriteArraySet<ActiveStation>()
@@ -82,6 +89,11 @@ class LocationService : Service() {
             ACTION_START_FOR_ACTIVE_STATIONS -> {
                 initializeTrackingFromLastKnownLocation()
             }
+            ACTION_DISMISS_ALARM -> {
+                val stationId = intent.getStringExtra("stationId") ?: return START_STICKY
+                dismissAlarm(stationId)
+                return START_STICKY
+            }
         }
 
         startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."))
@@ -116,7 +128,7 @@ class LocationService : Service() {
             for (active in allActive) {
                 val station = active.getStation() ?: continue
                 val distance = calculateDistance(location.latitude, location.longitude, station.lat, station.lon)
-                if (distance <= active.outerRadiusKm) {
+                if (distance <= active.radiusLevel5Km) {
                     trackedStations.add(active)
                     active.currentDistanceKm = distance
                     Logger.log("STATION_ADDED_TO_TRACKING", active.stationId, "initial distance=$distance")
@@ -142,22 +154,49 @@ class LocationService : Service() {
     }
 
     private fun processLocationUpdate(location: Location) {
+        var minDistance = Double.MAX_VALUE
+        var nearestStationName = "None"
+        var nearestStationId: String? = null
+
         for (active in trackedStations) {
             val station = active.getStation() ?: continue
             val distance = calculateDistance(location.latitude, location.longitude, station.lat, station.lon)
             active.currentDistanceKm = distance
             StationRepository.updateStationDistance(active.stationId, distance)
+            
+            if (distance < minDistance) {
+                minDistance = distance
+                nearestStationName = station.name
+                nearestStationId = active.stationId
+            }
 
             if (distance <= active.alertDistanceKm && !alertingStations.contains(active.stationId)) {
                 triggerAlert(active)
             }
         }
 
+        // Log the poll
+        val distToLog = if (minDistance == Double.MAX_VALUE) null else minDistance
+        Logger.log(
+            eventType = "LOCATION_POLL",
+            stationId = nearestStationId,
+            latitude = location.latitude,
+            longitude = location.longitude,
+            distanceKm = distToLog
+        )
+
+        // Update ongoing notification silently if we have a nearest station
+        if (trackedStations.isNotEmpty() && minDistance != Double.MAX_VALUE) {
+            val distStr = "%.1f".format(minDistance)
+            val notif = createNotification("Nearest station: $nearestStationName — $distStr km")
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(NOTIFICATION_ID, notif)
+        }
+
         val toRemove = mutableListOf<ActiveStation>()
         for (active in trackedStations) {
-            val station = active.getStation() ?: continue
             val distance = active.currentDistanceKm ?: continue
-            if (distance > active.outerRadiusKm) {
+            if (distance > active.radiusLevel5Km) {
                 toRemove.add(active)
                 Logger.log("STATION_REMOVED_FROM_TRACKING", active.stationId, "distance=$distance > outer")
             }
@@ -166,8 +205,14 @@ class LocationService : Service() {
 
         adjustPollingInterval()
 
-        if (trackedStations.isEmpty()) {
+        if (trackedStations.isEmpty() && !alarmRinging) {
             Logger.log("SERVICE_STOPPED", extra = "No stations tracked")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
             stopSelf()
         }
     }
@@ -177,8 +222,8 @@ class LocationService : Service() {
 
         val minDistance = trackedStations.minOfOrNull { it.currentDistanceKm ?: Double.MAX_VALUE } ?: return
         val newInterval = when {
-            minDistance <= (trackedStations.minOf { it.innerRadiusKm }) -> 30_000L
-            minDistance <= (trackedStations.minOf { it.midRadiusKm }) -> 120_000L
+            minDistance <= (trackedStations.minOf { it.radiusLevel2Km }) -> 30_000L
+            minDistance <= (trackedStations.minOf { it.radiusLevel4Km }) -> 120_000L
             else -> 300_000L
         }
 
@@ -221,7 +266,7 @@ class LocationService : Service() {
 
         Logger.log("ALERT_TRIGGERED", active.stationId, "distance=${active.currentDistanceKm}")
 
-        StationRepository.removeActiveStation(active.stationId)
+        acquireWakeLock()
 
         if (active.sound) {
             playAlarmSound()
@@ -229,6 +274,28 @@ class LocationService : Service() {
 
         showAlertNotification(active)
         trackedStations.remove(active)
+        StationRepository.removeActiveStation(active.stationId)
+
+        if (trackedStations.isEmpty()) {
+            stopLocationUpdates()
+        }
+    }
+
+    private fun acquireWakeLock() {
+        if (wakeLock == null) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "StationAlarm::AlarmWakeLock"
+            )
+        }
+        wakeLock?.acquire(10 * 60 * 1000L /*10 minutes*/)
+    }
+
+    private fun releaseWakeLock() {
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+        }
     }
 
     private fun playAlarmSound() {
@@ -246,10 +313,9 @@ class LocationService : Service() {
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
                     )
-                    // Set volume to max
                     val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
                     val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-                    setVolume(maxVolume.toFloat(), maxVolume.toFloat())
+                    audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
                     start()
                 }
             }
@@ -258,7 +324,7 @@ class LocationService : Service() {
         }
     }
 
-    private fun stopAlarm() {
+    private fun stopAlarmSound() {
         if (alarmRinging) {
             mediaPlayer?.stop()
             mediaPlayer?.release()
@@ -267,27 +333,57 @@ class LocationService : Service() {
         }
     }
 
+    private fun dismissAlarm(stationId: String) {
+        Logger.log("ALERT_DISMISSED", stationId)
+        stopAlarmSound()
+        releaseWakeLock()
+        
+        StationRepository.removeActiveStation(stationId)
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(stationId.hashCode())
+
+        if (trackedStations.isEmpty()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+            stopSelf()
+        }
+    }
+
     private fun showAlertNotification(active: ActiveStation) {
-        val intent = Intent(this, MainActivity::class.java).apply {
+        val fullscreenIntent = Intent(this, AlarmActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("stationId", active.stationId)
         }
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_IMMUTABLE
+            this, active.stationId.hashCode(), fullscreenIntent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+        val dismissIntent = Intent(this, LocationService::class.java).apply {
+            action = ACTION_DISMISS_ALARM
+            putExtra("stationId", active.stationId)
+        }
+        val dismissPendingIntent = PendingIntent.getService(
+            this, active.stationId.hashCode(), dismissIntent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val customText = active.customReminder?.takeIf { active.sendReminder }
+        val bodyText = if (customText.isNullOrBlank()) "You have arrived at your destination." else "Reminder: $customText"
+
+        val builder = NotificationCompat.Builder(this, ALARM_CHANNEL_ID)
             .setContentTitle("Station Reached: ${active.getStation()?.name ?: active.stationId}")
-            .setContentText("You have arrived. Alarm is ringing.")
+            .setContentText(bodyText)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
+            .setFullScreenIntent(pendingIntent, true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-
-        if (active.vibrate) {
-            builder.setVibrate(longArrayOf(0, 500, 200, 500))
-        }
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss", dismissPendingIntent)
+            .setDeleteIntent(dismissPendingIntent)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(active.stationId.hashCode(), builder.build())
@@ -302,8 +398,16 @@ class LocationService : Service() {
             ).apply {
                 description = "Shows tracking status"
             }
+            val alarmChannel = NotificationChannel(
+                ALARM_CHANNEL_ID,
+                ALARM_CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "High priority alarm alerts"
+            }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
+            manager.createNotificationChannel(alarmChannel)
         }
     }
 
@@ -320,6 +424,7 @@ class LocationService : Service() {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
@@ -332,7 +437,8 @@ class LocationService : Service() {
 
     override fun onDestroy() {
         stopLocationUpdates()
-        stopAlarm()
+        stopAlarmSound()
+        releaseWakeLock()
         super.onDestroy()
     }
 

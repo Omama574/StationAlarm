@@ -1,0 +1,46 @@
+# StationAlarm Implementation Tasks
+
+- [ ] 1. Logging Infrastructure
+    - [ ] Add CSV logging format to [Logger.kt](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/util/Logger.kt)
+    - [ ] Add battery percentage polling helper
+    - [ ] Update `Logger` to append to a CSV file
+- [ ] 2. Data Model & Geofence Updates
+    - [ ] Update [ActiveStation.kt](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/data/ActiveStation.kt) with `customReminder` and 5 radii
+    - [ ] Update [GeofenceManager.kt](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/geofence/GeofenceManager.kt) to register 5 geofences per station
+    - [ ] Update [StationRepository.kt](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/repository/StationRepository.kt) to handle 5 geofences
+- [ ] 3. Home Screen UI Redesign
+    - [ ] Integrate persistent search bar at the top of [HomeScreen.kt](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/ui/screens/HomeScreen.kt)
+    - [ ] Implement query logic from `StationData`
+    - [ ] Add zoom out effect and box shadow to [StationCard](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/ui/screens/HomeScreen.kt#114-164) elements
+    - [ ] Remove [SearchScreen.kt](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/ui/screens/SearchScreen.kt) and FAB
+- [ ] 4. Bottom Sheet Configuration
+    - [ ] Add text input for custom reminder in [StationConfigBottomSheet.kt](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/ui/screens/StationConfigBottomSheet.kt)
+    - [ ] Add toggle for sending reminder
+    - [ ] Ensure B&W aesthetics and short explanations
+- [ ] 5. Permissions & GPS Checks
+    - [ ] Implement first-run permission rationale dialog in [MainActivity.kt](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/MainActivity.kt)
+    - [ ] Add GPS state validation before adding stations
+- [ ] 6. Foreground Service Notification Updates
+    - [ ] Update [LocationService.kt](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/service/LocationService.kt) notification to show nearest station & distance
+    - [ ] Ensure notification is updated on every poll without re-alerting (`setOnlyAlertOnce`)
+    - [ ] Log `LOCATION_POLL` events
+- [ ] 7. Full-Screen Alarm Activity
+    - [ ] Create `AlarmActivity.kt` with Compose UI
+    - [ ] Implement system wake-lock/screen-on flags
+    - [ ] Route audio to `STREAM_ALARM`
+    - [ ] Intercept hardware volume buttons for dismissal
+    - [ ] Perform cleanup on dismiss (remove geofences, station, stop service)
+- [ ] 8. Integration & Final Polish
+    - [ ] Wire [LocationService](file:///c:/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/service/LocationService.kt#25-341) to launch `AlarmActivity` instead of playing sound directly
+    - [ ] Post fallback high-priority notification for alarm
+    - [ ] Clean up any test/demo code
+
+
+
+
+
+
+
+
+
+

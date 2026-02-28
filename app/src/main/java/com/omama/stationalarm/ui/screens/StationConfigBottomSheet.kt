@@ -1,5 +1,6 @@
 package com.omama.stationalarm.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -28,6 +29,10 @@ fun StationConfigBottomSheet(
     var notifyEnabled by remember { mutableStateOf(true) }
     var vibrateEnabled by remember { mutableStateOf(true) }
     var soundEnabled by remember { mutableStateOf(true) }
+    
+    var customReminder by remember { mutableStateOf("") }
+    var sendReminder by remember { mutableStateOf(false) }
+    
     val haptic = LocalHapticFeedback.current
 
     ModalBottomSheet(
@@ -39,7 +44,7 @@ fun StationConfigBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -74,7 +79,43 @@ fun StationConfigBottomSheet(
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = customReminder,
+                onValueChange = { customReminder = it },
+                label = { Text("Custom Reminder (Optional)", color = Color.Gray) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Black,
+                    unfocusedBorderColor = Color.Gray,
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black
+                )
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Show Reminder", color = Color.Black, fontSize = 16.sp)
+                Switch(
+                    checked = sendReminder,
+                    onCheckedChange = { sendReminder = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.Black,
+                        checkedTrackColor = Color.Black.copy(alpha = 0.5f),
+                        uncheckedThumbColor = Color.Gray,
+                        uncheckedTrackColor = Color.LightGray
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -97,7 +138,7 @@ fun StationConfigBottomSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
@@ -107,7 +148,9 @@ fun StationConfigBottomSheet(
                         alertDistanceKm = alertDistance,
                         notify = notifyEnabled,
                         vibrate = vibrateEnabled,
-                        sound = soundEnabled
+                        sound = soundEnabled,
+                        customReminder = customReminder.takeIf { it.isNotBlank() },
+                        sendReminder = sendReminder
                     )
                     onConfirm(active)
                 },
