@@ -6,10 +6,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
@@ -22,6 +24,11 @@ import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.ui.screens.AlarmActivity
 import com.omama.stationalarm.util.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArraySet
 
 class LocationService : Service() {
@@ -53,6 +60,47 @@ class LocationService : Service() {
     private var mediaPlayer: MediaPlayer? = null
     private var alarmRinging = false
     private val alertingStations = mutableSetOf<String>()
+    
+    private var serviceJob = kotlinx.coroutines.Job()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
+
+    private var lastLocationTimeMs = 0L
+    private val watchdogHandler = Handler(Looper.getMainLooper())
+    private val watchdogRunnable = object : Runnable {
+        override fun run() {
+            if (isPolling && trackedStations.isNotEmpty()) {
+                val timeSinceLastMs = System.currentTimeMillis() - lastLocationTimeMs
+                if (timeSinceLastMs > 10 * 60 * 1000L) {
+                    Logger.log("WATCHDOG_TRIGGERED", extra = "GPS stalled for ${timeSinceLastMs / 1000}s. Restarting.")
+                    showWatchdogNotification()
+                    restartLocationUpdates()
+                }
+            }
+            watchdogHandler.postDelayed(this, 5 * 60 * 1000L) // Check every 5 minutes
+        }
+    }
+
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                Log.d(TAG, "Audio focus lost completely")
+                stopAlarmSound()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                Log.d(TAG, "Audio focus lost transiently")
+                if (mediaPlayer?.isPlaying == true) {
+                    mediaPlayer?.pause()
+                }
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                Log.d(TAG, "Audio focus gained")
+                if (alarmRinging && mediaPlayer?.isPlaying == false) {
+                    mediaPlayer?.start()
+                }
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -61,6 +109,7 @@ class LocationService : Service() {
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
+                lastLocationTimeMs = System.currentTimeMillis()
                 // Check permission using the service instance
                 if (ActivityCompat.checkSelfPermission(
                         this@LocationService,
@@ -75,6 +124,55 @@ class LocationService : Service() {
                     processLocationUpdate(location)
                 }
             }
+        }
+
+        syncWithDatabase()
+    }
+
+    private fun syncWithDatabase() {
+        serviceScope.launch {
+            StationRepository.activeStationsFlow.collect { activeFromDb ->
+                val activeIds = activeFromDb.map { it.stationId }.toSet()
+                
+                // 1. Prune trackedStations
+                val toRemoveFromTracking = trackedStations.filter { it.stationId !in activeIds }
+                if (toRemoveFromTracking.isNotEmpty()) {
+                    trackedStations.removeAll(toRemoveFromTracking.toSet())
+                    Logger.log("SYNC_PRUNED_TRACKING", extra = "Removed ${toRemoveFromTracking.size} stations")
+                }
+
+                // 2. Prune alertingStations (crucial if user deletes while ringing)
+                val toRemoveFromAlerting = alertingStations.filter { it !in activeIds }
+                if (toRemoveFromAlerting.isNotEmpty()) {
+                    alertingStations.removeAll(toRemoveFromAlerting.toSet())
+                    Logger.log("SYNC_PRUNED_ALERTING", extra = "Cleaned up ${toRemoveFromAlerting.size} dead alerts")
+                }
+
+                // 3. Update Notification or Stop Service
+                if (trackedStations.isEmpty() && !alarmRinging) {
+                    Logger.log("SERVICE_NUMBED", extra = "Stopping as 0 stations remain active")
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                } else if (trackedStations.isNotEmpty()) {
+                    // Force refresh notification to clear any stale text
+                    updateForegroundNotification()
+                }
+            }
+        }
+    }
+
+    private fun updateForegroundNotification() {
+        val minDistance = trackedStations.minOfOrNull { it.currentDistanceKm ?: Double.MAX_VALUE }
+        if (minDistance != null && minDistance != Double.MAX_VALUE) {
+            val nearest = trackedStations.minByOrNull { it.currentDistanceKm ?: Double.MAX_VALUE }
+            val distStr = "%.1f".format(minDistance)
+            val notif = createNotification("Nearest station: ${nearest?.getStation()?.name ?: "..."} — $distStr km")
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(NOTIFICATION_ID, notif)
+        } else {
+            val notif = createNotification("Monitoring ${trackedStations.size} stations...")
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(NOTIFICATION_ID, notif)
         }
     }
 
@@ -98,8 +196,10 @@ class LocationService : Service() {
 
         startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."))
 
-        if (!isPolling) {
+        if (!isPolling && trackedStations.isNotEmpty()) {
             startLocationUpdates()
+            lastLocationTimeMs = System.currentTimeMillis()
+            watchdogHandler.postDelayed(watchdogRunnable, 5 * 60 * 1000L)
         }
 
         return START_STICKY
@@ -107,15 +207,18 @@ class LocationService : Service() {
 
     private fun addStationToTracking(stationId: String) {
         val station = StationRepository.getStationById(stationId) ?: return
-        val active = StationRepository.getAllActiveStations().find { it.stationId == stationId } ?: return
-        if (trackedStations.none { it.stationId == stationId }) {
-            trackedStations.add(active)
-            Logger.log("STATION_ADDED_TO_TRACKING", stationId)
-            getLastKnownLocation { loc ->
-                if (loc != null) {
-                    val distance = calculateDistance(loc.latitude, loc.longitude, station.lat, station.lon)
-                    active.currentDistanceKm = distance
-                    adjustPollingInterval()
+        CoroutineScope(Dispatchers.Main).launch {
+            val allActive = StationRepository.getAllActiveStationsList()
+            val active = allActive.find { it.stationId == stationId } ?: return@launch
+            if (trackedStations.none { it.stationId == stationId }) {
+                trackedStations.add(active)
+                Logger.log("STATION_ADDED_TO_TRACKING", stationId)
+                getLastKnownLocation { loc ->
+                    if (loc != null) {
+                        val distance = calculateDistance(loc.latitude, loc.longitude, station.lat, station.lon)
+                        active.currentDistanceKm = distance
+                        adjustPollingInterval()
+                    }
                 }
             }
         }
@@ -124,19 +227,21 @@ class LocationService : Service() {
     private fun initializeTrackingFromLastKnownLocation() {
         getLastKnownLocation { location ->
             if (location == null) return@getLastKnownLocation
-            val allActive = StationRepository.getAllActiveStations()
-            for (active in allActive) {
-                val station = active.getStation() ?: continue
-                val distance = calculateDistance(location.latitude, location.longitude, station.lat, station.lon)
-                if (distance <= active.radiusLevel5Km) {
-                    trackedStations.add(active)
-                    active.currentDistanceKm = distance
-                    Logger.log("STATION_ADDED_TO_TRACKING", active.stationId, "initial distance=$distance")
+            CoroutineScope(Dispatchers.Main).launch {
+                val allActive = StationRepository.getAllActiveStationsList()
+                for (active in allActive) {
+                    val station = active.getStation() ?: continue
+                    val distance = calculateDistance(location.latitude, location.longitude, station.lat, station.lon)
+                    if (distance <= active.radiusLevel5Km) {
+                        trackedStations.add(active)
+                        active.currentDistanceKm = distance
+                        Logger.log("STATION_ADDED_TO_TRACKING", active.stationId, "initial distance=$distance")
+                    }
                 }
-            }
-            if (trackedStations.isNotEmpty()) {
-                adjustPollingInterval()
-                if (!isPolling) startLocationUpdates()
+                if (trackedStations.isNotEmpty()) {
+                    adjustPollingInterval()
+                    if (!isPolling) startLocationUpdates()
+                }
             }
         }
     }
@@ -207,12 +312,7 @@ class LocationService : Service() {
 
         if (trackedStations.isEmpty() && !alarmRinging) {
             Logger.log("SERVICE_STOPPED", extra = "No stations tracked")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-            } else {
-                @Suppress("DEPRECATION")
-                stopForeground(true)
-            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
     }
@@ -221,10 +321,13 @@ class LocationService : Service() {
         if (trackedStations.isEmpty()) return
 
         val minDistance = trackedStations.minOfOrNull { it.currentDistanceKm ?: Double.MAX_VALUE } ?: return
+        
         val newInterval = when {
-            minDistance <= (trackedStations.minOf { it.radiusLevel2Km }) -> 30_000L
-            minDistance <= (trackedStations.minOf { it.radiusLevel4Km }) -> 120_000L
-            else -> 300_000L
+            minDistance <= 5.0 -> 30_000L      // <= 5 km -> 30s
+            minDistance <= 15.0 -> 60_000L     // 5 - 15 km -> 60s
+            minDistance <= 30.0 -> 120_000L    // 15 - 30 km -> 2m
+            minDistance <= 60.0 -> 300_000L    // 30 - 60 km -> 5m
+            else -> 600_000L                   // > 60 km -> 10m
         }
 
         if (newInterval != currentPollingIntervalMs) {
@@ -235,6 +338,7 @@ class LocationService : Service() {
     }
 
     private fun startLocationUpdates() {
+        if (trackedStations.isEmpty()) return
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return
         }
@@ -257,27 +361,36 @@ class LocationService : Service() {
         if (isPolling) {
             fusedLocationClient.removeLocationUpdates(locationCallback)
             isPolling = false
+            watchdogHandler.removeCallbacks(watchdogRunnable)
         }
     }
 
     private fun triggerAlert(active: ActiveStation) {
         if (alertingStations.contains(active.stationId)) return
-        alertingStations.add(active.stationId)
+        
+        // Final sanity check: is it still in the DB?
+        serviceScope.launch {
+            if (!StationRepository.isActive(active.stationId)) {
+                Logger.log("ALERT_ABORTED", active.stationId, "Station was deleted just before trigger")
+                return@launch
+            }
 
-        Logger.log("ALERT_TRIGGERED", active.stationId, "distance=${active.currentDistanceKm}")
+            alertingStations.add(active.stationId)
+            Logger.log("ALERT_TRIGGERED", active.stationId, "distance=${active.currentDistanceKm}")
 
-        acquireWakeLock()
+            acquireWakeLock()
 
-        if (active.sound) {
-            playAlarmSound()
-        }
+            if (active.sound) {
+                playAlarmSound()
+            }
 
-        showAlertNotification(active)
-        trackedStations.remove(active)
-        StationRepository.removeActiveStation(active.stationId)
+            showAlertNotification(active)
+            trackedStations.remove(active)
+            StationRepository.removeActiveStation(active.stationId)
 
-        if (trackedStations.isEmpty()) {
-            stopLocationUpdates()
+            if (trackedStations.isEmpty()) {
+                stopLocationUpdates()
+            }
         }
     }
 
@@ -300,6 +413,35 @@ class LocationService : Service() {
 
     private fun playAlarmSound() {
         if (alarmRinging) return
+        
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+            
+        val focusResult = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setAudioAttributes(audioAttributes)
+                .setAcceptsDelayedFocusGain(true)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build()
+            audioFocusRequest = request
+            audioManager.requestAudioFocus(request)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_ALARM,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+            )
+        }
+
+        if (focusResult != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            Logger.log("ERROR", extra = "Audio focus denied for alarm")
+            // Even if denied, we can proceed to show heads up UI, but sound may conflict.
+        }
+
         alarmRinging = true
         try {
             val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
@@ -307,13 +449,8 @@ class LocationService : Service() {
             if (alarmUri != null) {
                 mediaPlayer = MediaPlayer.create(this, alarmUri).apply {
                     isLooping = true
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
-                    val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+                    setAudioAttributes(audioAttributes)
+                    setVolume(1.0f, 1.0f)
                     val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
                     audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
                     start()
@@ -330,6 +467,14 @@ class LocationService : Service() {
             mediaPlayer?.release()
             mediaPlayer = null
             alarmRinging = false
+            
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.abandonAudioFocus(audioFocusChangeListener)
+            }
         }
     }
 
@@ -338,17 +483,16 @@ class LocationService : Service() {
         stopAlarmSound()
         releaseWakeLock()
         
+        // Remove from memory immediately so numbing logic triggers
+        trackedStations.removeAll { it.stationId == stationId }
+        alertingStations.remove(stationId)
+        
         StationRepository.removeActiveStation(stationId)
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(stationId.hashCode())
 
         if (trackedStations.isEmpty()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-            } else {
-                @Suppress("DEPRECATION")
-                stopForeground(true)
-            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
     }
@@ -411,6 +555,24 @@ class LocationService : Service() {
         }
     }
 
+    private fun showWatchdogNotification() {
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Location Stalled")
+            .setContentText("GPS signal lost. Tap to open app and restart tracking.")
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(9999, builder.build())
+    }
+
     private fun createNotification(text: String): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -436,6 +598,7 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
+        serviceJob.cancel()
         stopLocationUpdates()
         stopAlarmSound()
         releaseWakeLock()

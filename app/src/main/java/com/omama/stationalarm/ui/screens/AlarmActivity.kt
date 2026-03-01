@@ -16,7 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,16 +55,26 @@ class AlarmActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
             )
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         stationId = intent.getStringExtra("stationId")
-        val activeStation = StationRepository.getAllActiveStations().find { it.stationId == stationId }
-        val station = activeStation?.getStation()
 
         setContent {
+            var activeStation by remember { mutableStateOf<com.omama.stationalarm.data.ActiveStation?>(null) }
+            var station by remember { mutableStateOf<com.omama.stationalarm.data.Station?>(null) }
+
+            LaunchedEffect(stationId) {
+                if (stationId != null) {
+                    val allActive = StationRepository.getAllActiveStationsList()
+                    activeStation = allActive.find { it.stationId == stationId }
+                    station = activeStation?.getStation()
+                }
+            }
+
             StationAlarmTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -72,7 +82,7 @@ class AlarmActivity : ComponentActivity() {
                 ) {
                     AlarmScreen(
                         stationName = station?.name ?: stationId ?: "Destination",
-                        customReminder = activeStation?.customReminder.takeIf { activeStation?.sendReminder == true },
+                        customReminder = if (activeStation?.sendReminder == true) activeStation?.customReminder else null,
                         onDismiss = { dismissAlarm() }
                     )
                 }

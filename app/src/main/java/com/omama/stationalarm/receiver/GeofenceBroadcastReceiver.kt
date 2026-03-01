@@ -10,6 +10,9 @@ import com.google.android.gms.location.GeofencingEvent
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.service.LocationService
 import com.omama.stationalarm.util.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
@@ -38,7 +41,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
 
         // Process in background thread
-        Thread {
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 for (geofence in triggeringGeofences) {
                     val requestId = geofence.requestId ?: continue
@@ -74,6 +77,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             } finally {
                 pendingResult.finish()
             }
-        }.start()
+        }
     }
 }
