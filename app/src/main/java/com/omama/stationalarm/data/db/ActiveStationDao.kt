@@ -22,4 +22,10 @@ interface ActiveStationDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM active_stations WHERE stationId = :stationId)")
     suspend fun isActive(stationId: String): Boolean
+
+    @Query("UPDATE active_stations SET status = :status WHERE stationId = :stationId")
+    suspend fun updateStatus(stationId: String, status: String)
+
+    @Query("SELECT * FROM active_stations WHERE status = :status")
+    suspend fun getByStatus(status: String): List<ActiveStationEntity>
 }

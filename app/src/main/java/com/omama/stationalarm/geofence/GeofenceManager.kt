@@ -42,7 +42,8 @@ object GeofenceManager {
         radiusLevel4M: Float,
         radiusLevel3M: Float,
         radiusLevel2M: Float,
-        radiusLevel1M: Float
+        radiusLevel1M: Float,
+        alertDistanceM: Float
     ) {
         if (ActivityCompat.checkSelfPermission(
                 context,
@@ -62,12 +63,16 @@ object GeofenceManager {
             return
         }
 
+        // Clamp alert geofence radius to Android's minimum of 100m
+        val clampedAlertM = maxOf(alertDistanceM, 100f)
+
         val geofences = listOf(
             buildGeofence(stationId, "level5", station.lat, station.lon, radiusLevel5M),
             buildGeofence(stationId, "level4", station.lat, station.lon, radiusLevel4M),
             buildGeofence(stationId, "level3", station.lat, station.lon, radiusLevel3M),
             buildGeofence(stationId, "level2", station.lat, station.lon, radiusLevel2M),
-            buildGeofence(stationId, "level1", station.lat, station.lon, radiusLevel1M)
+            buildGeofence(stationId, "level1", station.lat, station.lon, radiusLevel1M),
+            buildGeofence(stationId, "alert", station.lat, station.lon, clampedAlertM)
         )
 
         val request = GeofencingRequest.Builder()
@@ -79,7 +84,7 @@ object GeofenceManager {
             .addGeofences(request, getGeofencePendingIntent(context))
             .addOnSuccessListener {
                 Log.d(TAG, "Geofences added for $stationId")
-                Logger.log("GEOFENCE_REGISTERED", stationId, "radii=[$radiusLevel5M, $radiusLevel4M, $radiusLevel3M, $radiusLevel2M, $radiusLevel1M]")
+                Logger.log("GEOFENCE_REGISTERED", stationId, "radii=[$radiusLevel5M, $radiusLevel4M, $radiusLevel3M, $radiusLevel2M, $radiusLevel1M, alert=$clampedAlertM]")
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to add geofences for $stationId", e)
@@ -96,7 +101,8 @@ object GeofenceManager {
             "geofence_${stationId}_level4",
             "geofence_${stationId}_level3",
             "geofence_${stationId}_level2",
-            "geofence_${stationId}_level1"
+            "geofence_${stationId}_level1",
+            "geofence_${stationId}_alert"
         )
         geofencingClient(context)
             .removeGeofences(requestIds)

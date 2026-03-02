@@ -63,9 +63,17 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     Log.d(TAG, "Geofence triggered: $stationId, layer=$layer")
                     Logger.log("GEOFENCE_TRIGGERED", stationId, layer)
 
-                    // Start LocationService with the station info
+                    if (layer == "alert") {
+                        StationRepository.markAlerting(stationId)
+                    }
+
+                    // Start LocationService to ensure it reacts to the DB update
                     val serviceIntent = Intent(context, LocationService::class.java).apply {
-                        action = LocationService.ACTION_GEOFENCE_TRIGGERED
+                        action = if (layer == "alert") {
+                            LocationService.ACTION_ALERT_GEOFENCE_TRIGGERED
+                        } else {
+                            LocationService.ACTION_GEOFENCE_TRIGGERED
+                        }
                         putExtra("stationId", stationId)
                         putExtra("layer", layer)
                     }

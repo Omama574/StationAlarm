@@ -8,7 +8,8 @@ data class ActiveStation(
     val sound: Boolean,
     var currentDistanceKm: Double? = null,
     val customReminder: String? = null,
-    val sendReminder: Boolean = false
+    val sendReminder: Boolean = false,
+    val status: String = "MONITORING"
 ) {
     val radiusLevel5Km: Double get() = alertDistanceKm + 60
     val radiusLevel4Km: Double get() = alertDistanceKm + 40

@@ -191,6 +191,9 @@ fun StationCard(station: ActiveStation, onRemove: () -> Unit) {
     val scale by animateFloatAsState(targetValue = if (isPressed) 0.95f else 1f, animationSpec = tween(150))
     val elevation by animateDpAsState(targetValue = if (isPressed) 2.dp else 8.dp, animationSpec = tween(150))
 
+    val isAlerting = station.status == "ALERTING"
+    val containerColor = if (isAlerting) Color(0xFFFFEBEE) else MaterialTheme.colorScheme.surface
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -198,7 +201,8 @@ fun StationCard(station: ActiveStation, onRemove: () -> Unit) {
             .shadow(elevation, RoundedCornerShape(16.dp))
             .clickable(interactionSource = interactionSource, indication = null) { },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = if (isAlerting) androidx.compose.foundation.BorderStroke(2.dp, Color.Red) else null
     ) {
         Row(
             modifier = Modifier
@@ -208,24 +212,43 @@ fun StationCard(station: ActiveStation, onRemove: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = name,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (isAlerting) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color.Red,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "RINGING",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Alert at ${station.alertDistanceKm} km • Distance: $distanceText",
                     fontSize = 14.sp,
-                    color = Color.Gray
+                    color = if (isAlerting) Color.Black else Color.Gray,
+                    fontWeight = if (isAlerting) FontWeight.Medium else FontWeight.Normal
                 )
                 if (station.sendReminder && !station.customReminder.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "Reminder: ${station.customReminder}",
                         fontSize = 13.sp,
-                        color = Color.DarkGray,
+                        color = if (isAlerting) Color.Black else Color.DarkGray,
                         fontWeight = FontWeight.Medium
                     )
                 }

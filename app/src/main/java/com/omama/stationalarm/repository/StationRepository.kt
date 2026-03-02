@@ -14,6 +14,9 @@ import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -24,6 +27,9 @@ object StationRepository {
 
     lateinit var activeStationsLiveData: LiveData<List<ActiveStation>>
     lateinit var activeStationsFlow: Flow<List<ActiveStation>>
+
+    private val _distancesFlow = MutableStateFlow<Map<String, Double>>(emptyMap())
+    val distancesFlow: StateFlow<Map<String, Double>> = _distancesFlow.asStateFlow()
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
@@ -43,7 +49,7 @@ object StationRepository {
     fun addActiveStation(activeStation: ActiveStation) {
         CoroutineScope(Dispatchers.IO).launch {
             database.activeStationDao().insert(activeStation.toEntity())
-            
+
             GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = activeStation.stationId,
@@ -51,7 +57,8 @@ object StationRepository {
                 radiusLevel4M = (activeStation.radiusLevel4Km * 1000).toFloat(),
                 radiusLevel3M = (activeStation.radiusLevel3Km * 1000).toFloat(),
                 radiusLevel2M = (activeStation.radiusLevel2Km * 1000).toFloat(),
-                radiusLevel1M = (activeStation.radiusLevel1Km * 1000).toFloat()
+                radiusLevel1M = (activeStation.radiusLevel1Km * 1000).toFloat(),
+                alertDistanceM = (activeStation.alertDistanceKm * 1000).toFloat()
             )
         }
     }
@@ -64,9 +71,27 @@ object StationRepository {
         }
     }
 
+    /** Transition a station to ALERTING status. Called when device enters alert radius. */
+    fun markAlerting(stationId: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            database.activeStationDao().updateStatus(stationId, "ALERTING")
+            Logger.log("STATUS_CHANGE", stationId, "ALERTING")
+        }
+    }
+
+    /** Transition a station to DISMISSED. Called by user pressing Dismiss. Deletes the row. */
+    fun dismissStation(stationId: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            database.activeStationDao().delete(stationId)
+            GeofenceManager.removeGeofencesForStation(appContext, stationId)
+            Logger.log("STATION_DISMISSED_AND_DELETED", stationId)
+        }
+    }
+
     fun updateStationDistance(stationId: String, distanceKm: Double) {
-        // Not persisting distance to DB to save I/O thrashing.
-        // It resides in memory in tracking loop, not DB.
+        val currentDistances = _distancesFlow.value.toMutableMap()
+        currentDistances[stationId] = distanceKm
+        _distancesFlow.value = currentDistances
     }
 
     suspend fun getAllActiveStationsList(): List<ActiveStation> {
@@ -88,7 +113,8 @@ object StationRepository {
                     radiusLevel4M = (active.radiusLevel4Km * 1000).toFloat(),
                     radiusLevel3M = (active.radiusLevel3Km * 1000).toFloat(),
                     radiusLevel2M = (active.radiusLevel2Km * 1000).toFloat(),
-                    radiusLevel1M = (active.radiusLevel1Km * 1000).toFloat()
+                    radiusLevel1M = (active.radiusLevel1Km * 1000).toFloat(),
+                    alertDistanceM = (active.alertDistanceKm * 1000).toFloat()
                 )
             }
         }

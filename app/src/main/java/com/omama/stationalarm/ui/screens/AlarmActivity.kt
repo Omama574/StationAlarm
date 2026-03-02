@@ -91,9 +91,15 @@ class AlarmActivity : ComponentActivity() {
     }
 
     private fun dismissAlarm() {
+        val id = stationId ?: return
+        
+        // Direct DB update (Source of Truth)
+        StationRepository.dismissStation(id)
+        
+        // Also inform service immediately for sound/notification cleanup
         val dismissIntent = Intent(this, LocationService::class.java).apply {
             action = LocationService.ACTION_DISMISS_ALARM
-            putExtra("stationId", stationId)
+            putExtra("stationId", id)
         }
         startService(dismissIntent)
         finish()

@@ -3,6 +3,7 @@ package com.omama.stationalarm.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import com.omama.stationalarm.StationAlarmApplication
 import com.omama.stationalarm.data.ActiveStation
@@ -16,7 +17,12 @@ class StationViewModel(application: Application) : AndroidViewModel(application)
     // Optional cast to your custom application if needed
     private val app = application as StationAlarmApplication
 
-    val activeStations: LiveData<List<ActiveStation>> = StationRepository.activeStationsLiveData
+    val activeStations: LiveData<List<ActiveStation>> = kotlinx.coroutines.flow.combine(
+        StationRepository.activeStationsFlow,
+        StationRepository.distancesFlow
+    ) { stations, distances ->
+        stations.map { it.copy(currentDistanceKm = distances[it.stationId]) }
+    }.asLiveData(Dispatchers.IO)
 
     fun searchStations(query: String): List<Station> {
         return StationRepository.searchStations(query)

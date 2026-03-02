@@ -12,7 +12,8 @@ data class ActiveStationEntity(
     val vibrate: Boolean,
     val sound: Boolean,
     val customReminder: String?,
-    val sendReminder: Boolean
+    val sendReminder: Boolean,
+    val status: String = "MONITORING"
 )
 
 fun ActiveStationEntity.toDomainModel(): ActiveStation {
@@ -22,9 +23,10 @@ fun ActiveStationEntity.toDomainModel(): ActiveStation {
         notify = notify,
         vibrate = vibrate,
         sound = sound,
-        currentDistanceKm = null, // Will be calculated actively
+        currentDistanceKm = null,
         customReminder = customReminder,
-        sendReminder = sendReminder
+        sendReminder = sendReminder,
+        status = status
     )
 }
 
@@ -36,6 +38,7 @@ fun ActiveStation.toEntity(): ActiveStationEntity {
         vibrate = vibrate,
         sound = sound,
         customReminder = customReminder,
-        sendReminder = sendReminder
+        sendReminder = sendReminder,
+        status = status
     )
 }
