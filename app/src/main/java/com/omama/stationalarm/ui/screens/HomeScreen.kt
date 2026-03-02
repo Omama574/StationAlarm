@@ -50,7 +50,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
         ) {
             Row(
@@ -63,16 +63,16 @@ fun HomeScreen(
                 Text(
                     text = "My Stations",
                     fontSize = 28.sp,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onBackground,
                     style = MaterialTheme.typography.headlineMedium
                 )
                 IconButton(
                     onClick = onShareLogs,
                     modifier = Modifier
                         .shadow(4.dp, RoundedCornerShape(12.dp))
-                        .background(Color.Black, RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.onBackground, RoundedCornerShape(12.dp))
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = "Share Logs", tint = Color.White)
+                    Icon(Icons.Default.Share, contentDescription = "Share Logs", tint = MaterialTheme.colorScheme.background)
                 }
             }
 
@@ -87,10 +87,12 @@ fun HomeScreen(
                     .animateContentSize(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Black,
+                    focusedBorderColor = MaterialTheme.colorScheme.onBackground,
                     unfocusedBorderColor = Color.Gray,
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White
+                    focusedContainerColor = MaterialTheme.colorScheme.background,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.background,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground
                 ),
                 trailingIcon = {
                     if (query.isNotEmpty()) {
@@ -169,10 +171,10 @@ fun StationSearchItem(station: Station, onClick: () -> Unit) {
             .shadow(elevation, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interactionSource, indication = null) { onClick() },
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = station.name, fontSize = 16.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+            Text(text = station.name, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
             Text(text = station.id, fontSize = 14.sp, color = Color.Gray)
         }
     }
@@ -196,7 +198,7 @@ fun StationCard(station: ActiveStation, onRemove: () -> Unit) {
             .shadow(elevation, RoundedCornerShape(16.dp))
             .clickable(interactionSource = interactionSource, indication = null) { },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
@@ -209,7 +211,7 @@ fun StationCard(station: ActiveStation, onRemove: () -> Unit) {
                 Text(
                     text = name,
                     fontSize = 18.sp,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -232,11 +234,11 @@ fun StationCard(station: ActiveStation, onRemove: () -> Unit) {
                 onClick = onRemove,
                 modifier = Modifier
                     .shadow(4.dp, RoundedCornerShape(8.dp))
-                    .background(Color.Black.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
             ) {
                 Text(
                     text = "✕",
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )

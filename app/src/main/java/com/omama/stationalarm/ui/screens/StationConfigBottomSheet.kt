@@ -38,8 +38,8 @@ fun StationConfigBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        containerColor = Color.White,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Black) }
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.onSurface) }
     ) {
         Column(
             modifier = Modifier
@@ -50,7 +50,7 @@ fun StationConfigBottomSheet(
             Text(
                 text = station.name,
                 fontSize = 22.sp,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
             Text(
@@ -63,7 +63,7 @@ fun StationConfigBottomSheet(
             Text(
                 text = "Alert at ${(alertDistance * 10).roundToInt() / 10.0} km",
                 fontSize = 16.sp,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             Slider(
@@ -72,9 +72,9 @@ fun StationConfigBottomSheet(
                 valueRange = 3f..10f,
                 steps = 13,
                 colors = SliderDefaults.colors(
-                    thumbColor = Color.Black,
-                    activeTrackColor = Color.Black,
-                    inactiveTrackColor = Color.LightGray
+                    thumbColor = MaterialTheme.colorScheme.onSurface,
+                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveTrackColor = Color.Gray
                 ),
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
@@ -88,10 +88,10 @@ fun StationConfigBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Black,
+                    focusedBorderColor = MaterialTheme.colorScheme.onSurface,
                     unfocusedBorderColor = Color.Gray,
-                    focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
 
@@ -102,15 +102,15 @@ fun StationConfigBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "Show Reminder", color = Color.Black, fontSize = 16.sp)
+                Text(text = "Show Reminder", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
                 Switch(
                     checked = sendReminder,
                     onCheckedChange = { sendReminder = it },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.Black,
-                        checkedTrackColor = Color.Black.copy(alpha = 0.5f),
+                        checkedThumbColor = MaterialTheme.colorScheme.surface,
+                        checkedTrackColor = MaterialTheme.colorScheme.onSurface,
                         uncheckedThumbColor = Color.Gray,
-                        uncheckedTrackColor = Color.LightGray
+                        uncheckedTrackColor = Color.DarkGray
                     )
                 )
             }
@@ -155,8 +155,8 @@ fun StationConfigBottomSheet(
                     onConfirm(active)
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Black,
-                    contentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.onSurface,
+                    contentColor = MaterialTheme.colorScheme.surface
                 ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
@@ -183,16 +183,16 @@ fun NotificationToggle(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.Black,
-                checkedTrackColor = Color.Black.copy(alpha = 0.5f),
+                checkedThumbColor = MaterialTheme.colorScheme.surface,
+                checkedTrackColor = MaterialTheme.colorScheme.onSurface,
                 uncheckedThumbColor = Color.Gray,
-                uncheckedTrackColor = Color.LightGray
+                uncheckedTrackColor = Color.DarkGray
             )
         )
         Text(
             text = label,
             fontSize = 12.sp,
-            color = if (checked) Color.Black else Color.Gray,
+            color = if (checked) MaterialTheme.colorScheme.onSurface else Color.Gray,
             modifier = Modifier.padding(top = 4.dp)
         )
     }
