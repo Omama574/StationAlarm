@@ -66,11 +66,12 @@ class LocationService : Service() {
     private lateinit var locationCallback: LocationCallback
 
     private var isPolling = false
-    private var currentPollingIntervalMs = 300_000L
+    private var currentPollingIntervalMs = 10_000L // Start fast for initial lock
 
     private var mediaPlayer: MediaPlayer? = null
     private var alarmRinging = false
     private var wakeLock: PowerManager.WakeLock? = null
+    private var gpsWakeLock: PowerManager.WakeLock? = null
 
     private var serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
@@ -149,7 +150,8 @@ class LocationService : Service() {
                 val stationId = intent.getStringExtra("stationId") ?: return START_STICKY
                 val layer = intent.getStringExtra("layer")
                 Logger.log("SERVICE_GEOFENCE_RECEIVED", stationId, layer)
-                // Wake-up layer: just ensure tracking is running (sync handles it)
+                // Wake-up: immediately force a location update to react to proximity change
+                restartLocationUpdates()
             }
             ACTION_ALERT_GEOFENCE_TRIGGERED -> {
                 val stationId = intent.getStringExtra("stationId") ?: return START_STICKY
@@ -182,6 +184,7 @@ class LocationService : Service() {
         stopLocationUpdates()
         stopAlarmSound()
         releaseWakeLock()
+        releaseGpsWakeLock()
         serviceJob.cancel()
         watchdogHandler.removeCallbacks(watchdogRunnable)
         super.onDestroy()
@@ -475,10 +478,10 @@ class LocationService : Service() {
 
         val newInterval = when {
             minDistance <= 5.0 -> 10_000L       // <= 5 km -> 10s (Fast-track)
-            minDistance <= 15.0 -> 60_000L     // 5 - 15 km -> 60s
-            minDistance <= 30.0 -> 120_000L    // 15 - 30 km -> 2m
-            minDistance <= 60.0 -> 300_000L    // 30 - 60 km -> 5m
-            else -> 600_000L                   // > 60 km -> 10m
+            minDistance <= 15.0 -> 30_000L      // 5 - 15 km -> 30s (was 60s)
+            minDistance <= 30.0 -> 60_000L      // 15 - 30 km -> 1m (was 2m)
+            minDistance <= 60.0 -> 300_000L     // 30 - 60 km -> 2m (was 5m)
+            else -> 600_000L                   // > 60 km -> 3m (was 10m)
         }
 
         if (newInterval != currentPollingIntervalMs) {
@@ -499,6 +502,7 @@ class LocationService : Service() {
         locationRequest = request
         fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
         isPolling = true
+        acquireGpsWakeLock()
         Logger.log("GPS_STARTED", extra = "interval=$currentPollingIntervalMs")
     }
 
@@ -513,6 +517,7 @@ class LocationService : Service() {
             fusedLocationClient.removeLocationUpdates(locationCallback)
             isPolling = false
             watchdogHandler.removeCallbacks(watchdogRunnable)
+            releaseGpsWakeLock()
             Logger.log("GPS_STOPPED")
         }
     }
@@ -613,6 +618,33 @@ class LocationService : Service() {
     private fun releaseWakeLock() {
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
+        }
+    }
+
+    /**
+     * Prevents the CPU from entering sleep states (Light Doze) between GPS polls.
+     * Essential for high-speed travel (trains) where 5-10 minutes of "napping"
+     * would result in missing the destination by 10-15 kilometers.
+     */
+    private fun acquireGpsWakeLock() {
+        if (gpsWakeLock == null) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            gpsWakeLock = powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "StationAlarm::GpsWakeLock"
+            )
+            gpsWakeLock?.setReferenceCounted(false)
+        }
+        if (gpsWakeLock?.isHeld == false) {
+            gpsWakeLock?.acquire()
+            Logger.log("WAKELOCK_ACQUIRED", extra = "GpsWakeLock")
+        }
+    }
+
+    private fun releaseGpsWakeLock() {
+        if (gpsWakeLock?.isHeld == true) {
+            gpsWakeLock?.release()
+            Logger.log("WAKELOCK_RELEASED", extra = "GpsWakeLock")
         }
     }
 

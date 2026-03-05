@@ -1,7 +1,6 @@
 package com.omama.stationalarm.repository
 
 import android.content.Context
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
@@ -25,7 +24,6 @@ object StationRepository {
     private lateinit var appContext: Context
     private lateinit var database: StationDatabase
 
-    lateinit var activeStationsLiveData: LiveData<List<ActiveStation>>
     lateinit var activeStationsFlow: Flow<List<ActiveStation>>
 
     private val _distancesFlow = MutableStateFlow<Map<String, Double>>(emptyMap())
@@ -39,7 +37,6 @@ object StationRepository {
         activeStationsFlow = database.activeStationDao().getAllActiveStations().map { entities ->
             entities.map { it.toDomainModel() }
         }
-        activeStationsLiveData = activeStationsFlow.asLiveData(Dispatchers.IO)
     }
 
     fun getStationById(id: String): Station? = StationData.getStationById(id)

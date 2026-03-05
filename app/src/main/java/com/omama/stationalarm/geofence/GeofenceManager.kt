@@ -143,6 +143,7 @@ object GeofenceManager {
             .setRequestId("geofence_${stationId}_$layer")
             .setCircularRegion(lat, lon, radiusM)
             .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
+            .setNotificationResponsiveness(0) // Minimize latency (0ms is as fast as possible)
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
             .build()
     }
