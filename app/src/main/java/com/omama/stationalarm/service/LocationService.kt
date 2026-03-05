@@ -82,13 +82,15 @@ class LocationService : Service() {
         override fun run() {
             if (isPolling && monitoringStations.isNotEmpty()) {
                 val timeSinceLastMs = System.currentTimeMillis() - lastLocationTimeMs
-                if (timeSinceLastMs > 10 * 60 * 1000L) {
+                val timeoutMs = maxOf(60_000L, currentPollingIntervalMs * 3)
+                if (timeSinceLastMs > timeoutMs) {
                     Logger.log("WATCHDOG_TRIGGERED", extra = "GPS stalled for ${timeSinceLastMs / 1000}s. Restarting.")
                     showWatchdogNotification()
                     restartLocationUpdates()
+                    lastLocationTimeMs = System.currentTimeMillis()
                 }
             }
-            watchdogHandler.postDelayed(this, 5 * 60 * 1000L)
+            watchdogHandler.postDelayed(this, 30_000L)
         }
     }
 
@@ -174,7 +176,7 @@ class LocationService : Service() {
         if (!isPolling && monitoringStations.isNotEmpty()) {
             startLocationUpdates()
             lastLocationTimeMs = System.currentTimeMillis()
-            watchdogHandler.postDelayed(watchdogRunnable, 5 * 60 * 1000L)
+            watchdogHandler.postDelayed(watchdogRunnable, 30_000L)
         }
 
         return START_STICKY
@@ -214,7 +216,7 @@ class LocationService : Service() {
                 // Remove stations no longer MONITORING
                 val removedFromMonitoring = monitoringStations.filter { it.stationId !in dbMonitoringIds }
                 if (removedFromMonitoring.isNotEmpty()) {
-                    monitoringStations.removeAll(removedFromMonitoring.toSet())
+                    monitoringStations.removeAll { it.stationId !in dbMonitoringIds }
                     Logger.log("SYNC_MONITORING_PRUNED", extra = "Removed ${removedFromMonitoring.size}")
                 }
                 // Add new MONITORING stations
@@ -257,7 +259,7 @@ class LocationService : Service() {
                     if (!isPolling) {
                         startLocationUpdates()
                         lastLocationTimeMs = System.currentTimeMillis()
-                        watchdogHandler.postDelayed(watchdogRunnable, 5 * 60 * 1000L)
+                        watchdogHandler.postDelayed(watchdogRunnable, 30_000L)
                     }
                     // Immediate location check for newly added stations
                     if (newMonitoring.isNotEmpty()) {
@@ -569,13 +571,17 @@ class LocationService : Service() {
             val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             if (alarmUri != null) {
-                mediaPlayer = MediaPlayer.create(this, alarmUri).apply {
-                    isLooping = true
+                mediaPlayer = MediaPlayer().apply {
+                    setDataSource(this@LocationService, alarmUri)
                     setAudioAttributes(audioAttributes)
-                    setVolume(1.0f, 1.0f)
-                    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-                    audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
-                    start()
+                    isLooping = true
+                    setOnPreparedListener {
+                        setVolume(1.0f, 1.0f)
+                        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+                        audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
+                        start()
+                    }
+                    prepareAsync()
                 }
             }
         } catch (e: Exception) {
