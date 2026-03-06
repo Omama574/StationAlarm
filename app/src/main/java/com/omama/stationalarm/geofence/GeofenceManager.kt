@@ -56,7 +56,7 @@ object GeofenceManager {
         }
 
         // Get station coordinates from repository
-        val station = com.omama.stationalarm.repository.StationRepository.getStationById(stationId)
+        val station = com.omama.stationalarm.repository.StationRepository.getStationByIdSync(stationId)
         if (station == null) {
             Log.e(TAG, "Station not found: $stationId")
             Logger.log("GEOFENCE_REG_FAILED", stationId, "Station not found")

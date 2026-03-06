@@ -3,6 +3,7 @@ package com.omama.stationalarm.repository
 import android.content.Context
 import androidx.lifecycle.asLiveData
 import com.omama.stationalarm.data.ActiveStation
+import com.omama.stationalarm.data.SavedPlace
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.data.db.StationDatabase
@@ -26,6 +27,9 @@ object StationRepository {
 
     lateinit var activeStationsFlow: Flow<List<ActiveStation>>
 
+    /** Exposes all saved places as a real-time flow for the Map tab UI. */
+    lateinit var savedPlacesFlow: Flow<List<SavedPlace>>
+
     private val _distancesFlow = MutableStateFlow<Map<String, Double>>(emptyMap())
     val distancesFlow: StateFlow<Map<String, Double>> = _distancesFlow.asStateFlow()
 
@@ -37,11 +41,53 @@ object StationRepository {
         activeStationsFlow = database.activeStationDao().getAllActiveStations().map { entities ->
             entities.map { it.toDomainModel() }
         }
+
+        savedPlacesFlow = database.savedPlaceDao().getAllSavedPlaces().map { entities ->
+            entities.map { it.toDomainModel() }
+        }
     }
 
-    fun getStationById(id: String): Station? = StationData.getStationById(id)
+    /**
+     * Resolves a station by ID. First checks the hardcoded railway list,
+     * then falls back to user-saved places (for custom geofence locations).
+     * Called from LocationService background threads — must be suspend.
+     */
+    suspend fun getStationById(id: String): Station? {
+        return StationData.getStationById(id)
+            ?: database.savedPlaceDao().getById(id)?.toDomainModel()?.toStation()
+    }
+
+    /** Synchronous variant for non-suspend callers that already know the type. */
+    fun getStationByIdSync(id: String): Station? = StationData.getStationById(id)
+
     fun searchStations(query: String): List<Station> = StationData.searchStations(query)
     fun getAllStations(): List<Station> = StationData.getAllStations()
+
+    // ── Saved Places CRUD ──────────────────────────────────────────────────
+
+    fun saveFavoritePlace(place: SavedPlace) {
+        CoroutineScope(Dispatchers.IO).launch {
+            database.savedPlaceDao().insert(place.toEntity())
+            Logger.log("SAVED_PLACE_ADDED", extra = "id=${place.id} name=${place.name}")
+        }
+    }
+
+    fun deleteFavoritePlace(placeId: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            database.savedPlaceDao().delete(placeId)
+            Logger.log("SAVED_PLACE_DELETED", extra = "id=$placeId")
+        }
+    }
+
+    fun updateFavoritePlace(placeId: String, name: String, radiusKm: Double, notes: String?) {
+        CoroutineScope(Dispatchers.IO).launch {
+            database.savedPlaceDao().update(placeId, name, radiusKm, notes)
+        }
+    }
+
+    suspend fun getAllSavedPlacesList(): List<SavedPlace> {
+        return database.savedPlaceDao().getAllSavedPlacesList().map { it.toDomainModel() }
+    }
 
     fun addActiveStation(activeStation: ActiveStation) {
         CoroutineScope(Dispatchers.IO).launch {

@@ -68,4 +68,19 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
+
+    // ── Map Search Feature ───────────────────────────────────────────────
+    // OSM tiles (unlimited, free)
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
+
+    // Retrofit + Gson for Mapbox Geocoding v6
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Compose Foundation for HorizontalPager (tab navigation)
+    implementation("androidx.compose.foundation:foundation:1.6.0")
+
+    // Coroutines (explicit — needed for debounce in search)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }

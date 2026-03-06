@@ -40,5 +40,5 @@ class StationViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun getStationById(id: String): Station? = StationRepository.getStationById(id)
+    fun getStationById(id: String): Station? = StationRepository.getStationByIdSync(id)
 }

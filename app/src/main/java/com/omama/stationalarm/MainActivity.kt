@@ -14,6 +14,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,10 +36,12 @@ import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.service.LocationService
 import com.omama.stationalarm.ui.screens.HomeScreen
+import com.omama.stationalarm.ui.screens.MapSearchScreen
 import com.omama.stationalarm.ui.screens.StationConfigBottomSheet
 import com.omama.stationalarm.ui.theme.StationAlarmTheme
 import com.omama.stationalarm.ui.viewmodel.StationViewModel
 import com.omama.stationalarm.util.Logger
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -215,40 +219,73 @@ fun PermissionRationaleDialog(onOpenSettings: () -> Unit) {
 
 @Composable
 fun AppNavigation(isGpsEnabled: () -> Boolean) {
-    var currentScreen by remember { mutableStateOf(Screen.HOME) }
     var selectedStation by remember { mutableStateOf<Station?>(null) }
     var showGpsDialog by remember { mutableStateOf(false) }
     val viewModel: StationViewModel = viewModel()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
-    when (currentScreen) {
-        Screen.HOME -> HomeScreen(
-            onStationSelected = { station ->
-                if (isGpsEnabled()) {
-                    selectedStation = station
-                    currentScreen = Screen.CONFIG
-                } else {
-                    showGpsDialog = true
-                }
-            },
-            onShareLogs = {
-                val intent = Logger.shareLog(context)
-                if (intent != null) {
-                    context.startActivity(intent)
-                }
-            },
-            viewModel = viewModel
-        )
-        Screen.CONFIG -> { /* handled by bottom sheet */ }
+    val tabs = listOf("My Stations", "Map")
+    val pagerState = rememberPagerState(pageCount = { tabs.size })
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // ── Tab Row ───────────────────────────────────────────────────────────
+        TabRow(
+            selectedTabIndex = pagerState.currentPage,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = pagerState.currentPage == index,
+                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
+                    text = {
+                        Text(
+                            title,
+                            fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 14.sp
+                        )
+                    }
+                )
+            }
+        }
+
+        // ── Pages ─────────────────────────────────────────────────────────────
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.weight(1f)
+        ) { page ->
+            when (page) {
+                0 -> HomeScreen(
+                    onStationSelected = { station ->
+                        if (isGpsEnabled()) {
+                            selectedStation = station
+                        } else {
+                            showGpsDialog = true
+                        }
+                    },
+                    onShareLogs = {
+                        val intent = Logger.shareLog(context)
+                        if (intent != null) context.startActivity(intent)
+                    },
+                    viewModel = viewModel
+                )
+                1 -> MapSearchScreen(
+                    onStartTrip = { station, alertDistanceKm ->
+                        if (isGpsEnabled()) {
+                            selectedStation = station
+                        } else {
+                            showGpsDialog = true
+                        }
+                    }
+                )
+            }
+        }
     }
 
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            // GPS enabled
-        }
-    }
+    ) { }
 
     fun promptGps() {
         val locationRequest = com.google.android.gms.location.LocationRequest.Builder(
@@ -270,24 +307,17 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     if (showGpsDialog) {
         GpsDisabledDialog(
             onDismiss = { showGpsDialog = false },
-            onTurnOn = {
-                showGpsDialog = false
-                promptGps()
-            }
+            onTurnOn = { showGpsDialog = false; promptGps() }
         )
     }
 
     if (selectedStation != null) {
         StationConfigBottomSheet(
             station = selectedStation!!,
-            onDismiss = {
-                selectedStation = null
-                currentScreen = Screen.HOME
-            },
+            onDismiss = { selectedStation = null },
             onConfirm = { activeStation ->
                 viewModel.addActiveStation(activeStation)
                 selectedStation = null
-                currentScreen = Screen.HOME
                 Intent(context, LocationService::class.java).apply {
                     action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
                 }.also { context.startForegroundService(it) }
@@ -316,5 +346,3 @@ fun GpsDisabledDialog(onDismiss: () -> Unit, onTurnOn: () -> Unit) {
         shape = RoundedCornerShape(16.dp)
     )
 }
-
-enum class Screen { HOME, CONFIG }
