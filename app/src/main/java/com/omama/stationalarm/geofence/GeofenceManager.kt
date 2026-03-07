@@ -35,7 +35,7 @@ object GeofenceManager {
         return PendingIntent.getBroadcast(context, 0, intent, flags)
     }
 
-    fun addGeofencesForStation(
+    suspend fun addGeofencesForStation(
         context: Context,
         stationId: String,
         radiusLevel5M: Float,
@@ -54,9 +54,9 @@ object GeofenceManager {
             Logger.log("GEOFENCE_REG_FAILED", stationId, "Missing permission")
             return
         }
-
-        // Get station coordinates from repository
-        val station = com.omama.stationalarm.repository.StationRepository.getStationByIdSync(stationId)
+    
+        // Use the suspend version to ensure we hit the DB if memory cache is cold (e.g. on boot)
+        val station = com.omama.stationalarm.repository.StationRepository.getStationById(stationId)
         if (station == null) {
             Log.e(TAG, "Station not found: $stationId")
             Logger.log("GEOFENCE_REG_FAILED", stationId, "Station not found")

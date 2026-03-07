@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -253,7 +254,13 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
         // ── Pages ─────────────────────────────────────────────────────────────
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                .clipToBounds(),
+            // Disable swipe gestures — tabs only.
+            // This prevents the pager from stealing horizontal drags
+            // that the osmdroid MapView needs for panning.
+            userScrollEnabled = false
         ) { page ->
             when (page) {
                 0 -> HomeScreen(

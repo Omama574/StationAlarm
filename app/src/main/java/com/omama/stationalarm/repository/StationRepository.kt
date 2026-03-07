@@ -30,6 +30,8 @@ object StationRepository {
     /** Exposes all saved places as a real-time flow for the Map tab UI. */
     lateinit var savedPlacesFlow: Flow<List<SavedPlace>>
 
+    private var _savedPlacesCache = mapOf<String, SavedPlace>()
+
     private val _distancesFlow = MutableStateFlow<Map<String, Double>>(emptyMap())
     val distancesFlow: StateFlow<Map<String, Double>> = _distancesFlow.asStateFlow()
 
@@ -45,6 +47,13 @@ object StationRepository {
         savedPlacesFlow = database.savedPlaceDao().getAllSavedPlaces().map { entities ->
             entities.map { it.toDomainModel() }
         }
+
+        // Keep a memory cache for synchronous lookups in LocationService/UI
+        CoroutineScope(Dispatchers.IO).launch {
+            savedPlacesFlow.collect { list ->
+                _savedPlacesCache = list.associateBy { it.id }
+            }
+        }
     }
 
     /**
@@ -58,7 +67,9 @@ object StationRepository {
     }
 
     /** Synchronous variant for non-suspend callers that already know the type. */
-    fun getStationByIdSync(id: String): Station? = StationData.getStationById(id)
+    fun getStationByIdSync(id: String): Station? {
+        return StationData.getStationById(id) ?: _savedPlacesCache[id]?.toStation()
+    }
 
     fun searchStations(query: String): List<Station> = StationData.searchStations(query)
     fun getAllStations(): List<Station> = StationData.getAllStations()

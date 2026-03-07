@@ -1,5 +1,7 @@
 package com.omama.stationalarm.data
 
+import com.omama.stationalarm.repository.StationRepository
+
 data class ActiveStation(
     val stationId: String,
     val alertDistanceKm: Double,      // 3.0 to 10.0, step 0.5
@@ -18,5 +20,5 @@ data class ActiveStation(
     val radiusLevel1Km: Double get() = alertDistanceKm
 
     // No context needed now
-    fun getStation(): Station? = StationData.getStationById(stationId)
+    fun getStation(): Station? = StationRepository.getStationByIdSync(stationId)
 }
