@@ -33,8 +33,18 @@ class AlarmActivity : ComponentActivity() {
 
     private var stationId: String? = null
 
+    private val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                dismissAlarm()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
 
         // Wake screen and show over lock screen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -95,12 +105,22 @@ class AlarmActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        dismissAlarm()
-        return true
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || 
+            keyCode == KeyEvent.KEYCODE_VOLUME_UP || 
+            keyCode == KeyEvent.KEYCODE_VOLUME_MUTE) {
+            dismissAlarm()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        try {
+            unregisterReceiver(screenOffReceiver)
+        } catch (e: Exception) {
+            // Ignored if already unregistered
+        }
     }
 }
 

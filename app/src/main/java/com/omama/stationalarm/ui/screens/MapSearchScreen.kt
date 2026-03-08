@@ -626,7 +626,7 @@ private fun OsmMapView(
                 )
                 setTileSource(TileSourceFactory.MAPNIK)
                 setMultiTouchControls(true)
-                controller.setZoom(if (initialCenter != null) 15.0 else 5.0)
+                controller.setZoom(if (initialCenter != null) 17.5 else 5.0)
                 controller.setCenter(GeoPoint(startLat, startLon))
 
                 // Long press listener
@@ -691,7 +691,7 @@ private fun OsmMapView(
                 }
                 mapView.overlays.add(userMarker)
                 mapView.controller.setCenter(initialCenter)
-                mapView.controller.setZoom(15.0)
+                mapView.controller.setZoom(17.5)
             }
             mapView.invalidate()
         },
