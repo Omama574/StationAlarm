@@ -14,6 +14,10 @@ import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 import com.omama.stationalarm.receiver.GeofenceBroadcastReceiver
 import com.omama.stationalarm.util.Logger
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 object GeofenceManager {
 
@@ -66,6 +70,14 @@ object GeofenceManager {
         // Clamp alert geofence radius to Android's minimum of 100m
         val clampedAlertM = maxOf(alertDistanceM, 100f)
 
+        // Hardcap: max 10 destinations
+        val activeStations = com.omama.stationalarm.repository.StationRepository.getAllActiveStationsList()
+        if (activeStations.size >= 10 && !activeStations.any { it.stationId == stationId }) {
+            Log.e(TAG, "Maximum 10 destinations allowed")
+            Logger.log("GEOFENCE_REG_FAILED", stationId, "Max 10 destinations reached")
+            return
+        }
+
         val geofences = listOf(
             buildGeofence(stationId, "level5", station.lat, station.lon, radiusLevel5M),
             buildGeofence(stationId, "level4", station.lat, station.lon, radiusLevel4M),
@@ -80,16 +92,39 @@ object GeofenceManager {
             .addGeofences(geofences)
             .build()
 
-        geofencingClient(context)
-            .addGeofences(request, getGeofencePendingIntent(context))
-            .addOnSuccessListener {
-                Log.d(TAG, "Geofences added for $stationId")
-                Logger.log("GEOFENCE_REGISTERED", stationId, "radii=[$radiusLevel5M, $radiusLevel4M, $radiusLevel3M, $radiusLevel2M, $radiusLevel1M, alert=$clampedAlertM]")
+        var retryCount = 0
+        val maxRetries = 3
+        var delayMs = 2000L
+        var success = false
+
+        while (retryCount < maxRetries && !success) {
+            try {
+                suspendCancellableCoroutine<Unit> { cont ->
+                    geofencingClient(context)
+                        .addGeofences(request, getGeofencePendingIntent(context))
+                        .addOnSuccessListener {
+                            Log.d(TAG, "Geofences added for $stationId")
+                            Logger.log("GEOFENCE_REGISTERED", stationId, "radii=[..., alert=$clampedAlertM]")
+                            if (cont.isActive) cont.resume(Unit)
+                        }
+                        .addOnFailureListener { e ->
+                            Log.e(TAG, "Failed to add geofences for $stationId", e)
+                            Logger.log("GEOFENCE_REG_FAILED", stationId, e.message)
+                            if (cont.isActive) cont.resumeWithException(e)
+                        }
+                }
+                success = true
+            } catch (e: Exception) {
+                retryCount++
+                if (retryCount < maxRetries) {
+                    delay(delayMs)
+                    delayMs *= 2
+                } else {
+                    Log.e(TAG, "Geofence registration permanently failed for $stationId after $maxRetries attempts")
+                    Logger.log("GEOFENCE_REG_FAILED_PERMANENT", stationId, e.message)
+                }
             }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to add geofences for $stationId", e)
-                Logger.log("GEOFENCE_REG_FAILED", stationId, e.message)
-            }
+        }
     }
 
     /**

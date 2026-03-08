@@ -19,11 +19,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.SupervisorJob
 
 object StationRepository {
 
     private lateinit var appContext: Context
     private lateinit var database: StationDatabase
+    
+    // Centralized scope for all database writes to prevent fire-and-forget race conditions
+    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     lateinit var activeStationsFlow: Flow<List<ActiveStation>>
 
@@ -77,21 +81,21 @@ object StationRepository {
     // ── Saved Places CRUD ──────────────────────────────────────────────────
 
     fun saveFavoritePlace(place: SavedPlace) {
-        CoroutineScope(Dispatchers.IO).launch {
+        repositoryScope.launch {
             database.savedPlaceDao().insert(place.toEntity())
             Logger.log("SAVED_PLACE_ADDED", extra = "id=${place.id} name=${place.name}")
         }
     }
 
     fun deleteFavoritePlace(placeId: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+        repositoryScope.launch {
             database.savedPlaceDao().delete(placeId)
             Logger.log("SAVED_PLACE_DELETED", extra = "id=$placeId")
         }
     }
 
     fun updateFavoritePlace(placeId: String, name: String, radiusKm: Double, notes: String?) {
-        CoroutineScope(Dispatchers.IO).launch {
+        repositoryScope.launch {
             database.savedPlaceDao().update(placeId, name, radiusKm, notes)
         }
     }
@@ -100,8 +104,20 @@ object StationRepository {
         return database.savedPlaceDao().getAllSavedPlacesList().map { it.toDomainModel() }
     }
 
-    fun addActiveStation(activeStation: ActiveStation) {
-        CoroutineScope(Dispatchers.IO).launch {
+    fun addActiveStation(activeStation: ActiveStation, customStation: Station? = null) {
+        repositoryScope.launch {
+            if (customStation != null) {
+                val place = SavedPlace(
+                    id = customStation.id,
+                    name = customStation.name,
+                    lat = customStation.lat,
+                    lon = customStation.lon,
+                    radiusKm = activeStation.alertDistanceKm,
+                    notes = "Custom alarmed location",
+                    createdAt = System.currentTimeMillis()
+                )
+                database.savedPlaceDao().insert(place.toEntity())
+            }
             database.activeStationDao().insert(activeStation.toEntity())
 
             GeofenceManager.addGeofencesForStation(
@@ -118,7 +134,7 @@ object StationRepository {
     }
 
     fun removeActiveStation(stationId: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+        repositoryScope.launch {
             database.activeStationDao().delete(stationId)
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
             Logger.log("STATION_REMOVED", stationId)
@@ -127,7 +143,7 @@ object StationRepository {
 
     /** Transition a station to ALERTING status. Called when device enters alert radius. */
     fun markAlerting(stationId: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+        repositoryScope.launch {
             database.activeStationDao().updateStatus(stationId, "ALERTING")
             Logger.log("STATUS_CHANGE", stationId, "ALERTING")
         }
@@ -135,16 +151,16 @@ object StationRepository {
 
     /** Transition a station to DISMISSED. Called by user pressing Dismiss. Deletes the row. */
     fun dismissStation(stationId: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+        repositoryScope.launch {
             database.activeStationDao().delete(stationId)
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
             Logger.log("STATION_DISMISSED_AND_DELETED", stationId)
         }
     }
 
-    fun updateStationDistance(stationId: String, distanceKm: Double) {
+    fun updateStationDistances(distances: Map<String, Double>) {
         val currentDistances = _distancesFlow.value.toMutableMap()
-        currentDistances[stationId] = distanceKm
+        currentDistances.putAll(distances)
         _distancesFlow.value = currentDistances
     }
 
@@ -157,7 +173,7 @@ object StationRepository {
     }
 
     fun reRegisterAllGeofences() {
-        CoroutineScope(Dispatchers.IO).launch {
+        repositoryScope.launch {
             val activeList = getAllActiveStationsList()
             for (active in activeList) {
                 GeofenceManager.addGeofencesForStation(

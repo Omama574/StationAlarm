@@ -19,7 +19,8 @@ class StationAlarmApplication : Application() {
             userAgentValue = "StationAlarm/2.0 (android)"
             osmdroidBasePath = File(cacheDir, "osmdroid")
             osmdroidTileCache = File(osmdroidBasePath, "tile")
-            tileFileSystemCacheMaxBytes = 300L * 1024 * 1024  // 300 MB cap
+            tileFileSystemCacheMaxBytes = 50L * 1024 * 1024  // 50 MB cap
+            tileFileSystemCacheTrimBytes = 40L * 1024 * 1024 // trim to 40 MB
         }
     }
 }

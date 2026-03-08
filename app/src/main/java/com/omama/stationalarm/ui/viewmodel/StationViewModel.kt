@@ -28,9 +28,9 @@ class StationViewModel(application: Application) : AndroidViewModel(application)
         return StationRepository.searchStations(query)
     }
 
-    fun addActiveStation(activeStation: ActiveStation) {
+    fun addActiveStation(activeStation: ActiveStation, customStation: Station? = null) {
         viewModelScope.launch(Dispatchers.IO) {
-            StationRepository.addActiveStation(activeStation)
+            StationRepository.addActiveStation(activeStation, customStation)
         }
     }
 

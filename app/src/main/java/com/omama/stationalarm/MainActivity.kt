@@ -228,9 +228,11 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
 
     val tabs = listOf("My Stations", "Map")
     val pagerState = rememberPagerState(pageCount = { tabs.size })
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // ── Tab Row ───────────────────────────────────────────────────────────
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ── Tab Row ───────────────────────────────────────────────────────────
         TabRow(
             selectedTabIndex = pagerState.currentPage,
             containerColor = MaterialTheme.colorScheme.surface,
@@ -289,6 +291,12 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
             }
         }
     }
+        
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp)
+        )
+    }
 
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
@@ -323,8 +331,16 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
             station = selectedStation!!,
             onDismiss = { selectedStation = null },
             onConfirm = { activeStation ->
-                viewModel.addActiveStation(activeStation)
+                val isRailway = com.omama.stationalarm.data.StationData.getStationById(selectedStation!!.id) != null
+                viewModel.addActiveStation(activeStation, if (!isRailway) selectedStation else null)
+                
+                val stationName = selectedStation!!.name
                 selectedStation = null
+                
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("✅ Alarm set for $stationName")
+                }
+                
                 Intent(context, LocationService::class.java).apply {
                     action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
                 }.also { context.startForegroundService(it) }

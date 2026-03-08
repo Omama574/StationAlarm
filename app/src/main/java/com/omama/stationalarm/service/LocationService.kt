@@ -14,11 +14,14 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
+import java.util.concurrent.ConcurrentHashMap
 import com.omama.stationalarm.MainActivity
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.repository.StationRepository
@@ -57,9 +60,9 @@ class LocationService : Service() {
     }
 
     // --- In-memory tracking (only MONITORING stations) ---
-    private val monitoringStations = mutableSetOf<ActiveStation>()
+    private val monitoringStations = ConcurrentHashMap.newKeySet<ActiveStation>()
     // --- In-memory alerting (only ALERTING stations) ---
-    private val alertingStationIds = mutableSetOf<String>()
+    private val alertingStationIds = ConcurrentHashMap.newKeySet<String>()
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationRequest: LocationRequest? = null
@@ -70,6 +73,8 @@ class LocationService : Service() {
 
     private var mediaPlayer: MediaPlayer? = null
     private var alarmRinging = false
+    private var isVibrating = false
+    private var alarmTimeoutJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var gpsWakeLock: PowerManager.WakeLock? = null
 
@@ -184,7 +189,7 @@ class LocationService : Service() {
 
     override fun onDestroy() {
         stopLocationUpdates()
-        stopAlarmSound()
+        stopAlarms()
         releaseWakeLock()
         releaseGpsWakeLock()
         serviceJob.cancel()
@@ -243,7 +248,7 @@ class LocationService : Service() {
                     alertingStationIds.removeAll(noLongerAlerting)
                     // If no more alerting stations, stop the sound
                     if (alertingStationIds.isEmpty()) {
-                        stopAlarmSound()
+                        stopAlarms()
                         releaseWakeLock()
                     }
                     // Cancel their specific notifications
@@ -297,66 +302,69 @@ class LocationService : Service() {
     // ============================
 
     private fun processLocationUpdate(location: Location) {
-        if (monitoringStations.isEmpty()) return
+        serviceScope.launch(Dispatchers.Default) {
+            if (monitoringStations.isEmpty()) return@launch
 
-        var minDistance = Double.MAX_VALUE
-        var nearestStationName = "None"
-        var nearestStationId: String? = null
+            var minDistance = Double.MAX_VALUE
+            var nearestStationName = "None"
+            var nearestStationId: String? = null
 
-        // Re-post alert notifications for any ALERTING stations (handles swipe-away scenario)
-        if (alertingStationIds.isNotEmpty()) {
-            serviceScope.launch {
+            // Re-post alert notifications for any ALERTING stations (handles swipe-away scenario)
+            if (alertingStationIds.isNotEmpty()) {
                 val allActive = StationRepository.getAllActiveStationsList()
                 for (id in alertingStationIds) {
                     val station = allActive.find { it.stationId == id } ?: continue
                     showAlertNotification(station)
                 }
             }
-        }
 
-        val toAlert = mutableListOf<ActiveStation>()
+            val toAlert = mutableListOf<ActiveStation>()
+            val newDistances = mutableMapOf<String, Double>()
 
-        for (active in monitoringStations.toList()) {
-            val station = active.getStation() ?: continue
-            val distance = calculateDistance(location.latitude, location.longitude, station.lat, station.lon)
-            active.currentDistanceKm = distance
-            StationRepository.updateStationDistance(active.stationId, distance)
+            for (active in monitoringStations.toList()) {
+                val station = active.getStation() ?: continue
+                val distance = calculateDistance(location.latitude, location.longitude, station.lat, station.lon)
+                active.currentDistanceKm = distance
+                newDistances[active.stationId] = distance
 
-            if (distance < minDistance) {
-                minDistance = distance
-                nearestStationName = station.name
-                nearestStationId = active.stationId
+                if (distance < minDistance) {
+                    minDistance = distance
+                    nearestStationName = station.name
+                    nearestStationId = active.stationId
+                }
+
+                // Accuracy buffer: if (distance - accuracy) is within alert range, fire
+                val accuracyKm = location.accuracy / 1000.0
+                val effectiveDistance = distance - accuracyKm
+
+                if (effectiveDistance <= active.alertDistanceKm && !alertingStationIds.contains(active.stationId)) {
+                    toAlert.add(active)
+                }
+            }
+            
+            StationRepository.updateStationDistances(newDistances)
+
+            // Transition matched stations to ALERTING (via DB, sync will handle the rest)
+            for (active in toAlert) {
+                StationRepository.markAlerting(active.stationId)
             }
 
-            // Accuracy buffer: if (distance - accuracy) is within alert range, fire
-            val accuracyKm = location.accuracy / 1000.0
-            val effectiveDistance = distance - accuracyKm
+            // Log the poll
+            val distToLog = if (minDistance == Double.MAX_VALUE) null else minDistance
+            Logger.log(
+                eventType = "LOCATION_POLL",
+                stationId = nearestStationId,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                distanceKm = distToLog
+            )
 
-            if (effectiveDistance <= active.alertDistanceKm && !alertingStationIds.contains(active.stationId)) {
-                toAlert.add(active)
-            }
+            // Update ongoing notification
+            updateForegroundNotification()
+
+            // Adjust polling interval based on nearest distance
+            adjustPollingInterval()
         }
-
-        // Transition matched stations to ALERTING (via DB, sync will handle the rest)
-        for (active in toAlert) {
-            StationRepository.markAlerting(active.stationId)
-        }
-
-        // Log the poll
-        val distToLog = if (minDistance == Double.MAX_VALUE) null else minDistance
-        Logger.log(
-            eventType = "LOCATION_POLL",
-            stationId = nearestStationId,
-            latitude = location.latitude,
-            longitude = location.longitude,
-            distanceKm = distToLog
-        )
-
-        // Update ongoing notification
-        updateForegroundNotification()
-
-        // Adjust polling interval based on nearest distance
-        adjustPollingInterval()
     }
 
     // ============================
@@ -372,8 +380,18 @@ class LocationService : Service() {
 
         acquireWakeLock()
 
+        val startedNewAlarm = (!alarmRinging && active.sound) || (!isVibrating && active.vibrate)
+
         if (active.sound && !alarmRinging) {
             playAlarmSound()
+        }
+        
+        if (active.vibrate && !isVibrating) {
+            startVibrator()
+        }
+
+        if (startedNewAlarm) {
+            startAlarmTimeout()
         }
 
         // Remove from monitoring set (sync already did this, but be safe)
@@ -394,7 +412,7 @@ class LocationService : Service() {
         // 1. Stop sound if this was the alerting station
         alertingStationIds.remove(stationId)
         if (alertingStationIds.isEmpty()) {
-            stopAlarmSound()
+            stopAlarms()
             releaseWakeLock()
         }
 
@@ -606,6 +624,41 @@ class LocationService : Service() {
         }
     }
 
+    private fun startVibrator() {
+        if (isVibrating) return
+        isVibrating = true
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 1000, 1000), 1))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(longArrayOf(0, 1000, 1000), 1)
+        }
+    }
+
+    private fun stopVibrator() {
+        if (isVibrating) {
+            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            vibrator.cancel()
+            isVibrating = false
+        }
+    }
+
+    private fun startAlarmTimeout() {
+        alarmTimeoutJob?.cancel()
+        alarmTimeoutJob = serviceScope.launch {
+            kotlinx.coroutines.delay(5 * 60 * 1000L) // 5 minutes max duration
+            Logger.log("ALARM_TIMEOUT", extra = "Stopping sound/vibration after 5m")
+            stopAlarms()
+        }
+    }
+
+    private fun stopAlarms() {
+        stopAlarmSound()
+        stopVibrator()
+        alarmTimeoutJob?.cancel()
+    }
+
     // ============================
     //     WAKE LOCK
     // ============================
@@ -642,7 +695,7 @@ class LocationService : Service() {
             gpsWakeLock?.setReferenceCounted(false)
         }
         if (gpsWakeLock?.isHeld == false) {
-            gpsWakeLock?.acquire()
+            gpsWakeLock?.acquire(4 * 60 * 60 * 1000L) // 4 hours maximum
             Logger.log("WAKELOCK_ACQUIRED", extra = "GpsWakeLock")
         }
     }

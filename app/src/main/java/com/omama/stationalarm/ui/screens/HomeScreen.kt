@@ -42,6 +42,7 @@ fun HomeScreen(
     val haptic = LocalHapticFeedback.current
 
     var query by remember { mutableStateOf("") }
+    var stationToRemove by remember { mutableStateOf<ActiveStation?>(null) }
     val searchResults = remember(query) {
         if (query.length >= 2) viewModel.searchStations(query) else emptyList()
     }
@@ -145,7 +146,7 @@ fun HomeScreen(
                                     station = station,
                                     onRemove = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        viewModel.removeActiveStation(station.stationId)
+                                        stationToRemove = station
                                     }
                                 )
                             }
@@ -153,6 +154,31 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+        
+        if (stationToRemove != null) {
+            AlertDialog(
+                onDismissRequest = { stationToRemove = null },
+                title = { Text("Remove Alarm?", color = Color.Black, fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete this trip?", color = Color.DarkGray) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.removeActiveStation(stationToRemove!!.stationId)
+                            stationToRemove = null
+                        }
+                    ) {
+                        Text("Delete", color = Color.Red, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { stationToRemove = null }) {
+                        Text("Cancel", color = Color.Gray)
+                    }
+                },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(16.dp)
+            )
         }
     }
 }

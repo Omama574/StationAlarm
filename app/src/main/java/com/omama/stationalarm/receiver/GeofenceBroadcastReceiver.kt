@@ -46,7 +46,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 for (geofence in triggeringGeofences) {
                     val requestId = geofence.requestId ?: continue
                     // Parse requestId: expected format "geofence_<stationId>_<layer>"
-                    val parts = requestId.split("_")
+                    val parts = requestId.split("_", limit = 3)
                     if (parts.size != 3) {
                         Log.w(TAG, "Invalid requestId format: $requestId")
                         continue
