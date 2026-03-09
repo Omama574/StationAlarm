@@ -76,8 +76,8 @@ fun MapSearchScreen(
     // Collect location events from FAB
     LaunchedEffect(Unit) {
         viewModel.userLocation.collect { geoPoint ->
-            mapViewRef?.controller?.animateTo(geoPoint)
             mapViewRef?.controller?.setZoom(17.5)
+            mapViewRef?.controller?.animateTo(geoPoint)
         }
     }
 
@@ -660,8 +660,8 @@ private fun OsmMapView(
                 val center = GeoPoint(selectedLat, selectedLon)
 
                 // Animate to the selected location
-                mapView.controller.animateTo(center)
                 mapView.controller.setZoom(17.5)
+                mapView.controller.animateTo(center)
 
                 // Pin marker
                 val marker = Marker(mapView).apply {
@@ -701,8 +701,8 @@ private fun OsmMapView(
                     }
                 }
                 mapView.overlays.add(userMarker)
-                mapView.controller.setCenter(initialCenter)
                 mapView.controller.setZoom(17.5)
+                mapView.controller.setCenter(initialCenter)
             }
             mapView.invalidate()
         },
