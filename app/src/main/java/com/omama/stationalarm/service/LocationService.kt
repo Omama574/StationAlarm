@@ -358,6 +358,8 @@ class LocationService : Service() {
                 longitude = location.longitude,
                 distanceKm = distToLog
             )
+            
+            com.omama.stationalarm.util.GpsLogger.logLocation(location, currentPollingIntervalMs)
 
             // Update ongoing notification
             updateForegroundNotification()

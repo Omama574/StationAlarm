@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,6 +37,7 @@ import com.omama.stationalarm.ui.viewmodel.StationViewModel
 fun HomeScreen(
     onStationSelected: (Station) -> Unit,
     onShareLogs: () -> Unit,
+    onShareGpsLogs: () -> Unit,
     viewModel: StationViewModel = viewModel()
 ) {
     val activeStations by viewModel.activeStations.observeAsState(emptyList())
@@ -67,13 +69,23 @@ fun HomeScreen(
                     color = MaterialTheme.colorScheme.onBackground,
                     style = MaterialTheme.typography.headlineMedium
                 )
-                IconButton(
-                    onClick = onShareLogs,
-                    modifier = Modifier
-                        .shadow(4.dp, RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.onBackground, RoundedCornerShape(12.dp))
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = "Share Logs", tint = MaterialTheme.colorScheme.background)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(
+                        onClick = onShareGpsLogs,
+                        modifier = Modifier
+                            .shadow(4.dp, RoundedCornerShape(12.dp))
+                            .background(Color(0xFF4FC3F7), RoundedCornerShape(12.dp)) // MapAccentBlue
+                    ) {
+                        Icon(Icons.Default.LocationOn, contentDescription = "Share GPS Logs", tint = Color.Black)
+                    }
+                    IconButton(
+                        onClick = onShareLogs,
+                        modifier = Modifier
+                            .shadow(4.dp, RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.onBackground, RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "Share App Logs", tint = MaterialTheme.colorScheme.background)
+                    }
                 }
             }
 

@@ -230,6 +230,12 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val snackbarHostState = remember { SnackbarHostState() }
 
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage == 1 && !isGpsEnabled()) {
+            showGpsDialog = true
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ── Tab Row ───────────────────────────────────────────────────────────
@@ -277,6 +283,10 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         val intent = Logger.shareLog(context)
                         if (intent != null) context.startActivity(intent)
                     },
+                    onShareGpsLogs = {
+                        val intent = com.omama.stationalarm.util.GpsLogger.shareLog(context)
+                        if (intent != null) context.startActivity(intent)
+                    },
                     viewModel = viewModel
                 )
                 1 -> MapSearchScreen(
@@ -286,7 +296,9 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         } else {
                             showGpsDialog = true
                         }
-                    }
+                    },
+                    isGpsEnabled = isGpsEnabled,
+                    onRequestGps = { showGpsDialog = true }
                 )
             }
         }

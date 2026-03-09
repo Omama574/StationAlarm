@@ -54,6 +54,8 @@ private val ConfirmGreen     = Color(0xFF00C853)
 @Composable
 fun MapSearchScreen(
     onStartTrip: (Station, Double) -> Unit,
+    isGpsEnabled: () -> Boolean,
+    onRequestGps: () -> Unit,
     viewModel: MapSearchViewModel = viewModel()
 ) {
     val query           by viewModel.query.collectAsState()
@@ -95,7 +97,9 @@ fun MapSearchScreen(
             selectedLat   = selectedResult?.lat,
             selectedLon   = selectedResult?.lon,
             radiusKm      = radiusKm,
-            onLongPress   = { lat, lon -> viewModel.onMapLongPress(lat, lon) },
+            onLongPress   = { lat, lon -> 
+                if (isGpsEnabled()) viewModel.onMapLongPress(lat, lon) else onRequestGps()
+            },
             onMapReady    = { mv -> mapViewRef = mv },
             modifier      = Modifier.fillMaxSize()
         )
@@ -198,7 +202,11 @@ fun MapSearchScreen(
                     LazyColumn(contentPadding = PaddingValues(vertical = 6.dp)) {
                         items(searchResults) { result ->
                             SearchResultRow(result = result) {
-                                viewModel.selectResult(result)
+                                if (isGpsEnabled()) {
+                                    viewModel.selectResult(result)
+                                } else {
+                                    onRequestGps()
+                                }
                             }
                         }
                     }
@@ -209,7 +217,9 @@ fun MapSearchScreen(
         // ── 3. My Location FAB ────────────────────────────────────────────────
         val fabBottomPad = if (selectedResult != null) 256.dp else 12.dp
         FloatingActionButton(
-            onClick              = { viewModel.onMyLocationRequested() },
+            onClick              = {
+                if (isGpsEnabled()) viewModel.onMyLocationRequested() else onRequestGps()
+            },
             modifier             = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 16.dp, bottom = fabBottomPad)

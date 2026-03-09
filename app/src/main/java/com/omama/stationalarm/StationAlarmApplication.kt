@@ -11,6 +11,7 @@ class StationAlarmApplication : Application() {
         super.onCreate()
         StationRepository.initialize(this)
         Logger.initialize(this)
+        com.omama.stationalarm.util.GpsLogger.initialize(this)
 
         // osmdroid must be configured before any MapView is created.
         // OSM tile servers require a proper User-Agent string — without it your app
