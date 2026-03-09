@@ -77,6 +77,7 @@ fun MapSearchScreen(
     LaunchedEffect(Unit) {
         viewModel.userLocation.collect { geoPoint ->
             mapViewRef?.controller?.animateTo(geoPoint)
+            mapViewRef?.controller?.setZoom(17.5)
         }
     }
 
@@ -660,7 +661,7 @@ private fun OsmMapView(
 
                 // Animate to the selected location
                 mapView.controller.animateTo(center)
-                mapView.controller.setZoom(14.0)
+                mapView.controller.setZoom(17.5)
 
                 // Pin marker
                 val marker = Marker(mapView).apply {

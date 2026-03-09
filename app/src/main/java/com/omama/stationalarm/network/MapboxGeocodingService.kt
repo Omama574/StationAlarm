@@ -16,7 +16,7 @@ interface MapboxGeocodingService {
         @Query("country") country: String = "IN",
         @Query("worldview") worldview: String = "in",
         @Query("limit") limit: Int = 5,
-        @Query("types") types: String = "address,poi,place,district,locality",
+        @Query("types") types: String = "address,place,district,locality,neighborhood",
         @Query("proximity") proximity: String? = null  // "lon,lat" string for user-location bias
     ): MapboxGeocodingResponse
 }

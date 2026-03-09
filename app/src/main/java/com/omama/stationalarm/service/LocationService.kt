@@ -629,7 +629,13 @@ class LocationService : Service() {
     private fun startVibrator() {
         if (isVibrating) return
         isVibrating = true
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 1000, 1000), 1))
         } else {
@@ -640,7 +646,13 @@ class LocationService : Service() {
 
     private fun stopVibrator() {
         if (isVibrating) {
-            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
             vibrator.cancel()
             isVibrating = false
         }
