@@ -11,6 +11,9 @@ data class SavedPlace(
     val lat: Double,
     val lon: Double,
     val radiusKm: Double,     // User-selected radius for the alarm (1–10 km)
+    val notify: Boolean = true, // Notification enabled for this saved place
+    val vibrate: Boolean = true, // Vibrate enabled for this saved place
+    val sound: Boolean = true,   // Sound enabled for this saved place
     val notes: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 ) {

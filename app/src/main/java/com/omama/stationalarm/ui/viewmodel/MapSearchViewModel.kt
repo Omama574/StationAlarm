@@ -133,14 +133,48 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
      * not from Mapbox (TOS-safe).
      */
     fun onMapLongPress(lat: Double, lon: Double) {
+        // Drop an initial temporary pin with coords
         _selectedResult.value = GeoSearchResult(
             id = "manual-${System.currentTimeMillis()}",
             name = "Dropped Pin",
-            subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}",
+            subtitle = "Loading address...",
             lat = lat,
             lon = lon,
             confidence = "exact"
         )
+
+        // Launch reverse geocoding to fill in the exact street name
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.geocodingService.reverseSearch(
+                    longitude = lon,
+                    latitude = lat,
+                    token = BuildConfig.MAPBOX_ACCESS_TOKEN,
+                    limit = 1
+                )
+                
+                val feature = response.features.firstOrNull()
+                if (feature != null) {
+                    val actualName = feature.properties.name ?: "Dropped Pin"
+                    val actualSubtitle = feature.properties.fullAddress ?: feature.properties.placeFormatted ?: "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
+                    
+                    _selectedResult.value = GeoSearchResult(
+                        id = "manual-${System.currentTimeMillis()}",
+                        name = actualName,
+                        subtitle = actualSubtitle,
+                        lat = lat,
+                        lon = lon,
+                        confidence = "exact"
+                    )
+                }
+            } catch (e: Exception) {
+                // Ignore error, keep the coords fallback
+                android.util.Log.e("MapSearchViewModel", "Reverse geocoding failed", e)
+                _selectedResult.value = _selectedResult.value?.copy(
+                    subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
+                )
+            }
+        }
     }
 
     /** Slider callback — clamps to 2–20 km. */

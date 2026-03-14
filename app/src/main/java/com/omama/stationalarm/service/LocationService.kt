@@ -309,15 +309,6 @@ class LocationService : Service() {
             var nearestStationName = "None"
             var nearestStationId: String? = null
 
-            // Re-post alert notifications for any ALERTING stations (handles swipe-away scenario)
-            if (alertingStationIds.isNotEmpty()) {
-                val allActive = StationRepository.getAllActiveStationsList()
-                for (id in alertingStationIds) {
-                    val station = allActive.find { it.stationId == id } ?: continue
-                    showAlertNotification(station)
-                }
-            }
-
             val toAlert = mutableListOf<ActiveStation>()
             val newDistances = mutableMapOf<String, Double>()
 

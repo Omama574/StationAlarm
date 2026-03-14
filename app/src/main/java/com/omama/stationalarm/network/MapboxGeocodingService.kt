@@ -19,4 +19,17 @@ interface MapboxGeocodingService {
         @Query("types") types: String = "address,place,district,locality,neighborhood",
         @Query("proximity") proximity: String? = null  // "lon,lat" string for user-location bias
     ): MapboxGeocodingResponse
+
+    /**
+     * Mapbox Geocoding v6 reverse geocoding.
+     * Maps lat/lon clicks back to a physical address.
+     */
+    @GET("search/geocode/v6/reverse")
+    suspend fun reverseSearch(
+        @Query("longitude") longitude: Double,
+        @Query("latitude") latitude: Double,
+        @Query("access_token") token: String,
+        @Query("limit") limit: Int = 1,
+        @Query("types") types: String = "address,place,district,locality,neighborhood"
+    ): MapboxGeocodingResponse
 }

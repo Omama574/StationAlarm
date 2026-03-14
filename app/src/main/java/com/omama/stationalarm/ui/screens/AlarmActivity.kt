@@ -11,6 +11,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -126,6 +127,8 @@ class AlarmActivity : ComponentActivity() {
 
 @Composable
 fun AlarmScreen(stationName: String, customReminder: String?, onDismiss: () -> Unit) {
+    BackHandler { onDismiss() }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()

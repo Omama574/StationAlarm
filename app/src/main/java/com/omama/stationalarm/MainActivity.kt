@@ -43,6 +43,7 @@ import com.omama.stationalarm.ui.theme.StationAlarmTheme
 import com.omama.stationalarm.ui.viewmodel.StationViewModel
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.livedata.observeAsState
 
 class MainActivity : ComponentActivity() {
 
@@ -226,9 +227,15 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
+    val activeStations by viewModel.activeStations.observeAsState(initial = emptyList())
     val tabs = listOf("My Stations", "Map")
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val savedPlaces by com.omama.stationalarm.repository.StationRepository.savedPlacesFlow.collectAsState(initial = emptyList())
+    var showFavoritesSheet by remember { mutableStateOf(false) }
+    var selectedPreset by remember { mutableStateOf<com.omama.stationalarm.data.SavedPlace?>(null) }
+    var selectedRadius by remember { mutableStateOf<Double?>(null) }
 
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 1 && !isGpsEnabled()) {
@@ -293,6 +300,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     onStartTrip = { station, alertDistanceKm ->
                         if (isGpsEnabled()) {
                             selectedStation = station
+                            selectedRadius = alertDistanceKm
                         } else {
                             showGpsDialog = true
                         }
@@ -307,6 +315,40 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp)
+        )
+
+        // Global Favorites FAB
+        androidx.compose.material3.FloatingActionButton(
+            onClick = { showFavoritesSheet = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 48.dp, end = 16.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = Color.White
+        ) {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_star), 
+                contentDescription = "Favorites"
+            )
+        }
+    }
+
+    if (showFavoritesSheet) {
+        com.omama.stationalarm.ui.screens.FavoritesBottomSheet(
+            savedPlaces = savedPlaces,
+            onSelect = { place ->
+                showFavoritesSheet = false
+                if (isGpsEnabled()) {
+                    selectedPreset = place
+                    selectedStation = place.toStation()
+                } else {
+                    showGpsDialog = true
+                }
+            },
+            onDelete = { placeId ->
+                com.omama.stationalarm.repository.StationRepository.deleteFavoritePlace(placeId)
+            },
+            onDismiss = { showFavoritesSheet = false }
         )
     }
 
@@ -339,15 +381,28 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     }
 
     if (selectedStation != null) {
+        val isActive = activeStations.any { it.stationId == selectedStation!!.id }
         StationConfigBottomSheet(
             station = selectedStation!!,
-            onDismiss = { selectedStation = null },
+            isActive = isActive,
+            initialRadius = selectedRadius ?: selectedPreset?.radiusKm ?: 5.0,
+            initialNotify = selectedPreset?.notify ?: true,
+            initialVibrate = selectedPreset?.vibrate ?: true,
+            initialSound = selectedPreset?.sound ?: true,
+            initialNotes = selectedPreset?.notes,
+            onDismiss = { 
+                selectedStation = null
+                selectedPreset = null 
+                selectedRadius = null
+            },
             onConfirm = { activeStation ->
                 val isRailway = com.omama.stationalarm.data.StationData.getStationById(selectedStation!!.id) != null
                 viewModel.addActiveStation(activeStation, if (!isRailway) selectedStation else null)
                 
                 val stationName = selectedStation!!.name
                 selectedStation = null
+                selectedPreset = null
+                selectedRadius = null
                 
                 coroutineScope.launch {
                     snackbarHostState.showSnackbar("✅ Alarm set for $stationName")

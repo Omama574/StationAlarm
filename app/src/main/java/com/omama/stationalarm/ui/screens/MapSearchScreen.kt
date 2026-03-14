@@ -237,44 +237,35 @@ fun MapSearchScreen(
             )
         }
 
-        // ── 4. Bottom sheet (visible when a pin is set) ───────────────────────
+        // ── 4. Floating Overlays (visible when a pin is set) ───────────────────────
         AnimatedVisibility(
             visible = selectedResult != null,
-            enter   = slideInVertically { it },
-            exit    = slideOutVertically { it },
-            modifier = Modifier.align(Alignment.BottomCenter)
+            enter   = fadeIn() + slideInVertically { it / 2 },
+            exit    = fadeOut() + slideOutVertically { it / 2 },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 86.dp) // Float above bottom navigation and FAB
         ) {
             val pin = selectedResult
             if (pin != null) {
-                PinBottomSheet(
-                    result      = pin,
-                    radiusKm    = radiusKm,
-                    onRadius    = viewModel::onRadiusChanged,
-                    onSaveClick = { showNameDialog = true },
-                    onAlarmClick = {
-                        onStartTrip(
-                            Station(id = pin.id, name = pin.name, lat = pin.lat, lon = pin.lon),
-                            radiusKm
-                        )
-                    },
-                    onBack      = viewModel::clearSelection
-                )
+                Column {
+                    MapMarkerOverlay(
+                        result = pin,
+                        onSaveClick = { showNameDialog = true },
+                        onAlarmClick = {
+                            onStartTrip(
+                                Station(id = pin.id, name = pin.name, lat = pin.lat, lon = pin.lon),
+                                radiusKm
+                            )
+                        },
+                        onBack = viewModel::clearSelection
+                    )
+                    BottomPerimeterSlider(
+                        radiusKm = radiusKm,
+                        onRadius = viewModel::onRadiusChanged
+                    )
+                }
             }
         }
 
-        // ── 5. Saved places panel (when no pin and no search active) ──────────
-        AnimatedVisibility(
-            visible  = selectedResult == null && searchResults.isEmpty() && !isSearching,
-            enter    = fadeIn(),
-            exit     = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            SavedPlacesPanel(
-                savedPlaces = savedPlaces,
-                onSelect    = viewModel::selectSavedPlace,
-                onDelete    = viewModel::deletePlace
-            )
-        }
     }
 
     // ── Save dialog ───────────────────────────────────────────────────────────
@@ -365,34 +356,22 @@ private fun SearchResultRow(result: GeoSearchResult, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PinBottomSheet(
+private fun MapMarkerOverlay(
     result     : GeoSearchResult,
-    radiusKm   : Double,
-    onRadius   : (Double) -> Unit,
     onSaveClick: () -> Unit,
     onAlarmClick: () -> Unit,
     onBack     : () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape    = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape    = RoundedCornerShape(16.dp),
         color    = MaterialTheme.colorScheme.surface,
-        tonalElevation = 12.dp,
-        shadowElevation = 16.dp
+        tonalElevation = 8.dp,
+        shadowElevation = 12.dp
     ) {
-        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 20.dp)) {
-
-            // Handle pill
-            Box(
-                Modifier
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
-                    .align(Alignment.CenterHorizontally)
-            )
-            Spacer(Modifier.height(12.dp))
-
+        Column(modifier = Modifier.padding(16.dp)) {
             // Location name + coords
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -410,63 +389,30 @@ private fun PinBottomSheet(
                     )
                 }
                 Spacer(Modifier.width(12.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         result.name,
                         fontWeight = FontWeight.Bold,
-                        fontSize   = 16.sp,
+                        fontSize   = 15.sp,
                         maxLines   = 1,
                         overflow   = TextOverflow.Ellipsis,
                         color      = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        "${String.format("%.4f", result.lat)}, ${String.format("%.4f", result.lon)}",
-                        fontSize = 11.sp,
-                        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        result.subtitle.ifBlank { "${String.format("%.4f", result.lat)}, ${String.format("%.4f", result.lon)}" },
+                        fontSize = 12.sp,
+                        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                }
+                IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
             }
 
             Spacer(Modifier.height(16.dp))
-
-            // Radius label
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
-            ) {
-                Text("Alert Radius", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text(
-                    "${String.format("%.1f", radiusKm)} km",
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 14.sp,
-                    color      = MapAccentBlue
-                )
-            }
-
-            // Slider
-            Slider(
-                value        = radiusKm.toFloat(),
-                onValueChange = { onRadius(it.toDouble()) },
-                valueRange   = 2f..20f,
-                modifier     = Modifier.fillMaxWidth(),
-                colors       = SliderDefaults.colors(
-                    thumbColor       = MapAccentBlue,
-                    activeTrackColor = MapAccentBlue,
-                    inactiveTrackColor = MapAccentBlueDim
-                )
-            )
-
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("2 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-                Text("20 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-            }
-
-            Spacer(Modifier.height(16.dp))
-
+            
             // Action buttons
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -484,7 +430,7 @@ private fun PinBottomSheet(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text("Save Place", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Save", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Button(
                     onClick  = onAlarmClick,
@@ -492,123 +438,59 @@ private fun PinBottomSheet(
                     shape    = RoundedCornerShape(12.dp),
                     colors   = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Set Alarm 🔔", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Use This", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
-            }
-
-            TextButton(
-                onClick  = onBack,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp)
-            ) {
-                Text(
-                    "← Back to Search",
-                    fontSize = 13.sp,
-                    color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-                )
             }
         }
     }
 }
 
 @Composable
-private fun SavedPlacesPanel(
-    savedPlaces: List<SavedPlace>,
-    onSelect   : (SavedPlace) -> Unit,
-    onDelete   : (String) -> Unit
+private fun BottomPerimeterSlider(
+    radiusKm: Double,
+    onRadius: (Double) -> Unit
 ) {
-    if (savedPlaces.isEmpty()) return
-
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 260.dp),
-        shape    = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        color    = MaterialTheme.colorScheme.surface,
-        tonalElevation  = 6.dp,
-        shadowElevation = 10.dp
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape    = RoundedCornerShape(16.dp),
+        color    = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        tonalElevation = 4.dp,
+        shadowElevation = 8.dp
     ) {
-        Column(modifier = Modifier.padding(top = 12.dp)) {
-            // Handle pill
-            Box(
-                Modifier
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f))
-                    .align(Alignment.CenterHorizontally)
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "⭐  Saved Places",
-                fontWeight = FontWeight.Bold,
-                fontSize   = 14.sp,
-                modifier   = Modifier.padding(horizontal = 18.dp),
-                color      = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(Modifier.height(6.dp))
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 12.dp)) {
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
             ) {
-                items(savedPlaces, key = { it.id }) { place ->
-                    SavedPlaceRow(place = place, onSelect = { onSelect(place) }, onDelete = { onDelete(place.id) })
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SavedPlaceRow(place: SavedPlace, onSelect: () -> Unit, onDelete: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onSelect),
-        shape  = RoundedCornerShape(12.dp),
-        color  = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-    ) {
-        Row(
-            modifier           = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment  = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(MapAccentBlueDim),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    ImageVector.vectorResource(R.drawable.ic_star),
-                    null,
-                    tint = MapAccentBlue,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
+                Text("Alert Radius", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    place.name,
-                    fontWeight = FontWeight.SemiBold,
+                    "${String.format("%.1f", radiusKm)} km",
+                    fontWeight = FontWeight.Bold,
                     fontSize   = 14.sp,
-                    maxLines   = 1,
-                    overflow   = TextOverflow.Ellipsis,
-                    color      = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    "${String.format("%.1f", place.radiusKm)} km radius  •  ${String.format("%.3f", place.lat)}, ${String.format("%.3f", place.lon)}",
-                    fontSize = 11.sp,
-                    color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color      = MapAccentBlue
                 )
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f), modifier = Modifier.size(16.dp))
+            Spacer(Modifier.height(4.dp))
+            Slider(
+                value        = radiusKm.toFloat(),
+                onValueChange = { onRadius(it.toDouble()) },
+                valueRange   = 2f..20f,
+                modifier     = Modifier.fillMaxWidth(),
+                colors       = SliderDefaults.colors(
+                    thumbColor       = MapAccentBlue,
+                    activeTrackColor = MapAccentBlue,
+                    inactiveTrackColor = MapAccentBlueDim
+                )
+            )
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("2 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                Text("20 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
             }
         }
     }

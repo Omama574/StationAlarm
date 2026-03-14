@@ -94,9 +94,9 @@ object StationRepository {
         }
     }
 
-    fun updateFavoritePlace(placeId: String, name: String, radiusKm: Double, notes: String?) {
+    fun updateFavoritePlace(placeId: String, name: String, radiusKm: Double, notify: Boolean, vibrate: Boolean, sound: Boolean, notes: String?) {
         repositoryScope.launch {
-            database.savedPlaceDao().update(placeId, name, radiusKm, notes)
+            database.savedPlaceDao().update(placeId, name, radiusKm, notify, vibrate, sound, notes)
         }
     }
 

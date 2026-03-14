@@ -22,16 +22,22 @@ import kotlin.math.roundToInt
 @Composable
 fun StationConfigBottomSheet(
     station: Station,
+    isActive: Boolean = false,
+    initialRadius: Double = 5.0,
+    initialNotify: Boolean = true,
+    initialVibrate: Boolean = true,
+    initialSound: Boolean = true,
+    initialNotes: String? = null,
     onDismiss: () -> Unit,
     onConfirm: (ActiveStation) -> Unit
 ) {
-    var alertDistance by remember { mutableStateOf(5.0) }
-    var notifyEnabled by remember { mutableStateOf(true) }
-    var vibrateEnabled by remember { mutableStateOf(true) }
-    var soundEnabled by remember { mutableStateOf(true) }
+    var alertDistance by remember { mutableStateOf(initialRadius) }
+    var notifyEnabled by remember { mutableStateOf(initialNotify) }
+    var vibrateEnabled by remember { mutableStateOf(initialVibrate) }
+    var soundEnabled by remember { mutableStateOf(initialSound) }
     
-    var customReminder by remember { mutableStateOf("") }
-    var sendReminder by remember { mutableStateOf(false) }
+    var customReminder by remember { mutableStateOf(initialNotes ?: "") }
+    var sendReminder by remember { mutableStateOf(initialNotes != null) }
     
     val haptic = LocalHapticFeedback.current
 
@@ -164,7 +170,7 @@ fun StationConfigBottomSheet(
                     .height(56.dp)
                     .shadow(8.dp, RoundedCornerShape(12.dp))
             ) {
-                Text("Set Alarm", fontSize = 18.sp)
+                Text(if (isActive) "Update Alarm" else "Set Alarm", fontSize = 18.sp)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

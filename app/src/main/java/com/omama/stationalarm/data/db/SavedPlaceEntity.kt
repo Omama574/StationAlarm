@@ -11,6 +11,9 @@ data class SavedPlaceEntity(
     val lat: Double,
     val lon: Double,
     val radiusKm: Double,
+    val notify: Boolean,
+    val vibrate: Boolean,
+    val sound: Boolean,
     val notes: String?,
     val createdAt: Long
 )
@@ -21,6 +24,9 @@ fun SavedPlaceEntity.toDomainModel(): SavedPlace = SavedPlace(
     lat = lat,
     lon = lon,
     radiusKm = radiusKm,
+    notify = notify,
+    vibrate = vibrate,
+    sound = sound,
     notes = notes,
     createdAt = createdAt
 )
@@ -31,6 +37,9 @@ fun SavedPlace.toEntity(): SavedPlaceEntity = SavedPlaceEntity(
     lat = lat,
     lon = lon,
     radiusKm = radiusKm,
+    notify = notify,
+    vibrate = vibrate,
+    sound = sound,
     notes = notes,
     createdAt = createdAt
 )
