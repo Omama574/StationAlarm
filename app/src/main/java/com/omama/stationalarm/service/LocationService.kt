@@ -59,7 +59,7 @@ class LocationService : Service() {
         const val ACTION_DISMISS_ALARM = "com.omama.stationalarm.ACTION_DISMISS_ALARM"
     }
 
-    // --- In-memory tracking (only MONITORING stations) ---
+    // --- In-memory tracking (only MONITORING stations) --- 
     private val monitoringStations = ConcurrentHashMap.newKeySet<ActiveStation>()
     // --- In-memory alerting (only ALERTING stations) ---
     private val alertingStationIds = ConcurrentHashMap.newKeySet<String>()
@@ -653,8 +653,17 @@ class LocationService : Service() {
         alarmTimeoutJob?.cancel()
         alarmTimeoutJob = serviceScope.launch {
             kotlinx.coroutines.delay(5 * 60 * 1000L) // 5 minutes max duration
-            Logger.log("ALARM_TIMEOUT", extra = "Stopping sound/vibration after 5m")
+            Logger.log("ALARM_TIMEOUT", extra = "Auto-dismissing all alerting stations after 5m")
             stopAlarms()
+            // Auto-dismiss all alerting stations to prevent zombie state
+            val ids = alertingStationIds.toList()
+            for (id in ids) {
+                val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                nm.cancel(id.hashCode())
+                StationRepository.dismissStation(id)
+            }
+            alertingStationIds.clear()
+            releaseWakeLock()
         }
     }
 

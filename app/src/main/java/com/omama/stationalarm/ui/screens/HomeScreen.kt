@@ -36,6 +36,7 @@ import com.omama.stationalarm.ui.viewmodel.StationViewModel
 @Composable
 fun HomeScreen(
     onStationSelected: (Station) -> Unit,
+    onEditStation: (ActiveStation) -> Unit,
     onShareLogs: () -> Unit,
     onShareGpsLogs: () -> Unit,
     viewModel: StationViewModel = viewModel()
@@ -156,6 +157,7 @@ fun HomeScreen(
                             items(activeStations, key = { it.stationId }) { station ->
                                 StationCard(
                                     station = station,
+                                    onEdit = { onEditStation(station) },
                                     onRemove = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         stationToRemove = station
@@ -219,7 +221,7 @@ fun StationSearchItem(station: Station, onClick: () -> Unit) {
 }
 
 @Composable
-fun StationCard(station: ActiveStation, onRemove: () -> Unit) {
+fun StationCard(station: ActiveStation, onEdit: () -> Unit, onRemove: () -> Unit) {
     val stationData = station.getStation()
     val name = stationData?.name ?: station.stationId
     val distanceText = station.currentDistanceKm?.let { "%.1f km".format(it) } ?: "—"
@@ -237,7 +239,7 @@ fun StationCard(station: ActiveStation, onRemove: () -> Unit) {
             .fillMaxWidth()
             .scale(scale)
             .shadow(elevation, RoundedCornerShape(16.dp))
-            .clickable(interactionSource = interactionSource, indication = null) { },
+            .clickable(interactionSource = interactionSource, indication = null) { onEdit() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = if (isAlerting) androidx.compose.foundation.BorderStroke(2.dp, Color.Red) else null

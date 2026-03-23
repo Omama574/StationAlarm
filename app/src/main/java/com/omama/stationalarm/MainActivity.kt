@@ -69,10 +69,16 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (hasAllLocationPermissions(this)) {
-            StationRepository.reRegisterAllGeofences()
-            Intent(this, LocationService::class.java).apply {
-                action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
-            }.also { startForegroundService(it) }
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                val active = StationRepository.getAllActiveStationsList()
+                if (active.isNotEmpty()) {
+                    StationRepository.reRegisterAllGeofences()
+                    val intent = Intent(this@MainActivity, LocationService::class.java).apply {
+                        action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
+                    }
+                    startForegroundService(intent)
+                }
+            }
         }
     }
 
@@ -236,6 +242,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     var showFavoritesSheet by remember { mutableStateOf(false) }
     var selectedPreset by remember { mutableStateOf<com.omama.stationalarm.data.SavedPlace?>(null) }
     var selectedRadius by remember { mutableStateOf<Double?>(null) }
+    var editingStation by remember { mutableStateOf<com.omama.stationalarm.data.ActiveStation?>(null) }
 
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 1 && !isGpsEnabled()) {
@@ -284,6 +291,13 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                             selectedStation = station
                         } else {
                             showGpsDialog = true
+                        }
+                    },
+                    onEditStation = { activeStation ->
+                        val station = activeStation.getStation()
+                        if (station != null) {
+                            editingStation = activeStation
+                            selectedStation = station
                         }
                     },
                     onShareLogs = {
@@ -381,36 +395,60 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     }
 
     if (selectedStation != null) {
-        val isActive = activeStations.any { it.stationId == selectedStation!!.id }
+        val isEditing = editingStation != null
+        val isActive = isEditing || activeStations.any { it.stationId == selectedStation!!.id }
         StationConfigBottomSheet(
             station = selectedStation!!,
             isActive = isActive,
-            initialRadius = selectedRadius ?: selectedPreset?.radiusKm ?: 5.0,
-            initialNotify = selectedPreset?.notify ?: true,
-            initialVibrate = selectedPreset?.vibrate ?: true,
-            initialSound = selectedPreset?.sound ?: true,
-            initialNotes = selectedPreset?.notes,
+            initialRadius = if (isEditing) editingStation!!.alertDistanceKm else (selectedRadius ?: selectedPreset?.radiusKm ?: 5.0),
+            initialNotify = if (isEditing) editingStation!!.notify else (selectedPreset?.notify ?: true),
+            initialVibrate = if (isEditing) editingStation!!.vibrate else (selectedPreset?.vibrate ?: true),
+            initialSound = if (isEditing) editingStation!!.sound else (selectedPreset?.sound ?: true),
+            initialNotes = if (isEditing) editingStation!!.customReminder else selectedPreset?.notes,
             onDismiss = { 
                 selectedStation = null
                 selectedPreset = null 
                 selectedRadius = null
+                editingStation = null
             },
             onConfirm = { activeStation ->
-                val isRailway = com.omama.stationalarm.data.StationData.getStationById(selectedStation!!.id) != null
-                viewModel.addActiveStation(activeStation, if (!isRailway) selectedStation else null)
-                
-                val stationName = selectedStation!!.name
-                selectedStation = null
-                selectedPreset = null
-                selectedRadius = null
-                
-                coroutineScope.launch {
-                    snackbarHostState.showSnackbar("✅ Alarm set for $stationName")
+                if (isEditing) {
+                    // Update existing station settings in-place
+                    viewModel.updateActiveStationSettings(
+                        stationId = activeStation.stationId,
+                        radius = activeStation.alertDistanceKm,
+                        notify = activeStation.notify,
+                        vibrate = activeStation.vibrate,
+                        sound = activeStation.sound,
+                        reminder = activeStation.customReminder,
+                        sendReminder = activeStation.sendReminder
+                    )
+                    val stationName = selectedStation!!.name
+                    selectedStation = null
+                    selectedPreset = null
+                    selectedRadius = null
+                    editingStation = null
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("✅ Alarm updated for $stationName")
+                    }
+                } else {
+                    val isRailway = com.omama.stationalarm.data.StationData.getStationById(selectedStation!!.id) != null
+                    viewModel.addActiveStation(activeStation, if (!isRailway) selectedStation else null)
+                    
+                    val stationName = selectedStation!!.name
+                    selectedStation = null
+                    selectedPreset = null
+                    selectedRadius = null
+                    editingStation = null
+                    
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("✅ Alarm set for $stationName")
+                    }
+                    
+                    Intent(context, LocationService::class.java).apply {
+                        action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
+                    }.also { context.startForegroundService(it) }
                 }
-                
-                Intent(context, LocationService::class.java).apply {
-                    action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
-                }.also { context.startForegroundService(it) }
             }
         )
     }

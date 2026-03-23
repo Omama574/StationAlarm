@@ -31,11 +31,8 @@ object GeofenceManager {
         val intent = Intent(context, GeofenceBroadcastReceiver::class.java).apply {
             action = ACTION_GEOFENCE
         }
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        }
+        // GeofencingClient requires FLAG_MUTABLE for geofence PendingIntents
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         return PendingIntent.getBroadcast(context, 0, intent, flags)
     }
 

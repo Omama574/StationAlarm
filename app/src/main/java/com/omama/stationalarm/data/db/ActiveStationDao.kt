@@ -26,4 +26,7 @@ interface ActiveStationDao {
     @Query("UPDATE active_stations SET status = :status WHERE stationId = :stationId")
     suspend fun updateStatus(stationId: String, status: String)
 
+    @Query("UPDATE active_stations SET alertDistanceKm = :radius, notify = :notify, vibrate = :vibrate, sound = :sound, customReminder = :reminder, sendReminder = :sendReminder WHERE stationId = :stationId")
+    suspend fun updateSettings(stationId: String, radius: Double, notify: Boolean, vibrate: Boolean, sound: Boolean, reminder: String?, sendReminder: Boolean)
+
 }

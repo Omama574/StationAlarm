@@ -40,5 +40,19 @@ class StationViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateActiveStationSettings(
+        stationId: String,
+        radius: Double,
+        notify: Boolean,
+        vibrate: Boolean,
+        sound: Boolean,
+        reminder: String?,
+        sendReminder: Boolean
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            StationRepository.updateActiveStationSettings(stationId, radius, notify, vibrate, sound, reminder, sendReminder)
+        }
+    }
+
     fun getStationById(id: String): Station? = StationRepository.getStationByIdSync(id)
 }

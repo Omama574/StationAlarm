@@ -75,8 +75,8 @@ fun StationConfigBottomSheet(
             Slider(
                 value = alertDistance.toFloat(),
                 onValueChange = { alertDistance = it.toDouble() },
-                valueRange = 3f..10f,
-                steps = 13,
+                valueRange = 3f..20f,
+                steps = 33,
                 colors = SliderDefaults.colors(
                     thumbColor = MaterialTheme.colorScheme.onSurface,
                     activeTrackColor = MaterialTheme.colorScheme.onSurface,

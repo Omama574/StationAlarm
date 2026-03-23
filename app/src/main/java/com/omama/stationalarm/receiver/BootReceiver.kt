@@ -25,6 +25,12 @@ class BootReceiver : BroadcastReceiver() {
                 try {
                     val activeStations = StationRepository.getAllActiveStationsList()
                     if (activeStations.isNotEmpty()) {
+                        // Reset any ALERTING stations — user may have rebooted after passing the station
+                        for (station in activeStations) {
+                            if (station.status == "ALERTING") {
+                                StationRepository.resetToMonitoring(station.stationId)
+                            }
+                        }
                         StationRepository.reRegisterAllGeofences()
                         
                         val serviceIntent = Intent(context, LocationService::class.java).apply {

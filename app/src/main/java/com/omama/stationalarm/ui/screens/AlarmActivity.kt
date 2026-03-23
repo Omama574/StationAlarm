@@ -1,19 +1,14 @@
 package com.omama.stationalarm.ui.screens
 
-import android.app.NotificationManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -33,19 +28,10 @@ import com.omama.stationalarm.util.Logger
 class AlarmActivity : ComponentActivity() {
 
     private var stationId: String? = null
-
-    private val screenOffReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
-                dismissAlarm()
-            }
-        }
-    }
+    private var dismissed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
 
         // Wake screen and show over lock screen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -91,12 +77,11 @@ class AlarmActivity : ComponentActivity() {
     }
 
     private fun dismissAlarm() {
+        if (dismissed) return
+        dismissed = true
         val id = stationId ?: return
-        
-        // Direct DB update (Source of Truth)
-        StationRepository.dismissStation(id)
-        
-        // Also inform service immediately for sound/notification cleanup
+
+        // Single dismiss path: let LocationService handle DB delete + sound/notification cleanup
         val dismissIntent = Intent(this, LocationService::class.java).apply {
             action = LocationService.ACTION_DISMISS_ALARM
             putExtra("stationId", id)
@@ -113,15 +98,6 @@ class AlarmActivity : ComponentActivity() {
             return true
         }
         return super.onKeyDown(keyCode, event)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        try {
-            unregisterReceiver(screenOffReceiver)
-        } catch (e: Exception) {
-            // Ignored if already unregistered
-        }
     }
 }
 

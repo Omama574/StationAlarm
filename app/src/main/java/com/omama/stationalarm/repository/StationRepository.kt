@@ -189,4 +189,39 @@ object StationRepository {
             }
         }
     }
+
+    /** Reset an ALERTING station back to MONITORING (e.g., after device reboot). */
+    suspend fun resetToMonitoring(stationId: String) {
+        database.activeStationDao().updateStatus(stationId, "MONITORING")
+        Logger.log("STATUS_CHANGE", stationId, "MONITORING (reset)")
+    }
+
+    /** Update settings of an active station in-place (radius, notification prefs, reminder). */
+    fun updateActiveStationSettings(
+        stationId: String,
+        radius: Double,
+        notify: Boolean,
+        vibrate: Boolean,
+        sound: Boolean,
+        reminder: String?,
+        sendReminder: Boolean
+    ) {
+        repositoryScope.launch {
+            database.activeStationDao().updateSettings(stationId, radius, notify, vibrate, sound, reminder, sendReminder)
+            // Re-register geofences with new radius
+            GeofenceManager.removeGeofencesForStation(appContext, stationId)
+            val updated = database.activeStationDao().getStationById(stationId)?.toDomainModel() ?: return@launch
+            GeofenceManager.addGeofencesForStation(
+                context = appContext,
+                stationId = updated.stationId,
+                radiusLevel5M = (updated.radiusLevel5Km * 1000).toFloat(),
+                radiusLevel4M = (updated.radiusLevel4Km * 1000).toFloat(),
+                radiusLevel3M = (updated.radiusLevel3Km * 1000).toFloat(),
+                radiusLevel2M = (updated.radiusLevel2Km * 1000).toFloat(),
+                radiusLevel1M = (updated.radiusLevel1Km * 1000).toFloat(),
+                alertDistanceM = (updated.alertDistanceKm * 1000).toFloat()
+            )
+            Logger.log("STATION_SETTINGS_UPDATED", stationId, "radius=$radius notify=$notify vibrate=$vibrate sound=$sound")
+        }
+    }
 }

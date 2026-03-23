@@ -25,7 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.omama.stationalarm.R
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,6 +69,8 @@ fun MapSearchScreen(
     val searchError     by viewModel.searchError.collectAsState()
     val initialCenter   by viewModel.initialCenter.collectAsState()
 
+    val haptic = LocalHapticFeedback.current
+
     // Controls whether the "Name & Save" dialog is shown
     var showNameDialog by remember { mutableStateOf(false) }
 
@@ -99,7 +103,12 @@ fun MapSearchScreen(
             selectedLon   = selectedResult?.lon,
             radiusKm      = radiusKm,
             onLongPress   = { lat, lon -> 
-                if (isGpsEnabled()) viewModel.onMapLongPress(lat, lon) else onRequestGps()
+                if (isGpsEnabled()) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.onMapLongPress(lat, lon)
+                } else {
+                    onRequestGps()
+                }
             },
             onMapReady    = { mv -> mapViewRef = mv },
             modifier      = Modifier.fillMaxSize()
@@ -477,7 +486,7 @@ private fun BottomPerimeterSlider(
             Slider(
                 value        = radiusKm.toFloat(),
                 onValueChange = { onRadius(it.toDouble()) },
-                valueRange   = 2f..20f,
+                valueRange   = 3f..20f,
                 modifier     = Modifier.fillMaxWidth(),
                 colors       = SliderDefaults.colors(
                     thumbColor       = MapAccentBlue,
@@ -489,7 +498,7 @@ private fun BottomPerimeterSlider(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("2 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                Text("3 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                 Text("20 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
             }
         }
@@ -510,6 +519,7 @@ private fun OsmMapView(
     val startLat = initialCenter?.latitude  ?: 20.5937
     val startLon = initialCenter?.longitude ?: 78.9629
 
+    key(selectedLat, selectedLon, radiusKm) {
     AndroidView(
         factory = { ctx ->
             MapView(ctx).apply {
@@ -590,6 +600,7 @@ private fun OsmMapView(
         },
         modifier = modifier
     )
+    } // end key()
 }
 
 // ── Save dialog ───────────────────────────────────────────────────────────────
