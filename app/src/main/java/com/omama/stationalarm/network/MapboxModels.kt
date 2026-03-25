@@ -115,8 +115,8 @@ data class GeoSearchResult(
 
 fun MapboxFeature.toSearchResult() = GeoSearchResult(
     id = id,
-    name = properties.name ?: properties.displayName,
-    subtitle = properties.subtitle,
+    name = properties.displayName,
+    subtitle = properties.structuredAddress.ifBlank { properties.subtitle },
     lat = geometry.lat,
     lon = geometry.lon,
     confidence = properties.matchCode?.confidence ?: "low"

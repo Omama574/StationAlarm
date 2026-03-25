@@ -106,17 +106,13 @@ fun MapSearchScreen(
 
         // ── 1. Full-screen map ────────────────────────────────────────────────
         OsmMapView(
-            initialCenter = initialCenter,
-            selectedLat   = selectedResult?.lat,
-            selectedLon   = selectedResult?.lon,
-            radiusKm      = radiusKm,
-            addressText   = selectedResult?.let {
-                if (it.subtitle == "Loading address...") "Fetching..." else it.name
-            },
-            onSingleTap   = handleMapTap,
-            onLongPress   = handleMapTap,
-            onMapReady    = { mv -> mapViewRef = mv },
-            modifier      = Modifier
+            initialCenter  = initialCenter,
+            selectedResult = selectedResult,
+            radiusKm       = radiusKm,
+            onSingleTap    = handleMapTap,
+            onLongPress    = handleMapTap,
+            onMapReady     = { mv -> mapViewRef = mv },
+            modifier       = Modifier
                 .fillMaxSize()
                 .padding(bottom = if (selectedResult != null) 140.dp else 80.dp)
         )
@@ -471,15 +467,13 @@ private fun BottomControlBar(
 
 @Composable
 private fun OsmMapView(
-    initialCenter: GeoPoint?,
-    selectedLat  : Double?,
-    selectedLon  : Double?,
-    radiusKm     : Double,
-    addressText  : String?,
-    onSingleTap  : (Double, Double) -> Unit,
-    onLongPress  : (Double, Double) -> Unit,
-    onMapReady   : (MapView) -> Unit,
-    modifier     : Modifier = Modifier
+    initialCenter  : GeoPoint?,
+    selectedResult : GeoSearchResult?,
+    radiusKm       : Double,
+    onSingleTap    : (Double, Double) -> Unit,
+    onLongPress    : (Double, Double) -> Unit,
+    onMapReady     : (MapView) -> Unit,
+    modifier       : Modifier = Modifier
 ) {
     // Default center: India if GPS unavailable
     val startLat = initialCenter?.latitude  ?: 20.5937
@@ -521,8 +515,14 @@ private fun OsmMapView(
             }
         },
         update = { mapView ->
+            // CRITICAL FIX: Close existing bubbles to prevent ghost double-bubbles
+            org.osmdroid.views.overlay.infowindow.InfoWindow.closeAllInfoWindowsOn(mapView)
+
             // Remove old pin/circle but keep MapEventsOverlay (index 0)
             mapView.overlays.removeAll { it is Marker || it is Polygon }
+
+            val selectedLat = selectedResult?.lat
+            val selectedLon = selectedResult?.lon
 
             if (selectedLat != null && selectedLon != null) {
                 val center = GeoPoint(selectedLat, selectedLon)
@@ -546,11 +546,16 @@ private fun OsmMapView(
                     mapView.controller.setCenter(center)
                 }
 
-                // Pin marker with address snippet
+                // Pin marker with custom dynamic UI InfoWindow
                 val marker = Marker(mapView).apply {
                     position = center
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    title = addressText ?: "Selected location"
+                    
+                    infoWindow = CustomInfoWindow(
+                        mapView = mapView,
+                        titleStr = selectedResult?.name?.ifBlank { "Dropped Pin" } ?: "Dropped Pin",
+                        subtitleStr = selectedResult?.subtitle ?: ""
+                    )
                     showInfoWindow()
                 }
                 mapView.overlays.add(marker)
@@ -585,6 +590,33 @@ private fun OsmMapView(
         },
         modifier = modifier
     )
+}
+
+/**
+ * Custom OSMDroid InfoWindow for showing detailed structured addresses cleanly.
+ */
+private class CustomInfoWindow(
+    mapView: MapView,
+    private val titleStr: String,
+    private val subtitleStr: String
+) : org.osmdroid.views.overlay.infowindow.InfoWindow(R.layout.custom_info_window, mapView) {
+
+    override fun onOpen(item: Any?) {
+        val titleView = mView.findViewById<android.widget.TextView>(R.id.info_title)
+        val subtitleView = mView.findViewById<android.widget.TextView>(R.id.info_subtitle)
+
+        titleView.text = titleStr
+        if (subtitleStr.isNotBlank() && subtitleStr != "Loading address...") {
+            subtitleView.text = subtitleStr
+            subtitleView.visibility = android.view.View.VISIBLE
+        } else {
+            subtitleView.visibility = android.view.View.GONE
+        }
+    }
+
+    override fun onClose() {
+        // No-op
+    }
 }
 
 // ── Save dialog ───────────────────────────────────────────────────────────────
