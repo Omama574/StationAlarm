@@ -136,7 +136,7 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         // Drop an initial temporary pin with coords
         _selectedResult.value = GeoSearchResult(
             id = "manual-${System.currentTimeMillis()}",
-            name = "Dropped Pin",
+            name = "Fetching...",
             subtitle = "Loading address...",
             lat = lat,
             lon = lon,
@@ -149,28 +149,44 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                 val response = RetrofitClient.geocodingService.reverseSearch(
                     longitude = lon,
                     latitude = lat,
-                    token = BuildConfig.MAPBOX_ACCESS_TOKEN,
-                    limit = 1
+                    token = BuildConfig.MAPBOX_ACCESS_TOKEN
                 )
-                
-                val feature = response.features.firstOrNull()
-                if (feature != null) {
-                    val actualName = feature.properties.name ?: "Dropped Pin"
-                    val actualSubtitle = feature.properties.fullAddress ?: feature.properties.placeFormatted ?: "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
-                    
+
+                // Pick the most specific feature from the results
+                // Priority: address > street > neighborhood > locality > place
+                val typePriority = listOf("address", "street", "neighborhood", "locality", "place")
+                val bestFeature = response.features
+                    .sortedBy { feature ->
+                        val ft = feature.properties.featureType ?: ""
+                        val idx = typePriority.indexOf(ft)
+                        if (idx >= 0) idx else typePriority.size
+                    }
+                    .firstOrNull()
+
+                if (bestFeature != null) {
+                    val displayName = bestFeature.properties.displayName
+                    val structuredAddr = bestFeature.properties.structuredAddress
+
                     _selectedResult.value = GeoSearchResult(
                         id = "manual-${System.currentTimeMillis()}",
-                        name = actualName,
-                        subtitle = actualSubtitle,
+                        name = displayName,
+                        subtitle = structuredAddr,
                         lat = lat,
                         lon = lon,
                         confidence = "exact"
                     )
+                } else {
+                    // No results at all — show raw coordinates
+                    _selectedResult.value = _selectedResult.value?.copy(
+                        name = "Dropped Pin",
+                        subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
+                    )
                 }
             } catch (e: Exception) {
-                // Ignore error, keep the coords fallback
+                // Network error — show coords fallback
                 android.util.Log.e("MapSearchViewModel", "Reverse geocoding failed", e)
                 _selectedResult.value = _selectedResult.value?.copy(
+                    name = "Dropped Pin",
                     subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
                 )
             }

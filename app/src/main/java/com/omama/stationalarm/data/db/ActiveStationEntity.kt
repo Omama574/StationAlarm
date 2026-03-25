@@ -13,7 +13,10 @@ data class ActiveStationEntity(
     val sound: Boolean,
     val customReminder: String?,
     val sendReminder: Boolean,
-    val status: String = "MONITORING"
+    val status: String = "MONITORING",
+    val lat: Double = 0.0,
+    val lon: Double = 0.0,
+    val stationName: String = ""
 )
 
 fun ActiveStationEntity.toDomainModel(): ActiveStation {
@@ -26,7 +29,10 @@ fun ActiveStationEntity.toDomainModel(): ActiveStation {
         currentDistanceKm = null,
         customReminder = customReminder,
         sendReminder = sendReminder,
-        status = status
+        status = status,
+        lat = lat,
+        lon = lon,
+        stationName = stationName
     )
 }
 
@@ -39,6 +45,9 @@ fun ActiveStation.toEntity(): ActiveStationEntity {
         sound = sound,
         customReminder = customReminder,
         sendReminder = sendReminder,
-        status = status
+        status = status,
+        lat = lat,
+        lon = lon,
+        stationName = stationName
     )
 }

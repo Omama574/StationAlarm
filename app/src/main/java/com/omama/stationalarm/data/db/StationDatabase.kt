@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ActiveStationEntity::class, SavedPlaceEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class StationDatabase : RoomDatabase() {
@@ -48,6 +48,16 @@ abstract class StationDatabase : RoomDatabase() {
             }
         }
 
+        /** Persists lat, lon, and stationName in active_stations so custom map
+         *  alarms survive process death and device reboot. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE active_stations ADD COLUMN lat REAL NOT NULL DEFAULT 0.0")
+                database.execSQL("ALTER TABLE active_stations ADD COLUMN lon REAL NOT NULL DEFAULT 0.0")
+                database.execSQL("ALTER TABLE active_stations ADD COLUMN stationName TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getDatabase(context: Context): StationDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -55,7 +65,7 @@ abstract class StationDatabase : RoomDatabase() {
                     StationDatabase::class.java,
                     "station_database"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

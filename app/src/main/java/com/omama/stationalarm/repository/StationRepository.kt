@@ -106,6 +106,16 @@ object StationRepository {
 
     fun addActiveStation(activeStation: ActiveStation, customStation: Station? = null) {
         repositoryScope.launch {
+            // Resolve lat/lon: prefer customStation, then hardcoded lookup, then active station itself
+            val resolvedStation = customStation
+                ?: StationData.getStationById(activeStation.stationId)
+
+            val entityWithCoords = activeStation.copy(
+                lat = resolvedStation?.lat ?: activeStation.lat,
+                lon = resolvedStation?.lon ?: activeStation.lon,
+                stationName = resolvedStation?.name ?: activeStation.stationName
+            )
+
             if (customStation != null) {
                 val place = SavedPlace(
                     id = customStation.id,
@@ -118,17 +128,17 @@ object StationRepository {
                 )
                 database.savedPlaceDao().insert(place.toEntity())
             }
-            database.activeStationDao().insert(activeStation.toEntity())
+            database.activeStationDao().insert(entityWithCoords.toEntity())
 
             GeofenceManager.addGeofencesForStation(
                 context = appContext,
-                stationId = activeStation.stationId,
-                radiusLevel5M = (activeStation.radiusLevel5Km * 1000).toFloat(),
-                radiusLevel4M = (activeStation.radiusLevel4Km * 1000).toFloat(),
-                radiusLevel3M = (activeStation.radiusLevel3Km * 1000).toFloat(),
-                radiusLevel2M = (activeStation.radiusLevel2Km * 1000).toFloat(),
-                radiusLevel1M = (activeStation.radiusLevel1Km * 1000).toFloat(),
-                alertDistanceM = (activeStation.alertDistanceKm * 1000).toFloat()
+                stationId = entityWithCoords.stationId,
+                radiusLevel5M = (entityWithCoords.radiusLevel5Km * 1000).toFloat(),
+                radiusLevel4M = (entityWithCoords.radiusLevel4Km * 1000).toFloat(),
+                radiusLevel3M = (entityWithCoords.radiusLevel3Km * 1000).toFloat(),
+                radiusLevel2M = (entityWithCoords.radiusLevel2Km * 1000).toFloat(),
+                radiusLevel1M = (entityWithCoords.radiusLevel1Km * 1000).toFloat(),
+                alertDistanceM = (entityWithCoords.alertDistanceKm * 1000).toFloat()
             )
         }
     }

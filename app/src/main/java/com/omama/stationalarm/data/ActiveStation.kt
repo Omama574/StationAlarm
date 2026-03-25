@@ -4,14 +4,17 @@ import com.omama.stationalarm.repository.StationRepository
 
 data class ActiveStation(
     val stationId: String,
-    val alertDistanceKm: Double,      // 3.0 to 10.0, step 0.5
+    val alertDistanceKm: Double,      // 3.0 to 20.0
     val notify: Boolean,
     val vibrate: Boolean,
     val sound: Boolean,
     var currentDistanceKm: Double? = null,
     val customReminder: String? = null,
     val sendReminder: Boolean = false,
-    val status: String = "MONITORING"
+    val status: String = "MONITORING",
+    val lat: Double = 0.0,
+    val lon: Double = 0.0,
+    val stationName: String = ""
 ) {
     val radiusLevel5Km: Double get() = alertDistanceKm + 60
     val radiusLevel4Km: Double get() = alertDistanceKm + 40
@@ -19,6 +22,15 @@ data class ActiveStation(
     val radiusLevel2Km: Double get() = alertDistanceKm + 5
     val radiusLevel1Km: Double get() = alertDistanceKm
 
-    // No context needed now
-    fun getStation(): Station? = StationRepository.getStationByIdSync(stationId)
+    /**
+     * Resolves the Station object for this active station.
+     * First checks hardcoded railway stations, then falls back to
+     * the lat/lon persisted directly in the active_stations table.
+     */
+    fun getStation(): Station? {
+        return StationRepository.getStationByIdSync(stationId)
+            ?: if (lat != 0.0 || lon != 0.0) {
+                Station(id = stationId, name = stationName.ifEmpty { "Custom Location" }, lat = lat, lon = lon)
+            } else null
+    }
 }

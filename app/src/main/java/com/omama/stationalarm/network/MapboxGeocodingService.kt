@@ -16,20 +16,26 @@ interface MapboxGeocodingService {
         @Query("country") country: String = "IN",
         @Query("worldview") worldview: String = "in",
         @Query("limit") limit: Int = 5,
-        @Query("types") types: String = "address,place,district,locality,neighborhood",
+        @Query("language") language: String = "en",
+        @Query("types") types: String = "address,street,place,district,locality,neighborhood",
         @Query("proximity") proximity: String? = null  // "lon,lat" string for user-location bias
     ): MapboxGeocodingResponse
 
     /**
      * Mapbox Geocoding v6 reverse geocoding.
      * Maps lat/lon clicks back to a physical address.
+     * Now includes language, country, worldview, and street type
+     * for accurate Indian address resolution.
      */
     @GET("search/geocode/v6/reverse")
     suspend fun reverseSearch(
         @Query("longitude") longitude: Double,
         @Query("latitude") latitude: Double,
         @Query("access_token") token: String,
-        @Query("limit") limit: Int = 1,
-        @Query("types") types: String = "address,place,district,locality,neighborhood"
+        @Query("country") country: String = "IN",
+        @Query("worldview") worldview: String = "in",
+        @Query("language") language: String = "en",
+        @Query("limit") limit: Int = 5,
+        @Query("types") types: String = "address,street,place,locality,neighborhood"
     ): MapboxGeocodingResponse
 }

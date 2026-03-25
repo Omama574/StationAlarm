@@ -485,7 +485,11 @@ private fun OsmMapView(
     val startLat = initialCenter?.latitude  ?: 20.5937
     val startLon = initialCenter?.longitude ?: 78.9629
 
-    key(selectedLat, selectedLon, radiusKm) {
+    // Stable callback holders — lets the factory's MapEventsOverlay
+    // always call the latest lambda without needing to recreate the overlay.
+    val singleTapCb = rememberUpdatedState(onSingleTap)
+    val longPressCb = rememberUpdatedState(onLongPress)
+
     AndroidView(
         factory = { ctx ->
             MapView(ctx).apply {
@@ -495,28 +499,29 @@ private fun OsmMapView(
                 )
                 setTileSource(TileSourceFactory.MAPNIK)
                 setMultiTouchControls(true)
-                // Disable built-in zoom controls (we have custom FABs)
-                zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
+                zoomController.setVisibility(
+                    org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER
+                )
                 controller.setZoom(if (initialCenter != null) 17.5 else 5.0)
                 controller.setCenter(GeoPoint(startLat, startLon))
 
-                // Tap + Long press listener
+                // Persistent tap listener — never destroyed
                 val receiver = object : MapEventsReceiver {
                     override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
-                        p?.let { onSingleTap(it.latitude, it.longitude) }
+                        p?.let { singleTapCb.value(it.latitude, it.longitude) }
                         return true
                     }
                     override fun longPressHelper(p: GeoPoint?): Boolean {
-                        p?.let { onLongPress(it.latitude, it.longitude) }
+                        p?.let { longPressCb.value(it.latitude, it.longitude) }
                         return true
                     }
                 }
-                overlays.add(MapEventsOverlay(receiver))
+                overlays.add(0, MapEventsOverlay(receiver))
                 onMapReady(this)
             }
         },
         update = { mapView ->
-            // Remove old pin/circle but keep MapEventsOverlay
+            // Remove old pin/circle but keep MapEventsOverlay (index 0)
             mapView.overlays.removeAll { it is Marker || it is Polygon }
 
             if (selectedLat != null && selectedLon != null) {
@@ -565,7 +570,6 @@ private fun OsmMapView(
                     position = initialCenter
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                     title = "You are here"
-                    // Use a simple blue circle drawable for the "my location" dot
                     icon = android.graphics.drawable.GradientDrawable().apply {
                         shape = android.graphics.drawable.GradientDrawable.OVAL
                         setSize(48, 48)
@@ -581,7 +585,6 @@ private fun OsmMapView(
         },
         modifier = modifier
     )
-    } // end key()
 }
 
 // ── Save dialog ───────────────────────────────────────────────────────────────
