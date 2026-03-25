@@ -171,9 +171,9 @@ class LocationService : Service() {
                 Logger.log("SERVICE_INIT_REQUESTED")
             }
             ACTION_DISMISS_ALARM -> {
-                val stationId = intent.getStringExtra("stationId") ?: return START_STICKY
+                val stationId = intent.getStringExtra("stationId") ?: return START_NOT_STICKY
                 handleDismiss(stationId)
-                return START_STICKY
+                return START_NOT_STICKY
             }
         }
 
@@ -415,6 +415,16 @@ class LocationService : Service() {
 
         // 3. Delete from DB (this triggers sync which handles cleanup)
         StationRepository.dismissStation(stationId)
+
+        // 4. Explicit delayed stop check — safety net in case sync
+        //    is beaten by onResume re-launching the service
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (monitoringStations.isEmpty() && alertingStationIds.isEmpty()) {
+                Logger.log("SERVICE_STOPPING", extra = "Post-dismiss explicit stop")
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }, 500)
     }
 
     // ============================

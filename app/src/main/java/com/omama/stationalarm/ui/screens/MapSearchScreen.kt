@@ -40,6 +40,7 @@ import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.ui.viewmodel.MapSearchViewModel
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
@@ -71,9 +72,6 @@ fun MapSearchScreen(
 
     val haptic = LocalHapticFeedback.current
 
-    // Controls whether the "Name & Save" dialog is shown
-    var showNameDialog by remember { mutableStateOf(false) }
-
     // Shared MapView reference so the FAB can trigger animateToCenter
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
 
@@ -93,6 +91,16 @@ fun MapSearchScreen(
         }
     }
 
+    // Helper: tap on map (single or long)
+    val handleMapTap: (Double, Double) -> Unit = { lat, lon ->
+        if (isGpsEnabled()) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            viewModel.onMapTap(lat, lon)
+        } else {
+            onRequestGps()
+        }
+    }
+
     // ── Root: map fills everything, UI overlays on top ────────────────────────
     Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
 
@@ -102,16 +110,15 @@ fun MapSearchScreen(
             selectedLat   = selectedResult?.lat,
             selectedLon   = selectedResult?.lon,
             radiusKm      = radiusKm,
-            onLongPress   = { lat, lon -> 
-                if (isGpsEnabled()) {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    viewModel.onMapLongPress(lat, lon)
-                } else {
-                    onRequestGps()
-                }
+            addressText   = selectedResult?.let {
+                if (it.subtitle == "Loading address...") "Fetching..." else it.name
             },
+            onSingleTap   = handleMapTap,
+            onLongPress   = handleMapTap,
             onMapReady    = { mv -> mapViewRef = mv },
-            modifier      = Modifier.fillMaxSize()
+            modifier      = Modifier
+                .fillMaxSize()
+                .padding(bottom = if (selectedResult != null) 140.dp else 80.dp)
         )
 
         // ── 2. Top overlay: search bar + results dropdown ─────────────────────
@@ -224,70 +231,74 @@ fun MapSearchScreen(
             }
         }
 
-        // ── 3. My Location FAB ────────────────────────────────────────────────
-        val fabBottomPad = if (selectedResult != null) 256.dp else 12.dp
-        FloatingActionButton(
-            onClick              = {
-                if (isGpsEnabled()) viewModel.onMyLocationRequested() else onRequestGps()
-            },
-            modifier             = Modifier
+        // ── 3. Zoom + Location FABs (right side) ─────────────────────────────
+        Column(
+            modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = fabBottomPad)
-                .size(48.dp),
-            shape                = CircleShape,
-            containerColor       = MaterialTheme.colorScheme.surface,
-            contentColor         = MapAccentBlue,
-            elevation            = FloatingActionButtonDefaults.elevation(6.dp)
+                .padding(end = 12.dp, bottom = if (selectedResult != null) 152.dp else 92.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(
-                ImageVector.vectorResource(R.drawable.ic_gps_fixed),
-                contentDescription = "My location",
-                modifier = Modifier.size(22.dp)
-            )
-        }
+            // My Location FAB
+            FloatingActionButton(
+                onClick = {
+                    if (isGpsEnabled()) viewModel.onMyLocationRequested() else onRequestGps()
+                },
+                modifier       = Modifier.size(44.dp),
+                shape          = CircleShape,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor   = MapAccentBlue,
+                elevation      = FloatingActionButtonDefaults.elevation(6.dp)
+            ) {
+                Icon(
+                    ImageVector.vectorResource(R.drawable.ic_gps_fixed),
+                    contentDescription = "My location",
+                    modifier = Modifier.size(22.dp)
+                )
+            }
 
-        // ── 4. Floating Overlays (visible when a pin is set) ───────────────────────
-        AnimatedVisibility(
-            visible = selectedResult != null,
-            enter   = fadeIn() + slideInVertically { it / 2 },
-            exit    = fadeOut() + slideOutVertically { it / 2 },
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 86.dp) // Float above bottom navigation and FAB
-        ) {
-            val pin = selectedResult
-            if (pin != null) {
-                Column {
-                    MapMarkerOverlay(
-                        result = pin,
-                        onSaveClick = { showNameDialog = true },
-                        onAlarmClick = {
-                            onStartTrip(
-                                Station(id = pin.id, name = pin.name, lat = pin.lat, lon = pin.lon),
-                                radiusKm
-                            )
-                        },
-                        onBack = viewModel::clearSelection
-                    )
-                    BottomPerimeterSlider(
-                        radiusKm = radiusKm,
-                        onRadius = viewModel::onRadiusChanged
-                    )
-                }
+            // Zoom in
+            FloatingActionButton(
+                onClick = { mapViewRef?.controller?.zoomIn() },
+                modifier       = Modifier.size(40.dp),
+                shape          = RoundedCornerShape(10.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor   = MaterialTheme.colorScheme.onSurface,
+                elevation      = FloatingActionButtonDefaults.elevation(4.dp)
+            ) {
+                Text("+", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+
+            // Zoom out
+            FloatingActionButton(
+                onClick = { mapViewRef?.controller?.zoomOut() },
+                modifier       = Modifier.size(40.dp),
+                shape          = RoundedCornerShape(10.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor   = MaterialTheme.colorScheme.onSurface,
+                elevation      = FloatingActionButtonDefaults.elevation(4.dp)
+            ) {
+                Text("−", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
         }
 
-    }
-
-    // ── Save dialog ───────────────────────────────────────────────────────────
-    if (showNameDialog) {
-        SaveFavoriteDialog(
-            initialName = selectedResult?.name ?: "",
-            onSave      = { name, notes ->
-                viewModel.savePlace(name, notes)
-                showNameDialog = false
+        // ── 4. Fixed bottom bar: Perimeter slider + Set Alarm ─────────────────
+        BottomControlBar(
+            radiusKm      = radiusKm,
+            onRadius      = viewModel::onRadiusChanged,
+            hasPin        = selectedResult != null,
+            onSetAlarm    = {
+                val pin = selectedResult ?: return@BottomControlBar
+                onStartTrip(
+                    Station(id = pin.id, name = pin.name, lat = pin.lat, lon = pin.lon),
+                    radiusKm
+                )
             },
-            onDismiss   = { showNameDialog = false }
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
+
+    // ── Save dialog (now triggered externally after alarm is set) ──────────────
+    // Kept for programmatic use by MainActivity via SaveFavoriteDialog
 }
 
 // ── Sub-composables ───────────────────────────────────────────────────────────
@@ -364,136 +375,66 @@ private fun SearchResultRow(result: GeoSearchResult, onClick: () -> Unit) {
     )
 }
 
+// ── Fixed bottom control bar ──────────────────────────────────────────────────
+
 @Composable
-private fun MapMarkerOverlay(
-    result     : GeoSearchResult,
-    onSaveClick: () -> Unit,
-    onAlarmClick: () -> Unit,
-    onBack     : () -> Unit
+private fun BottomControlBar(
+    radiusKm  : Double,
+    onRadius  : (Double) -> Unit,
+    hasPin    : Boolean,
+    onSetAlarm: () -> Unit,
+    modifier  : Modifier = Modifier
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape    = RoundedCornerShape(16.dp),
-        color    = MaterialTheme.colorScheme.surface,
+        modifier       = modifier.fillMaxWidth(),
+        color          = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp,
-        shadowElevation = 12.dp
+        shadowElevation = 16.dp
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Location name + coords
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MapAccentBlueDim),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        ImageVector.vectorResource(R.drawable.ic_location_on),
-                        null,
-                        tint = MapAccentBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        result.name,
-                        fontWeight = FontWeight.Bold,
-                        fontSize   = 15.sp,
-                        maxLines   = 1,
-                        overflow   = TextOverflow.Ellipsis,
-                        color      = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        result.subtitle.ifBlank { "${String.format("%.4f", result.lat)}, ${String.format("%.4f", result.lon)}" },
-                        fontSize = 12.sp,
-                        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-            
-            // Action buttons
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier              = Modifier.fillMaxWidth()
-            ) {
-                OutlinedButton(
-                    onClick  = onSaveClick,
-                    modifier = Modifier.weight(1f),
-                    shape    = RoundedCornerShape(12.dp),
-                    border   = ButtonDefaults.outlinedButtonBorder(true).copy(width = 1.dp)
-                ) {
-                    Icon(
-                        ImageVector.vectorResource(R.drawable.ic_star),
-                        null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Save", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                }
-                Button(
-                    onClick  = onAlarmClick,
-                    modifier = Modifier.weight(1f),
-                    shape    = RoundedCornerShape(12.dp),
-                    colors   = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("Use This", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BottomPerimeterSlider(
-    radiusKm: Double,
-    onRadius: (Double) -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape    = RoundedCornerShape(16.dp),
-        color    = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-        tonalElevation = 4.dp,
-        shadowElevation = 8.dp
-    ) {
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 14.dp)
+        ) {
+            // Perimeter label + value
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
-                Text("Alert Radius", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    "Perimeter",
+                    fontWeight = FontWeight.Medium,
+                    fontSize   = 14.sp,
+                    color      = MaterialTheme.colorScheme.onSurface
+                )
                 Text(
                     "${String.format("%.1f", radiusKm)} km",
                     fontWeight = FontWeight.Bold,
-                    fontSize   = 14.sp,
+                    fontSize   = 15.sp,
                     color      = MapAccentBlue
                 )
             }
+
             Spacer(Modifier.height(4.dp))
+
+            // Slider
             Slider(
-                value        = radiusKm.toFloat(),
+                value         = radiusKm.toFloat(),
                 onValueChange = { onRadius(it.toDouble()) },
-                valueRange   = 3f..20f,
-                modifier     = Modifier.fillMaxWidth(),
-                colors       = SliderDefaults.colors(
-                    thumbColor       = MapAccentBlue,
-                    activeTrackColor = MapAccentBlue,
-                    inactiveTrackColor = MapAccentBlueDim
+                valueRange    = 3f..20f,
+                enabled       = hasPin,
+                modifier      = Modifier.fillMaxWidth(),
+                colors        = SliderDefaults.colors(
+                    thumbColor         = if (hasPin) MapAccentBlue else Color.Gray,
+                    activeTrackColor   = if (hasPin) MapAccentBlue else Color.Gray,
+                    inactiveTrackColor = MapAccentBlueDim,
+                    disabledThumbColor = Color.Gray.copy(alpha = 0.5f),
+                    disabledActiveTrackColor = Color.Gray.copy(alpha = 0.3f),
+                    disabledInactiveTrackColor = Color.Gray.copy(alpha = 0.1f)
                 )
             )
+
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -501,9 +442,32 @@ private fun BottomPerimeterSlider(
                 Text("3 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                 Text("20 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
             }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Set Alarm button
+            Button(
+                onClick  = onSetAlarm,
+                enabled  = hasPin,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape    = RoundedCornerShape(14.dp),
+                colors   = ButtonDefaults.buttonColors(
+                    containerColor         = ConfirmGreen,
+                    contentColor           = Color.White,
+                    disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
+                    disabledContentColor   = Color.Gray
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+            ) {
+                Text("Set Alarm", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
+
+// ── Map View ──────────────────────────────────────────────────────────────────
 
 @Composable
 private fun OsmMapView(
@@ -511,6 +475,8 @@ private fun OsmMapView(
     selectedLat  : Double?,
     selectedLon  : Double?,
     radiusKm     : Double,
+    addressText  : String?,
+    onSingleTap  : (Double, Double) -> Unit,
     onLongPress  : (Double, Double) -> Unit,
     onMapReady   : (MapView) -> Unit,
     modifier     : Modifier = Modifier
@@ -529,12 +495,17 @@ private fun OsmMapView(
                 )
                 setTileSource(TileSourceFactory.MAPNIK)
                 setMultiTouchControls(true)
+                // Disable built-in zoom controls (we have custom FABs)
+                zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
                 controller.setZoom(if (initialCenter != null) 17.5 else 5.0)
                 controller.setCenter(GeoPoint(startLat, startLon))
 
-                // Long press listener
+                // Tap + Long press listener
                 val receiver = object : MapEventsReceiver {
-                    override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean = false
+                    override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
+                        p?.let { onSingleTap(it.latitude, it.longitude) }
+                        return true
+                    }
                     override fun longPressHelper(p: GeoPoint?): Boolean {
                         p?.let { onLongPress(it.latitude, it.longitude) }
                         return true
@@ -551,25 +522,35 @@ private fun OsmMapView(
             if (selectedLat != null && selectedLon != null) {
                 val center = GeoPoint(selectedLat, selectedLon)
 
-                // Animate to the selected location
-                mapView.controller.setZoom(17.5)
-                mapView.controller.animateTo(center)
-
-                // Pin marker
-                val marker = Marker(mapView).apply {
-                    position = center
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    title = "Selected location"
-                }
-                mapView.overlays.add(marker)
-
-                // Geofence circle
+                // Geofence circle points
                 val circlePoints = (0..360 step 4).map { angle ->
                     val rad  = Math.toRadians(angle.toDouble())
                     val dLat = (radiusKm / 111.0) * Math.cos(rad)
                     val dLon = (radiusKm / (111.0 * Math.cos(Math.toRadians(selectedLat)))) * Math.sin(rad)
                     GeoPoint(selectedLat + dLat, selectedLon + dLon)
                 }
+
+                // Auto-zoom to fit the circle with padding
+                val lats = circlePoints.map { it.latitude }
+                val lons = circlePoints.map { it.longitude }
+                val bbox = BoundingBox(
+                    lats.max(), lons.max(), lats.min(), lons.min()
+                )
+                mapView.post {
+                    mapView.zoomToBoundingBox(bbox, true, 100)
+                    mapView.controller.setCenter(center)
+                }
+
+                // Pin marker with address snippet
+                val marker = Marker(mapView).apply {
+                    position = center
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                    title = addressText ?: "Selected location"
+                    showInfoWindow()
+                }
+                mapView.overlays.add(marker)
+
+                // Geofence circle polygon
                 val polygon = Polygon(mapView).apply {
                     points = circlePoints
                     fillPaint.color    = android.graphics.Color.argb(45, 79, 195, 247)
@@ -606,7 +587,7 @@ private fun OsmMapView(
 // ── Save dialog ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun SaveFavoriteDialog(
+fun SaveFavoriteDialog(
     initialName: String,
     onSave     : (name: String, notes: String?) -> Unit,
     onDismiss  : () -> Unit

@@ -38,6 +38,7 @@ import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.service.LocationService
 import com.omama.stationalarm.ui.screens.HomeScreen
 import com.omama.stationalarm.ui.screens.MapSearchScreen
+import com.omama.stationalarm.ui.screens.SaveFavoriteDialog
 import com.omama.stationalarm.ui.screens.StationConfigBottomSheet
 import com.omama.stationalarm.ui.theme.StationAlarmTheme
 import com.omama.stationalarm.ui.viewmodel.StationViewModel
@@ -243,6 +244,10 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     var selectedPreset by remember { mutableStateOf<com.omama.stationalarm.data.SavedPlace?>(null) }
     var selectedRadius by remember { mutableStateOf<Double?>(null) }
     var editingStation by remember { mutableStateOf<com.omama.stationalarm.data.ActiveStation?>(null) }
+    var isFromMap by remember { mutableStateOf(false) }
+    var showSaveFavoriteDialog by remember { mutableStateOf(false) }
+    var pendingFavStation by remember { mutableStateOf<Station?>(null) }
+    var pendingFavRadius by remember { mutableStateOf(3.0) }
 
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 1 && !isGpsEnabled()) {
@@ -313,6 +318,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                 1 -> MapSearchScreen(
                     onStartTrip = { station, alertDistanceKm ->
                         if (isGpsEnabled()) {
+                            isFromMap = true
                             selectedStation = station
                             selectedRadius = alertDistanceKm
                         } else {
@@ -428,6 +434,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     selectedPreset = null
                     selectedRadius = null
                     editingStation = null
+                    isFromMap = false
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("✅ Alarm updated for $stationName")
                     }
@@ -436,19 +443,66 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     viewModel.addActiveStation(activeStation, if (!isRailway) selectedStation else null)
                     
                     val stationName = selectedStation!!.name
+                    val wasFromMap = isFromMap
+                    val savedStation = selectedStation!!
+                    val savedRadius = selectedRadius ?: 3.0
                     selectedStation = null
                     selectedPreset = null
                     selectedRadius = null
                     editingStation = null
-                    
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("✅ Alarm set for $stationName")
-                    }
+                    isFromMap = false
                     
                     Intent(context, LocationService::class.java).apply {
                         action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
                     }.also { context.startForegroundService(it) }
+
+                    coroutineScope.launch {
+                        if (wasFromMap) {
+                            // Navigate to Home tab
+                            pagerState.animateScrollToPage(0)
+                            // Ask to save as favourite
+                            val result = snackbarHostState.showSnackbar(
+                                message = "✅ Alarm set for $stationName",
+                                actionLabel = "Save ⭐",
+                                duration = SnackbarDuration.Long
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                pendingFavStation = savedStation
+                                pendingFavRadius = savedRadius
+                                showSaveFavoriteDialog = true
+                            }
+                        } else {
+                            snackbarHostState.showSnackbar("✅ Alarm set for $stationName")
+                        }
+                    }
                 }
+            }
+        )
+    }
+
+    // Save-as-favourite dialog (after map alarm is set)
+    if (showSaveFavoriteDialog && pendingFavStation != null) {
+        SaveFavoriteDialog(
+            initialName = pendingFavStation!!.name,
+            onSave = { name, notes ->
+                val place = com.omama.stationalarm.data.SavedPlace(
+                    id = "custom-${java.util.UUID.randomUUID()}",
+                    name = name.ifBlank { pendingFavStation!!.name },
+                    lat = pendingFavStation!!.lat,
+                    lon = pendingFavStation!!.lon,
+                    radiusKm = pendingFavRadius,
+                    notes = notes
+                )
+                com.omama.stationalarm.repository.StationRepository.saveFavoritePlace(place)
+                showSaveFavoriteDialog = false
+                pendingFavStation = null
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("⭐ Saved to favourites!")
+                }
+            },
+            onDismiss = {
+                showSaveFavoriteDialog = false
+                pendingFavStation = null
             }
         )
     }

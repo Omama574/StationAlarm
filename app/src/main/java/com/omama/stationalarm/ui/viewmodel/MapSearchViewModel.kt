@@ -42,8 +42,8 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     private val _selectedResult = MutableStateFlow<GeoSearchResult?>(null)
     val selectedResult: StateFlow<GeoSearchResult?> = _selectedResult.asStateFlow()
 
-    /** Radius slider value set by user (2–20 km). */
-    private val _radiusKm = MutableStateFlow(2.0)
+    /** Radius slider value set by user (3–20 km). */
+    private val _radiusKm = MutableStateFlow(3.0)
     val radiusKm: StateFlow<Double> = _radiusKm.asStateFlow()
 
     /** User's GPS location — emitted once when they tap the "My Location" button. */
@@ -128,11 +128,11 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /**
-     * Called when user long-presses anywhere on the map.
+     * Called when user taps (single or long-press) anywhere on the map.
      * The pin moves to the tapped coords — coords come from OSM map projection,
      * not from Mapbox (TOS-safe).
      */
-    fun onMapLongPress(lat: Double, lon: Double) {
+    fun onMapTap(lat: Double, lon: Double) {
         // Drop an initial temporary pin with coords
         _selectedResult.value = GeoSearchResult(
             id = "manual-${System.currentTimeMillis()}",
@@ -177,14 +177,14 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    /** Slider callback — clamps to 2–20 km. */
+    /** Slider callback — clamps to 3–20 km. */
     fun onRadiusChanged(km: Double) {
-        _radiusKm.value = km.coerceIn(2.0, 20.0)
+        _radiusKm.value = km.coerceIn(3.0, 20.0)
     }
 
     fun clearSelection() {
         _selectedResult.value = null
-        _radiusKm.value = 2.0
+        _radiusKm.value = 3.0
         _query.value = ""
         _searchResults.value = emptyList()
     }
