@@ -547,10 +547,12 @@ private fun OsmMapView(
                 }
 
                 // Pin marker with custom dynamic UI InfoWindow
+                // CRITICAL: setOnMarkerClickListener returns false so taps
+                // pass through to MapEventsOverlay and trigger onMapTap()
                 val marker = Marker(mapView).apply {
                     position = center
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    
+                    setOnMarkerClickListener { _, _ -> false }
                     infoWindow = CustomInfoWindow(
                         mapView = mapView,
                         titleStr = selectedResult?.name?.ifBlank { "Dropped Pin" } ?: "Dropped Pin",
@@ -560,12 +562,15 @@ private fun OsmMapView(
                 }
                 mapView.overlays.add(marker)
 
-                // Geofence circle polygon
+                // Geofence circle polygon (make non-clickable to prevent empty bubbles)
                 val polygon = Polygon(mapView).apply {
                     points = circlePoints
                     fillPaint.color    = android.graphics.Color.argb(45, 79, 195, 247)
                     outlinePaint.color = android.graphics.Color.argb(210, 79, 195, 247)
                     outlinePaint.strokeWidth = 3.5f
+                    // Prevent this polygon from opening an empty default InfoWindow
+                    infoWindow = null
+                    setOnClickListener { _, _, _ -> false }
                 }
                 mapView.overlays.add(polygon)
 
@@ -574,7 +579,8 @@ private fun OsmMapView(
                 val userMarker = Marker(mapView).apply {
                     position = initialCenter
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                    title = "You are here"
+                    setOnMarkerClickListener { _, _ -> false }
+                    setInfoWindow(null)
                     icon = android.graphics.drawable.GradientDrawable().apply {
                         shape = android.graphics.drawable.GradientDrawable.OVAL
                         setSize(48, 48)

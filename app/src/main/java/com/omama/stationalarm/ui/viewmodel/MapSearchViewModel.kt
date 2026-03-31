@@ -89,10 +89,12 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         _isSearching.value = true
         _searchError.value = null
         try {
+            val prox = _initialCenter.value?.let { "${it.longitude},${it.latitude}" }
             val response = RetrofitClient.geocodingService.search(
                 query = q,
                 token = BuildConfig.MAPBOX_ACCESS_TOKEN,
-                limit = 5
+                limit = 5,
+                proximity = prox
             )
             _searchResults.value = response.features.map { it.toSearchResult() }
         } catch (e: Exception) {
@@ -152,9 +154,9 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                     token = BuildConfig.MAPBOX_ACCESS_TOKEN
                 )
 
-                // Pick the most specific feature from the results
-                // Priority: address > street > neighborhood > locality > place
-                val typePriority = listOf("address", "street", "neighborhood", "locality", "place")
+                // Pick the most relevant travel feature from the results
+                // Priority: poi > neighborhood > locality > place > street
+                val typePriority = listOf("poi", "neighborhood", "locality", "place", "street")
                 val bestFeature = response.features
                     .sortedBy { feature ->
                         val ft = feature.properties.featureType ?: ""
@@ -184,7 +186,11 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             } catch (e: Exception) {
                 // Network error — show coords fallback
-                android.util.Log.e("MapSearchViewModel", "Reverse geocoding failed", e)
+                if (e is retrofit2.HttpException) {
+                    android.util.Log.e("MapSearchViewModel", "Reverse geocoding HTTP Error ${e.code()}: ${e.response()?.errorBody()?.string()}", e)
+                } else {
+                    android.util.Log.e("MapSearchViewModel", "Reverse geocoding failed for $lat, $lon", e)
+                }
                 _selectedResult.value = _selectedResult.value?.copy(
                     name = "Dropped Pin",
                     subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
