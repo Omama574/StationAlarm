@@ -16,6 +16,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- For Android 13+ -->
 
 
@@ -36,7 +37,7 @@
         <service
             android:name=".service.LocationService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location|mediaPlayback" />
 
         <!-- Geofence receiver: explicit pending intents will target this.
              Keep exported=false for security; include the action as an intent-filter. -->

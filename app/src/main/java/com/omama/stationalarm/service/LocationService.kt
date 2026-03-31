@@ -4,6 +4,7 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.location.Location
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -70,6 +71,10 @@ class LocationService : Service() {
 
     private var isPolling = false
     private var currentPollingIntervalMs = 10_000L // Start fast for initial lock
+    // Tracks whether the foreground service is running with LOCATION type.
+    // Flipped to false when all monitoring stops (alarm-only mode) so the GPS
+    // indicator disappears from the status bar while the alarm is ringing.
+    private var locationForegroundActive = true
 
     private var mediaPlayer: MediaPlayer? = null
     private var alarmRinging = false
@@ -149,8 +154,18 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Always ensure we are in the foreground first
-        startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."))
+        // Enter foreground with the type appropriate for the current mode.
+        // If we're in alert-only mode (monitoring stopped), use mediaPlayback so
+        // the GPS indicator doesn't show while the alarm is ringing.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val fgType = if (!locationForegroundActive)
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            else
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."), fgType)
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."))
+        }
 
         when (intent?.action) {
             ACTION_GEOFENCE_TRIGGERED -> {
@@ -266,6 +281,17 @@ class LocationService : Service() {
                         lastLocationTimeMs = System.currentTimeMillis()
                         watchdogHandler.postDelayed(watchdogRunnable, 30_000L)
                     }
+                    // If we previously demoted to mediaPlayback, switch back to location type
+                    if (!locationForegroundActive) {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."),
+                                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                        } else {
+                            startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."))
+                        }
+                        locationForegroundActive = true
+                    }
                     // Immediate location check for newly added stations
                     if (newMonitoring.isNotEmpty()) {
                         getLastKnownLocation { loc ->
@@ -282,6 +308,20 @@ class LocationService : Service() {
                 } else {
                     // No monitoring stations: stop GPS
                     stopLocationUpdates()
+                    // Release the location foreground type so the GPS indicator disappears.
+                    // If still alerting, re-enter as mediaPlayback to keep service alive.
+                    if (locationForegroundActive) {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        if (alertingStationIds.isNotEmpty()) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                startForeground(NOTIFICATION_ID, createNotification("Alarm active — tap to open"),
+                                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+                            } else {
+                                startForeground(NOTIFICATION_ID, createNotification("Alarm active — tap to open"))
+                            }
+                        }
+                        locationForegroundActive = false
+                    }
                 }
 
                 // --- 4. Update foreground notification ---

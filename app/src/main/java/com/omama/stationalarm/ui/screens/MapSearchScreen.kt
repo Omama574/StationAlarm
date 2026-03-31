@@ -279,10 +279,12 @@ fun MapSearchScreen(
 
         // ── 4. Fixed bottom bar: Perimeter slider + Set Alarm ─────────────────
         BottomControlBar(
-            radiusKm      = radiusKm,
-            onRadius      = viewModel::onRadiusChanged,
-            hasPin        = selectedResult != null,
-            onSetAlarm    = {
+            radiusKm    = radiusKm,
+            onRadius    = viewModel::onRadiusChanged,
+            hasPin      = selectedResult != null,
+            pinName     = selectedResult?.name ?: "",
+            pinSubtitle = selectedResult?.subtitle ?: "",
+            onSetAlarm  = {
                 val pin = selectedResult ?: return@BottomControlBar
                 onStartTrip(
                     Station(id = pin.id, name = pin.name, lat = pin.lat, lon = pin.lon),
@@ -375,11 +377,13 @@ private fun SearchResultRow(result: GeoSearchResult, onClick: () -> Unit) {
 
 @Composable
 private fun BottomControlBar(
-    radiusKm  : Double,
-    onRadius  : (Double) -> Unit,
-    hasPin    : Boolean,
-    onSetAlarm: () -> Unit,
-    modifier  : Modifier = Modifier
+    radiusKm   : Double,
+    onRadius   : (Double) -> Unit,
+    hasPin     : Boolean,
+    pinName    : String,
+    pinSubtitle: String,
+    onSetAlarm : () -> Unit,
+    modifier   : Modifier = Modifier
 ) {
     Surface(
         modifier       = modifier.fillMaxWidth(),
@@ -392,6 +396,28 @@ private fun BottomControlBar(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 14.dp)
         ) {
+            // Selected location name + address
+            if (hasPin && pinName.isNotBlank()) {
+                Text(
+                    pinName,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize   = 15.sp,
+                    maxLines   = 1,
+                    overflow   = TextOverflow.Ellipsis,
+                    color      = MaterialTheme.colorScheme.onSurface
+                )
+                if (pinSubtitle.isNotBlank() && pinSubtitle != "Loading address...") {
+                    Text(
+                        pinSubtitle,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
             // Perimeter label + value
             Row(
                 modifier              = Modifier.fillMaxWidth(),
@@ -546,19 +572,13 @@ private fun OsmMapView(
                     mapView.controller.setCenter(center)
                 }
 
-                // Pin marker with custom dynamic UI InfoWindow
-                // CRITICAL: setOnMarkerClickListener returns false so taps
-                // pass through to MapEventsOverlay and trigger onMapTap()
+                // Pin marker — purely visual, no info window so it never
+                // intercepts tap events that should reach MapEventsOverlay.
                 val marker = Marker(mapView).apply {
                     position = center
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                    setInfoWindow(null)
                     setOnMarkerClickListener { _, _ -> false }
-                    infoWindow = CustomInfoWindow(
-                        mapView = mapView,
-                        titleStr = selectedResult?.name?.ifBlank { "Dropped Pin" } ?: "Dropped Pin",
-                        subtitleStr = selectedResult?.subtitle ?: ""
-                    )
-                    showInfoWindow()
                 }
                 mapView.overlays.add(marker)
 
@@ -596,33 +616,6 @@ private fun OsmMapView(
         },
         modifier = modifier
     )
-}
-
-/**
- * Custom OSMDroid InfoWindow for showing detailed structured addresses cleanly.
- */
-private class CustomInfoWindow(
-    mapView: MapView,
-    private val titleStr: String,
-    private val subtitleStr: String
-) : org.osmdroid.views.overlay.infowindow.InfoWindow(R.layout.custom_info_window, mapView) {
-
-    override fun onOpen(item: Any?) {
-        val titleView = mView.findViewById<android.widget.TextView>(R.id.info_title)
-        val subtitleView = mView.findViewById<android.widget.TextView>(R.id.info_subtitle)
-
-        titleView.text = titleStr
-        if (subtitleStr.isNotBlank() && subtitleStr != "Loading address...") {
-            subtitleView.text = subtitleStr
-            subtitleView.visibility = android.view.View.VISIBLE
-        } else {
-            subtitleView.visibility = android.view.View.GONE
-        }
-    }
-
-    override fun onClose() {
-        // No-op
-    }
 }
 
 // ── Save dialog ───────────────────────────────────────────────────────────────
