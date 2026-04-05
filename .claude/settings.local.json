@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:locationiq.com)",
+      "WebFetch(domain:photon.komoot.io)",
+      "WebFetch(domain:api-reference.locationiq.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.locationiq.com)"
+    ]
+  }
+}

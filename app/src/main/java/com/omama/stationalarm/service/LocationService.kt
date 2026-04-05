@@ -154,41 +154,31 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Enter foreground with the type appropriate for the current mode.
-        // If we're in alert-only mode (monitoring stopped), use mediaPlayback so
-        // the GPS indicator doesn't show while the alarm is ringing.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val fgType = if (!locationForegroundActive)
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-            else
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-            startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."), fgType)
-        } else {
-            startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."))
+        if (intent?.action == ACTION_DISMISS_ALARM) {
+            val stationId = intent.getStringExtra("stationId") ?: return START_NOT_STICKY
+            handleDismiss(stationId)
+            return START_NOT_STICKY
         }
+
+        // For all other intents, ensure we hit Android's foreground service requirement immediately.
+        updateForegroundNotification(forceStartForeground = true)
 
         when (intent?.action) {
             ACTION_GEOFENCE_TRIGGERED -> {
                 val stationId = intent.getStringExtra("stationId") ?: return START_STICKY
                 val layer = intent.getStringExtra("layer")
                 Logger.log("SERVICE_GEOFENCE_RECEIVED", stationId, layer)
-                // Wake-up: immediately force a location update to react to proximity change
+                // Wake-up: immediately force a location update
                 restartLocationUpdates()
             }
             ACTION_ALERT_GEOFENCE_TRIGGERED -> {
                 val stationId = intent.getStringExtra("stationId") ?: return START_STICKY
                 Logger.log("SERVICE_ALERT_GEOFENCE_RECEIVED", stationId)
-                // Transition to ALERTING in the DB; sync will handle the rest
                 StationRepository.markAlerting(stationId)
             }
             ACTION_START_FOR_ACTIVE_STATIONS -> {
                 // Boot / re-initialization: sync handles everything
                 Logger.log("SERVICE_INIT_REQUESTED")
-            }
-            ACTION_DISMISS_ALARM -> {
-                val stationId = intent.getStringExtra("stationId") ?: return START_NOT_STICKY
-                handleDismiss(stationId)
-                return START_NOT_STICKY
             }
         }
 
@@ -281,17 +271,6 @@ class LocationService : Service() {
                         lastLocationTimeMs = System.currentTimeMillis()
                         watchdogHandler.postDelayed(watchdogRunnable, 30_000L)
                     }
-                    // If we previously demoted to mediaPlayback, switch back to location type
-                    if (!locationForegroundActive) {
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."),
-                                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-                        } else {
-                            startForeground(NOTIFICATION_ID, createNotification("Monitoring stations..."))
-                        }
-                        locationForegroundActive = true
-                    }
                     // Immediate location check for newly added stations
                     if (newMonitoring.isNotEmpty()) {
                         getLastKnownLocation { loc ->
@@ -308,20 +287,6 @@ class LocationService : Service() {
                 } else {
                     // No monitoring stations: stop GPS
                     stopLocationUpdates()
-                    // Release the location foreground type so the GPS indicator disappears.
-                    // If still alerting, re-enter as mediaPlayback to keep service alive.
-                    if (locationForegroundActive) {
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                        if (alertingStationIds.isNotEmpty()) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                startForeground(NOTIFICATION_ID, createNotification("Alarm active — tap to open"),
-                                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-                            } else {
-                                startForeground(NOTIFICATION_ID, createNotification("Alarm active — tap to open"))
-                            }
-                        }
-                        locationForegroundActive = false
-                    }
                 }
 
                 // --- 4. Update foreground notification ---
@@ -456,22 +421,15 @@ class LocationService : Service() {
         // 3. Delete from DB (this triggers sync which handles cleanup)
         StationRepository.dismissStation(stationId)
 
-        // 4. Explicit delayed stop check — safety net in case sync
-        //    is beaten by onResume re-launching the service
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (monitoringStations.isEmpty() && alertingStationIds.isEmpty()) {
-                Logger.log("SERVICE_STOPPING", extra = "Post-dismiss explicit stop")
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
-        }, 500)
+        // 4. Wait natively for DB Sync to handle service teardown
+        // As soon as the Flow updates, syncWithDatabase will invoke stopSelf() if empty.
     }
 
     // ============================
     //    NOTIFICATION ENGINE
     // ============================
 
-    private fun updateForegroundNotification() {
+    private fun updateForegroundNotification(forceStartForeground: Boolean = false) {
         val text = when {
             monitoringStations.isNotEmpty() -> {
                 val nearest = monitoringStations.minByOrNull { it.currentDistanceKm ?: Double.MAX_VALUE }
@@ -489,8 +447,25 @@ class LocationService : Service() {
             else -> "Monitoring stations..."
         }
         val notif = createNotification(text)
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID, notif)
+        
+        val newIsLocationActive = monitoringStations.isNotEmpty()
+        val typeChanged = locationForegroundActive != newIsLocationActive
+        locationForegroundActive = newIsLocationActive
+
+        if (forceStartForeground || typeChanged) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val fgType = if (locationForegroundActive)
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                else
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                startForeground(NOTIFICATION_ID, notif, fgType)
+            } else {
+                startForeground(NOTIFICATION_ID, notif)
+            }
+        } else {
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(NOTIFICATION_ID, notif)
+        }
     }
 
     private fun showAlertNotification(active: ActiveStation) {
