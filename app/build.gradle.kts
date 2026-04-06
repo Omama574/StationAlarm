@@ -5,14 +5,6 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// ── Read Mapbox token from local.properties ──────────────────────────────────
-import java.util.Properties
-val localProperties = Properties()
-val localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.inputStream().use { localProperties.load(it) }
-}
-
 android {
     namespace = "com.omama.stationalarm"
     compileSdk {
@@ -27,9 +19,6 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // Inject Mapbox token from local.properties
-        buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"${localProperties.getProperty("MAPBOX_ACCESS_TOKEN", "")}\"")
 
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")

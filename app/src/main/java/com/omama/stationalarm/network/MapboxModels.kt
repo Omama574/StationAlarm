@@ -2,108 +2,8 @@ package com.omama.stationalarm.network
 
 import com.google.gson.annotations.SerializedName
 
-// ── Top-level response ───────────────────────────────────────────────────────
+// ── Shared domain model ───────────────────────────────────────────────────────
 
-data class MapboxGeocodingResponse(
-    val type: String,
-    val features: List<MapboxFeature>
-)
-
-// ── Feature (each search result) ────────────────────────────────────────────
-
-data class MapboxFeature(
-    val type: String,
-    val id: String,
-    val geometry: MapboxGeometry,
-    val properties: MapboxProperties
-)
-
-data class MapboxGeometry(
-    val type: String,
-    val coordinates: List<Double>  // [longitude, latitude]
-) {
-    val lon: Double get() = coordinates.getOrElse(0) { 0.0 }
-    val lat: Double get() = coordinates.getOrElse(1) { 0.0 }
-}
-
-// ── Properties ───────────────────────────────────────────────────────────────
-
-data class MapboxProperties(
-    val name: String?,
-    @SerializedName("full_address") val fullAddress: String?,
-    @SerializedName("place_formatted") val placeFormatted: String?,
-    val context: MapboxContext?,
-    @SerializedName("match_code") val matchCode: MapboxMatchCode?,
-    @SerializedName("feature_type") val featureType: String? = null
-) {
-    /** Human-readable subtitle for the result card */
-    val subtitle: String
-        get() = fullAddress ?: placeFormatted ?: context?.place?.name ?: ""
-
-    /**
-     * Builds a structured address from context fields, similar to
-     * Google Maps' formatted_address. Falls back gracefully through
-     * each level of specificity.
-     */
-    val structuredAddress: String
-        get() {
-            val parts = listOfNotNull(
-                context?.address?.name,        // house number: "42"
-                context?.street?.name,         // street: "MG Road"
-                context?.neighborhood?.name,   // area: "Camp Area"
-                context?.locality?.name,       // locality: "Shivajinagar"
-                context?.place?.name,          // city: "Pune"
-                context?.district?.name,       // district: "Pune District"
-                context?.region?.name          // state: "Maharashtra"
-            )
-            if (parts.isNotEmpty()) return parts.joinToString(", ")
-
-            // Fallback chain
-            return fullAddress ?: placeFormatted ?: name ?: ""
-        }
-
-    /**
-     * Best display name: prefer the feature name (street/place name),
-     * then structured address, then raw name field.
-     */
-    val displayName: String
-        get() {
-            // For street features, the name IS the street name — perfect
-            // For address features, name is just the house number — useless alone
-            val streetName = context?.street?.name
-            val placeName = context?.place?.name
-
-            return when (featureType) {
-                "address" -> streetName ?: name ?: "Dropped Pin"
-                "street"  -> name ?: "Dropped Pin"
-                else      -> name ?: streetName ?: placeName ?: "Dropped Pin"
-            }
-        }
-}
-
-data class MapboxContext(
-    val country: MapboxContextEntry?,
-    val region: MapboxContextEntry?,
-    val district: MapboxContextEntry?,
-    val place: MapboxContextEntry?,
-    val locality: MapboxContextEntry?,
-    val neighborhood: MapboxContextEntry?,
-    val street: MapboxContextEntry?,
-    val address: MapboxContextEntry?
-)
-
-data class MapboxContextEntry(
-    val id: String?,
-    val name: String?
-)
-
-data class MapboxMatchCode(
-    val confidence: String?   // "exact" | "high" | "medium" | "low"
-)
-
-// ── Convenience extension ─────────────────────────────────────────────────────
-
-/** Map to a UI-ready search result. */
 data class GeoSearchResult(
     val id: String,
     val name: String,
@@ -113,11 +13,134 @@ data class GeoSearchResult(
     val confidence: String  // "exact" | "high" | "medium" | "low"
 )
 
-fun MapboxFeature.toSearchResult() = GeoSearchResult(
-    id = id,
-    name = properties.displayName,
-    subtitle = properties.structuredAddress.ifBlank { properties.subtitle },
-    lat = geometry.lat,
-    lon = geometry.lon,
-    confidence = properties.matchCode?.confidence ?: "low"
+// ── LocationIQ models ─────────────────────────────────────────────────────────
+// These map to the JSON returned by our Cloudflare Worker (which proxies LocationIQ).
+
+data class LocationIqAutocompleteResult(
+    @SerializedName("place_id")      val placeId: String,
+    @SerializedName("osm_id")        val osmId: String?,
+    val lat: String,
+    val lon: String,
+    @SerializedName("display_place") val displayPlace: String?,
+    @SerializedName("display_address") val displayAddress: String?,
+    @SerializedName("display_name")  val displayName: String?,
+    val importance: Double = 0.5
 )
+
+fun LocationIqAutocompleteResult.toSearchResult(): GeoSearchResult {
+    val name = displayPlace?.takeIf { it.isNotBlank() }
+        ?: displayName?.split(",")?.firstOrNull()?.trim()
+        ?: "Unknown"
+    val subtitle = displayAddress?.takeIf { it.isNotBlank() }
+        ?: displayName?.takeIf { it.isNotBlank() }
+        ?: ""
+    val confidence = when {
+        importance >= 0.7 -> "high"
+        importance >= 0.4 -> "medium"
+        else              -> "low"
+    }
+    return GeoSearchResult(
+        id         = "liq_${osmId ?: placeId}",
+        name       = name,
+        subtitle   = subtitle,
+        lat        = lat.toDoubleOrNull() ?: 0.0,
+        lon        = lon.toDoubleOrNull() ?: 0.0,
+        confidence = confidence
+    )
+}
+
+data class LocationIqReverseResult(
+    @SerializedName("place_id") val placeId: String,
+    @SerializedName("osm_id")   val osmId: String?,
+    val lat: String,
+    val lon: String,
+    @SerializedName("display_name") val displayName: String?,
+    val address: LocationIqAddress?
+)
+
+data class LocationIqAddress(
+    val road: String?,
+    val suburb: String?,
+    val city: String?,
+    val town: String?,
+    val village: String?,
+    val county: String?,
+    val state: String?,
+    val country: String?
+)
+
+fun LocationIqReverseResult.toSearchResult(lat: Double, lon: Double): GeoSearchResult {
+    val addr   = address
+    val name   = addr?.road
+        ?: displayName?.split(",")?.firstOrNull()?.trim()
+        ?: "Dropped Pin"
+    val city   = addr?.city ?: addr?.town ?: addr?.village ?: addr?.county ?: ""
+    val state  = addr?.state ?: ""
+    val subtitle = listOfNotNull(
+        city.takeIf  { it.isNotBlank() },
+        state.takeIf { it.isNotBlank() }
+    ).joinToString(", ").ifBlank {
+        displayName?.takeIf { it.isNotBlank() } ?: ""
+    }
+    return GeoSearchResult(
+        id         = "liq_rev_${osmId ?: placeId}",
+        name       = name,
+        subtitle   = subtitle,
+        lat        = lat,
+        lon        = lon,
+        confidence = "high"
+    )
+}
+
+// ── Photon models (GeoJSON) ───────────────────────────────────────────────────
+// Photon returns a GeoJSON FeatureCollection.
+// IMPORTANT: geometry.coordinates order is [lon, lat] — reversed from standard!
+
+data class PhotonResponse(
+    val type: String,
+    val features: List<PhotonFeature>
+)
+
+data class PhotonFeature(
+    val type: String,
+    val geometry: PhotonGeometry,
+    val properties: PhotonProperties
+) {
+    val lon: Double get() = geometry.coordinates.getOrElse(0) { 0.0 }
+    val lat: Double get() = geometry.coordinates.getOrElse(1) { 0.0 }
+}
+
+data class PhotonGeometry(
+    val type: String,
+    val coordinates: List<Double>  // [longitude, latitude]
+)
+
+data class PhotonProperties(
+    val name: String?,
+    val street: String?,
+    val city: String?,
+    val state: String?,
+    val country: String?,
+    val countrycode: String?,
+    @SerializedName("osm_id")    val osmId: Long?,
+    @SerializedName("osm_key")   val osmKey: String?,
+    @SerializedName("osm_value") val osmValue: String?
+)
+
+fun PhotonFeature.toSearchResult(): GeoSearchResult {
+    val props    = properties
+    val name     = props.name ?: props.street ?: "Dropped Pin"
+    val subtitle = listOfNotNull(
+        props.city?.takeIf    { it.isNotBlank() },
+        props.state?.takeIf   { it.isNotBlank() },
+        props.country?.takeIf { it.isNotBlank() }
+    ).joinToString(", ")
+    return GeoSearchResult(
+        id         = "photon_${props.osmId ?: System.currentTimeMillis()}",
+        name       = name,
+        subtitle   = subtitle,
+        lat        = lat,
+        lon        = lon,
+        confidence = "medium"
+    )
+}

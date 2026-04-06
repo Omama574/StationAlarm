@@ -223,6 +223,15 @@ fun MapSearchScreen(
                             }
                         }
                     }
+                    // LocationIQ TOS: attribution required when showing live search results
+                    Text(
+                        "Search by LocationIQ.com",
+                        fontSize = 10.sp,
+                        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 5.dp)
+                    )
                 }
             }
         }

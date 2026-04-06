@@ -3,37 +3,35 @@ package com.omama.stationalarm.network
 import retrofit2.http.GET
 import retrofit2.http.Query
 
-interface MapboxGeocodingService {
+/**
+ * Retrofit interface for our Cloudflare Worker geocoding proxy.
+ * The Worker sits in front of LocationIQ — it adds the API key and handles caching.
+ *
+ * Base URL is set in GeocodingClient to the Worker URL constant.
+ * Replace the placeholder URL in GeocodingClient once your Worker is deployed.
+ */
+interface LocationIqService {
 
     /**
-     * Mapbox Geocoding v6 forward geocoding.
-     * Optimized for Indian addresses with country + worldview filters.
+     * Autocomplete / forward search.
+     * Worker path: GET /autocomplete?q=...
+     * Worker proxies to: LocationIQ /v1/autocomplete
      */
-    @GET("search/geocode/v6/forward")
-    suspend fun search(
-        @Query("q") query: String,
-        @Query("access_token") token: String,
-        @Query("country") country: String = "IN",
-        @Query("worldview") worldview: String = "in",
-        @Query("limit") limit: Int = 5,
-        @Query("language") language: String = "en",
-        @Query("proximity") proximity: String? = null  // "lon,lat" string for user-location bias
-    ): MapboxGeocodingResponse
+    @GET("autocomplete")
+    suspend fun autocomplete(
+        @Query("q")      query: String,
+        @Query("limit")  limit: Int = 10,
+        @Query("dedupe") dedupe: Int = 1
+    ): List<LocationIqAutocompleteResult>
 
     /**
-     * Mapbox Geocoding v6 reverse geocoding.
-     * Maps lat/lon clicks back to a physical address.
-     * Now includes language, country, worldview, and street type
-     * for accurate Indian address resolution.
+     * Reverse geocoding — map tap → address.
+     * Worker path: GET /reverse?lat=...&lon=...
+     * Worker proxies to: LocationIQ /v1/reverse
      */
-    @GET("search/geocode/v6/reverse")
-    suspend fun reverseSearch(
-        @Query("longitude") longitude: Double,
-        @Query("latitude") latitude: Double,
-        @Query("access_token") token: String,
-        @Query("country") country: String = "IN",
-        @Query("worldview") worldview: String = "in",
-        @Query("language") language: String = "en",
-        @Query("limit") limit: Int = 5
-    ): MapboxGeocodingResponse
+    @GET("reverse")
+    suspend fun reverse(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double
+    ): LocationIqReverseResult
 }

@@ -7,10 +7,10 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.location.LocationServices
-import com.omama.stationalarm.BuildConfig
 import com.omama.stationalarm.data.SavedPlace
+import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.network.GeoSearchResult
-import com.omama.stationalarm.network.RetrofitClient
+import com.omama.stationalarm.network.GeocodingClient
 import com.omama.stationalarm.network.toSearchResult
 import com.omama.stationalarm.repository.StationRepository
 import kotlinx.coroutines.FlowPreview
@@ -38,19 +38,15 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
 
     // ── Map state ─────────────────────────────────────────────────────────────
 
-    /** Currently selected/pinned location (set by search OR long press). */
     private val _selectedResult = MutableStateFlow<GeoSearchResult?>(null)
     val selectedResult: StateFlow<GeoSearchResult?> = _selectedResult.asStateFlow()
 
-    /** Radius slider value set by user (3–20 km). */
     private val _radiusKm = MutableStateFlow(3.0)
     val radiusKm: StateFlow<Double> = _radiusKm.asStateFlow()
 
-    /** User's GPS location — emitted once when they tap the "My Location" button. */
     private val _userLocation = MutableSharedFlow<GeoPoint>(replay = 1)
     val userLocation: SharedFlow<GeoPoint> = _userLocation.asSharedFlow()
 
-    /** Initial map center — set to last GPS fix on first load. */
     private val _initialCenter = MutableStateFlow<GeoPoint?>(null)
     val initialCenter: StateFlow<GeoPoint?> = _initialCenter.asStateFlow()
 
@@ -59,19 +55,16 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     val savedPlaces: StateFlow<List<SavedPlace>> = StationRepository.savedPlacesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // ── Init: fetch initial GPS position once ─────────────────────────────────
+    // ── Init ──────────────────────────────────────────────────────────────────
 
     init {
-        // Kick off search pipeline
         viewModelScope.launch {
             _query
-                .debounce(350)
+                .debounce(500)          // 500ms — balances UX vs LocationIQ quota
                 .filter { it.length >= 3 }
                 .distinctUntilChanged()
                 .collect { q -> performSearch(q) }
         }
-
-        // Prime initial map center with last known GPS position
         fetchAndEmitUserLocation(emitToCenter = true)
     }
 
@@ -85,22 +78,56 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    /**
+     * Three-tier search:
+     *   1. India station Room DB — instant, offline, zero API calls
+     *   2. LocationIQ via Cloudflare Worker — primary live geocoding
+     *   3. Photon by Komoot — fallback (direct from device, no key needed)
+     */
     private suspend fun performSearch(q: String) {
         _isSearching.value = true
         _searchError.value = null
         try {
-            val prox = _initialCenter.value?.let { "${it.longitude},${it.latitude}" }
-            val response = RetrofitClient.geocodingService.search(
+            // ── Tier 1: India railway stations (offline) ──────────────────────
+            val indiaResults = StationData.searchStations(q)
+            if (indiaResults.isNotEmpty()) {
+                _searchResults.value = indiaResults.take(8).map { station ->
+                    GeoSearchResult(
+                        id         = station.id,
+                        name       = station.name,
+                        subtitle   = "India · Railway Station",
+                        lat        = station.lat,
+                        lon        = station.lon,
+                        confidence = "exact"
+                    )
+                }
+                return
+            }
+
+            // ── Tier 2: LocationIQ via Cloudflare Worker ──────────────────────
+            try {
+                val results = GeocodingClient.locationIqService.autocomplete(query = q)
+                if (results.isNotEmpty()) {
+                    _searchResults.value = results.map { it.toSearchResult() }
+                    return
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("MapSearch", "LocationIQ unavailable, falling back to Photon", e)
+            }
+
+            // ── Tier 3: Photon by Komoot (direct from device) ─────────────────
+            val bias = _initialCenter.value
+            val photonResponse = GeocodingClient.photonService.search(
                 query = q,
-                token = BuildConfig.MAPBOX_ACCESS_TOKEN,
-                limit = 5,
-                proximity = prox
+                lat   = bias?.latitude,
+                lon   = bias?.longitude
             )
-            _searchResults.value = response.features.map { it.toSearchResult() }
+            _searchResults.value = photonResponse.features.map { it.toSearchResult() }
+
         } catch (e: Exception) {
-            _searchError.value = "Search failed: ${e.message}"
+            _searchError.value = "Search unavailable"
             _searchResults.value = emptyList()
-            android.util.Log.e("MapSearch", "Mapbox search failed for '$q'", e)
+            android.util.Log.e("MapSearch", "All geocoding failed for '$q'", e)
         } finally {
             _isSearching.value = false
         }
@@ -108,98 +135,69 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
 
     // ── Map interactions ──────────────────────────────────────────────────────
 
-    /** Called when user selects a search result — pin auto-drops at result coords. */
     fun selectResult(result: GeoSearchResult) {
         _selectedResult.value = result
         _searchResults.value = emptyList()
         _query.value = ""
-        // Radius stays at current value (user may already have adjusted it)
     }
 
-    /** Called when user selects an existing saved place from Favorites. */
     fun selectSavedPlace(place: SavedPlace) {
         _selectedResult.value = GeoSearchResult(
-            id = place.id,
-            name = place.name,
-            subtitle = "Saved • ${String.format("%.4f", place.lat)}, ${String.format("%.4f", place.lon)}",
-            lat = place.lat,
-            lon = place.lon,
+            id         = place.id,
+            name       = place.name,
+            subtitle   = "Saved · ${String.format("%.4f", place.lat)}, ${String.format("%.4f", place.lon)}",
+            lat        = place.lat,
+            lon        = place.lon,
             confidence = "exact"
         )
         _radiusKm.value = place.radiusKm
     }
 
     /**
-     * Called when user taps (single or long-press) anywhere on the map.
-     * The pin moves to the tapped coords — coords come from OSM map projection,
-     * not from Mapbox (TOS-safe).
+     * Called when user taps anywhere on the map.
+     * Immediately drops a pin with coordinates, then reverse geocodes in background.
+     * Two-tier: LocationIQ → Photon fallback.
      */
     fun onMapTap(lat: Double, lon: Double) {
-        // Drop an initial temporary pin with coords
         _selectedResult.value = GeoSearchResult(
-            id = "manual-${System.currentTimeMillis()}",
-            name = "Fetching...",
-            subtitle = "Loading address...",
-            lat = lat,
-            lon = lon,
+            id         = "manual-${System.currentTimeMillis()}",
+            name       = "Dropped Pin",
+            subtitle   = "Loading address...",
+            lat        = lat,
+            lon        = lon,
             confidence = "exact"
         )
 
-        // Launch reverse geocoding to fill in the exact street name
         viewModelScope.launch {
+            // ── Tier 1: LocationIQ reverse via Worker ─────────────────────────
             try {
-                val response = RetrofitClient.geocodingService.reverseSearch(
-                    longitude = lon,
-                    latitude = lat,
-                    token = BuildConfig.MAPBOX_ACCESS_TOKEN
-                )
+                val result = GeocodingClient.locationIqService.reverse(lat = lat, lon = lon)
+                _selectedResult.value = result.toSearchResult(lat, lon)
+                return@launch
+            } catch (e: Exception) {
+                android.util.Log.w("MapSearch", "LocationIQ reverse failed, trying Photon", e)
+            }
 
-                // Pick the most relevant travel feature from the results
-                // Priority: poi > neighborhood > locality > place > street
-                val typePriority = listOf("poi", "neighborhood", "locality", "place", "street")
-                val bestFeature = response.features
-                    .sortedBy { feature ->
-                        val ft = feature.properties.featureType ?: ""
-                        val idx = typePriority.indexOf(ft)
-                        if (idx >= 0) idx else typePriority.size
-                    }
-                    .firstOrNull()
-
-                if (bestFeature != null) {
-                    val displayName = bestFeature.properties.displayName
-                    val structuredAddr = bestFeature.properties.structuredAddress
-
-                    _selectedResult.value = GeoSearchResult(
-                        id = "manual-${System.currentTimeMillis()}",
-                        name = displayName,
-                        subtitle = structuredAddr,
-                        lat = lat,
-                        lon = lon,
-                        confidence = "exact"
-                    )
-                } else {
-                    // No results at all — show raw coordinates
-                    _selectedResult.value = _selectedResult.value?.copy(
-                        name = "Dropped Pin",
-                        subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
-                    )
+            // ── Tier 2: Photon reverse (direct from device) ───────────────────
+            try {
+                val photonResponse = GeocodingClient.photonService.reverse(lat = lat, lon = lon)
+                val feature = photonResponse.features.firstOrNull()
+                if (feature != null) {
+                    _selectedResult.value = feature.toSearchResult().copy(lat = lat, lon = lon)
+                    return@launch
                 }
             } catch (e: Exception) {
-                // Network error — show coords fallback
-                if (e is retrofit2.HttpException) {
-                    android.util.Log.e("MapSearchViewModel", "Reverse geocoding HTTP Error ${e.code()}: ${e.response()?.errorBody()?.string()}", e)
-                } else {
-                    android.util.Log.e("MapSearchViewModel", "Reverse geocoding failed for $lat, $lon", e)
-                }
-                _selectedResult.value = _selectedResult.value?.copy(
-                    name = "Dropped Pin",
-                    subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
-                )
+                android.util.Log.w("MapSearch", "Photon reverse also failed", e)
             }
+
+            // ── Fallback: raw coordinates ─────────────────────────────────────
+            _selectedResult.value = _selectedResult.value?.copy(
+                name     = "Dropped Pin",
+                subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
+            )
         }
     }
 
-    /** Slider callback — clamps to 3–20 km. */
     fun onRadiusChanged(km: Double) {
         _radiusKm.value = km.coerceIn(3.0, 20.0)
     }
@@ -213,7 +211,6 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
 
     // ── "My Location" FAB ─────────────────────────────────────────────────────
 
-    /** Triggered when user taps the ⦿ FAB. Emits location to the map. */
     fun onMyLocationRequested() {
         fetchAndEmitUserLocation(emitToCenter = false)
     }
@@ -240,19 +237,15 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
 
     // ── Favorites CRUD ────────────────────────────────────────────────────────
 
-    /**
-     * Saves to Room DB using the pin's current lat/lon from the map
-     * (not from Mapbox response) — this is the TOS-safe approach.
-     */
     fun savePlace(name: String, notes: String?) {
         val result = _selectedResult.value ?: return
         val place = SavedPlace(
-            id = "custom-${UUID.randomUUID()}",
-            name = name.ifBlank { result.name },
-            lat = result.lat,   // These are OSM map-interaction coords after first long-press/adjustment
-            lon = result.lon,
+            id      = "custom-${UUID.randomUUID()}",
+            name    = name.ifBlank { result.name },
+            lat     = result.lat,
+            lon     = result.lon,
             radiusKm = _radiusKm.value,
-            notes = notes?.ifBlank { null }
+            notes   = notes?.ifBlank { null }
         )
         StationRepository.saveFavoritePlace(place)
     }
