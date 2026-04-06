@@ -46,8 +46,15 @@ fun HomeScreen(
 
     var query by remember { mutableStateOf("") }
     var stationToRemove by remember { mutableStateOf<ActiveStation?>(null) }
-    val searchResults = remember(query) {
-        if (query.length >= 2) viewModel.searchStations(query) else emptyList()
+    var searchResults by remember { mutableStateOf<List<Station>>(emptyList()) }
+
+    LaunchedEffect(query) {
+        if (query.length >= 2) {
+            kotlinx.coroutines.delay(300)
+            searchResults = viewModel.searchStations(query)
+        } else {
+            searchResults = emptyList()
+        }
     }
 
     Scaffold { paddingValues ->
@@ -133,7 +140,7 @@ fun HomeScreen(
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(searchResults) { station ->
+                            items(searchResults, key = { it.id }) { station ->
                                 StationSearchItem(
                                     station = station,
                                     onClick = {
@@ -173,8 +180,8 @@ fun HomeScreen(
         if (stationToRemove != null) {
             AlertDialog(
                 onDismissRequest = { stationToRemove = null },
-                title = { Text("Remove Alarm?", color = Color.Black, fontWeight = FontWeight.Bold) },
-                text = { Text("Are you sure you want to delete this trip?", color = Color.DarkGray) },
+                title = { Text("Remove Alarm?", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to remove this alarm?", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -190,7 +197,7 @@ fun HomeScreen(
                         Text("Cancel", color = Color.Gray)
                     }
                 },
-                containerColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(16.dp)
             )
         }

@@ -148,22 +148,6 @@ object GeofenceManager {
             }
     }
 
-    /**
-     * Remove all geofences registered with this app.
-     */
-    fun removeAllGeofences(context: Context) {
-        geofencingClient(context)
-            .removeGeofences(getGeofencePendingIntent(context))
-            .addOnSuccessListener {
-                Log.d(TAG, "All geofences removed")
-                Logger.log("GEOFENCE_ALL_REMOVED")
-            }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to remove all geofences", e)
-                Logger.log("GEOFENCE_ALL_REMOVE_FAILED", extra = e.message)
-            }
-    }
-
     private fun buildGeofence(
         stationId: String,
         layer: String,

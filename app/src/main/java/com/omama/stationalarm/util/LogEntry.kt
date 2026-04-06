@@ -67,6 +67,12 @@ data class LogEntry(
             manufacturer,
             androidVersion,
             extra ?: ""
-        ).joinToString(separator = ",", postfix = "\n")
+        ).joinToString(separator = ",", postfix = "\n") { field ->
+            if (field.contains(",") || field.contains("\"") || field.contains("\n")) {
+                "\"${field.replace("\"", "\"\"")}\""
+            } else {
+                field
+            }
+        }
     }
 }

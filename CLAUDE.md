@@ -12,7 +12,7 @@ StationAlarm is an Android app that delivers reliable location-based alerts when
 - Language: Kotlin
 - UI: Jetpack Compose + AndroidView
 - Map: osmdroid + OpenStreetMap tiles (unlimited free)
-- Geocoding: Mapbox forward & reverse geocoding (currently)
+- Geocoding: LocationIQ via Cloudflare Worker (primary) + Photon by Komoot (fallback)
 - Local Database: Room SQLite (version 3)
 - Core Engine: LocationService + GeofenceManager + GeofenceBroadcastReceiver (unchanged)
 - Static Data: StationData.kt (hardcoded Indian railway stations)
@@ -23,12 +23,12 @@ StationAlarm is an Android app that delivers reliable location-based alerts when
   1. Static India railway list (My Stations tab)
   2. Map module (MapSearchScreen) with forward/reverse geocoding + live radius circle
 - The map module must integrate seamlessly with the existing StationConfigBottomSheet and core alarm engine without modifying the service layer.
-- Future requirement: Backend proxy (Supabase or Node.js) to hide API keys and allow switching providers without app updates.
+- Backend proxy (Cloudflare Worker) is deployed — hides API keys and allows switching providers via Firebase Remote Config.
 
 ## Important Constraints & Decisions
-- We want to avoid vendor lock-in (especially Mapbox's "must use our map" rule).
-- We are considering LocationIQ + OSM as primary (with fallback strategy for the 5k/day limit).
-- Long-term plan: Backend proxy → possible migration to self-hosted Nominatim.
+- No vendor lock-in — using LocationIQ + OSM via Cloudflare Worker proxy.
+- Backend proxy is live (Cloudflare Worker) — URL controlled via Firebase Remote Config.
+- Photon by Komoot is the free fallback when LocationIQ rate-limits.
 - All static data (stations + future NAP/GTFS for Europe) should eventually be editable from backend without forcing app updates.
 - Caching and graceful fallback are required to handle rate-limit surges gracefully.
 

@@ -104,19 +104,6 @@ object Logger {
         }
     }
 
-    fun flushAndClose() {
-        executor.execute {
-            try {
-                currentBufferedWriter?.flush()
-                currentBufferedWriter?.close()
-            } catch (e: Exception) {
-                // ignore
-            }
-            currentBufferedWriter = null
-            currentOutputStream = null
-        }
-    }
-
     fun getCurrentLogUri(): Uri? {
         val fileName = "$FILE_PREFIX${sessionStartTime}$FILE_SUFFIX"
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

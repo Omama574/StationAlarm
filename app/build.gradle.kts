@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.crashlytics.plugin)
 }
 
 android {
@@ -27,7 +29,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -78,7 +81,7 @@ dependencies {
     // OSM tiles (unlimited, free)
     implementation("org.osmdroid:osmdroid-android:6.1.20")
 
-    // Retrofit + Gson for Mapbox Geocoding v6
+    // Retrofit + Gson for geocoding (LocationIQ + Photon)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
@@ -88,4 +91,10 @@ dependencies {
 
     // Coroutines (explicit — needed for debounce in search)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // ── Firebase ─────────────────────────────────────────────────────────────
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.crashlytics)
+    implementation(libs.firebase.remote.config)
+    implementation(libs.firebase.analytics)
 }

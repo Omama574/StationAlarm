@@ -42,7 +42,13 @@ object StationRepository {
     fun initialize(context: Context) {
         appContext = context.applicationContext
         database = StationDatabase.getDatabase(appContext)
-        StationData.initialize(appContext)
+
+        // Load stations.json on IO thread — avoids ~400ms main thread freeze on cold start.
+        // searchStations() returns emptyList() until loaded (null-safe), which is fine since
+        // the search debounce is 500ms and loading completes well within that window.
+        repositoryScope.launch {
+            StationData.initialize(appContext)
+        }
 
         activeStationsFlow = database.activeStationDao().getAllActiveStations().map { entities ->
             entities.map { it.toDomainModel() }
@@ -53,7 +59,7 @@ object StationRepository {
         }
 
         // Keep a memory cache for synchronous lookups in LocationService/UI
-        CoroutineScope(Dispatchers.IO).launch {
+        repositoryScope.launch {
             savedPlacesFlow.collect { list ->
                 _savedPlacesCache = list.associateBy { it.id }
             }
@@ -91,12 +97,6 @@ object StationRepository {
         repositoryScope.launch {
             database.savedPlaceDao().delete(placeId)
             Logger.log("SAVED_PLACE_DELETED", extra = "id=$placeId")
-        }
-    }
-
-    fun updateFavoritePlace(placeId: String, name: String, radiusKm: Double, notify: Boolean, vibrate: Boolean, sound: Boolean, notes: String?) {
-        repositoryScope.launch {
-            database.savedPlaceDao().update(placeId, name, radiusKm, notify, vibrate, sound, notes)
         }
     }
 

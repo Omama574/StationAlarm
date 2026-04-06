@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,10 +62,10 @@ class AlarmActivity : ComponentActivity() {
                 }
             }
 
-            StationAlarmTheme {
+            StationAlarmTheme(darkTheme = true) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color.Black
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     AlarmScreen(
                         stationName = station?.name ?: stationId ?: "Destination",
@@ -116,34 +117,34 @@ fun AlarmScreen(stationName: String, customReminder: String?, onDismiss: () -> U
             text = "Wake Up!",
             fontSize = 36.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onBackground
         )
-        
+
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         Text(
             text = "Arrived at",
             fontSize = 20.sp,
-            color = Color.LightGray
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
         )
         Text(
             text = stationName,
             fontSize = 28.sp,
             fontWeight = FontWeight.Medium,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
 
         if (!customReminder.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(32.dp))
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.DarkGray),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
                     text = customReminder,
                     modifier = Modifier.padding(16.dp),
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 18.sp,
                     textAlign = TextAlign.Center
                 )
@@ -158,19 +159,19 @@ fun AlarmScreen(stationName: String, customReminder: String?, onDismiss: () -> U
                 .fillMaxWidth()
                 .height(64.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White,
-                contentColor = Color.Black
+                containerColor = MaterialTheme.colorScheme.onBackground,
+                contentColor = MaterialTheme.colorScheme.background
             ),
             shape = RoundedCornerShape(32.dp)
         ) {
             Text("Dismiss", fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "Press any physical button to dismiss",
             fontSize = 14.sp,
-            color = Color.Gray
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
         )
     }
 }

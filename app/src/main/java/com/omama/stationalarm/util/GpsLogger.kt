@@ -65,7 +65,7 @@ object GpsLogger {
     }
 
     private fun writeHeader() {
-        val header = "timestamp_ist,provider,latitude,longitude,accuracy_meters,speed_ms,current_polling_interval_ms,battery_percent\n"
+        val header = "timestamp,provider,latitude,longitude,accuracy_meters,speed_ms,current_polling_interval_ms,battery_percent\n"
         currentBufferedWriter?.write(header)
         currentBufferedWriter?.flush()
     }
@@ -76,7 +76,7 @@ object GpsLogger {
             val context = contextRef ?: return@execute
             
             val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply {
-                timeZone = TimeZone.getTimeZone("IST")
+                timeZone = TimeZone.getDefault()
             }
             val timestamp = sdf.format(Date(location.time))
             
@@ -99,19 +99,6 @@ object GpsLogger {
     private fun ensureWriter() {
         if (currentBufferedWriter == null) {
             createNewLogFile()
-        }
-    }
-
-    fun flushAndClose() {
-        executor.execute {
-            try {
-                currentBufferedWriter?.flush()
-                currentBufferedWriter?.close()
-            } catch (e: Exception) {
-                // ignore
-            }
-            currentBufferedWriter = null
-            currentOutputStream = null
         }
     }
 

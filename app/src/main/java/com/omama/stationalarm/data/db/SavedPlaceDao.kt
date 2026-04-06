@@ -18,9 +18,6 @@ interface SavedPlaceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(place: SavedPlaceEntity)
 
-    @Query("UPDATE saved_places SET name = :name, radiusKm = :radiusKm, notify = :notify, vibrate = :vibrate, sound = :sound, notes = :notes WHERE id = :id")
-    suspend fun update(id: String, name: String, radiusKm: Double, notify: Boolean, vibrate: Boolean, sound: Boolean, notes: String?)
-
     @Query("DELETE FROM saved_places WHERE id = :id")
     suspend fun delete(id: String)
 }
