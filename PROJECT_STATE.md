@@ -99,6 +99,24 @@ Tracks currently active alarms.
 
 ## What Has Been Done (Session Log)
 
+### Session: Modularity Refactor (2026-04-07)
+**Goal:** behaviour-preserving structural extraction; zero behavioural change.
+
+**`service/LocationService.kt` slimmed 819 → ~430 lines.** Three helpers extracted into the same package:
+- `service/AlarmAudioController.kt` — owns MediaPlayer, AudioFocusRequest, vibrator, 5-min auto-dismiss timeout, `isAlarmRinging`/`isVibrating` state. Timeout takes a callback so the controller stays pure (DB cleanup happens in the Service).
+- `service/ServiceWakeLocks.kt` — owns the alarm wake lock (10-min cap) and the GPS wake lock (4-hour cap, non-reference-counted, anti-doze).
+- `service/ServiceNotifications.kt` — owns channel creation, foreground notification, full-screen alert (with dismiss action → LocationService), and the watchdog "GPS stalled" notification. All channel IDs and notification IDs preserved verbatim.
+
+**UI extractions:**
+- `ui/screens/OsmMapView.kt` — moved the osmdroid `OsmMapView` composable out of `MapSearchScreen.kt`.
+- `ui/AppRoot.kt` — moved `AppRoot`, `AppNavigation`, `PermissionRationaleDialog`, `GpsDisabledDialog` out of `MainActivity.kt`. MainActivity is now ~70 lines (just `onCreate`/`onResume` + permission/GPS helpers in companion).
+
+**Bug fixes found during refactor:**
+- Removed broken `org.osmdroid.views.overlay.MapTileApproximater()` reference from a previous session — wrong package; the class lives in `tileprovider.modules` and is not an overlay. The DPI scaling + thread-count tile speed improvements still work.
+- Added `app/google-services.json` (stub, gitignored) so Gradle can build without the real Firebase config.
+
+**Verification:** `./gradlew compileDebugKotlin` passes clean.
+
 ### Session: Codebase Cleanup (commit `ded5b16`)
 - Removed `removeAllGeofences()` from `GeofenceManager.kt` — per-station cleanup via `removeGeofencesForStation()` is sufficient
 - Removed dead `updateFavoritePlace()` + `SavedPlaceDao.update()` call chain
@@ -171,7 +189,6 @@ Tracks currently active alarms.
 - **Cloudflare Worker deploy:** Update Worker code with error handling + CORS fix + `/search` endpoint (code provided in session)
 
 ### Low Priority (noted, not scheduled)
-- `LocationService.kt` is 820 lines — could split into polling/audio/notification helpers
 - `StationConfigBottomSheet` param `initialNotes` → rename to `customReminder`
 - `BootReceiver` resets `ALERTING` state too aggressively on reboot
 - Hardcoded strings → `strings.xml` for localization
