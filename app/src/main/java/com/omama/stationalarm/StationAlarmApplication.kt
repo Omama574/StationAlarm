@@ -25,8 +25,11 @@ class StationAlarmApplication : Application() {
             userAgentValue = "StationAlarm/2.0 (android)"
             osmdroidBasePath = File(cacheDir, "osmdroid")
             osmdroidTileCache = File(osmdroidBasePath, "tile")
-            tileFileSystemCacheMaxBytes = 50L * 1024 * 1024  // 50 MB cap
-            tileFileSystemCacheTrimBytes = 40L * 1024 * 1024 // trim to 40 MB
+            tileFileSystemCacheMaxBytes  = 50L * 1024 * 1024  // 50 MB cap
+            tileFileSystemCacheTrimBytes = 40L * 1024 * 1024  // trim to 40 MB
+            tileDownloadThreads          = 4   // default 2 → fetch 4 tiles in parallel
+            tileFileSystemThreads        = 4   // default 2 → read cache 4 tiles in parallel
+            tileDownloadMaxQueueSize     = 60  // default 40 → more tiles queued when panning
         }
 
         // ── Firebase ──────────────────────────────────────────────────────────

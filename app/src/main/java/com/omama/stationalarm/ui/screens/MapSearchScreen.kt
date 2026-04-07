@@ -531,8 +531,14 @@ private fun OsmMapView(
                 zoomController.setVisibility(
                     org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER
                 )
+                // Scale 256px tiles to device DPI — reduces tile count on HDPI screens
+                isTilesScaledToDpi = true
                 controller.setZoom(if (initialCenter != null) 17.5 else 5.0)
                 controller.setCenter(GeoPoint(startLat, startLon))
+
+                // Show scaled-up lower-zoom tiles as placeholders while correct tiles load
+                // — eliminates blank grey squares during first load and after fast panning
+                overlays.add(0, org.osmdroid.views.overlay.MapTileApproximater())
 
                 // Persistent tap listener — never destroyed
                 val receiver = object : MapEventsReceiver {
@@ -545,7 +551,7 @@ private fun OsmMapView(
                         return true
                     }
                 }
-                overlays.add(0, MapEventsOverlay(receiver))
+                overlays.add(1, MapEventsOverlay(receiver))
                 onMapReady(this)
             }
         },
@@ -553,7 +559,7 @@ private fun OsmMapView(
             // CRITICAL FIX: Close existing bubbles to prevent ghost double-bubbles
             org.osmdroid.views.overlay.infowindow.InfoWindow.closeAllInfoWindowsOn(mapView)
 
-            // Remove old pin/circle but keep MapEventsOverlay (index 0)
+            // Remove old pin/circle; MapTileApproximater (index 0) and MapEventsOverlay (index 1) are preserved
             mapView.overlays.removeAll { it is Marker || it is Polygon }
 
             val selectedLat = selectedResult?.lat
