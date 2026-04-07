@@ -17,23 +17,42 @@ data class GeoSearchResult(
 // These map to the JSON returned by our Cloudflare Worker (which proxies LocationIQ).
 
 data class LocationIqAutocompleteResult(
-    @SerializedName("place_id")      val placeId: String,
-    @SerializedName("osm_id")        val osmId: String?,
+    @SerializedName("place_id")        val placeId: String,
+    @SerializedName("osm_id")          val osmId: String?,
     val lat: String,
     val lon: String,
-    @SerializedName("display_place") val displayPlace: String?,
+    @SerializedName("display_place")   val displayPlace: String?,
     @SerializedName("display_address") val displayAddress: String?,
-    @SerializedName("display_name")  val displayName: String?,
-    val importance: Double = 0.5
+    @SerializedName("display_name")    val displayName: String?,
+    val importance: Double = 0.5,
+    // Structured address object — more reliable than the raw display_address string
+    val address: LocationIqAddress?
 )
 
 fun LocationIqAutocompleteResult.toSearchResult(): GeoSearchResult {
+    // display_place is specifically the place name only (no address cruft)
     val name = displayPlace?.takeIf { it.isNotBlank() }
         ?: displayName?.split(",")?.firstOrNull()?.trim()
         ?: "Unknown"
-    val subtitle = displayAddress?.takeIf { it.isNotBlank() }
-        ?: displayName?.takeIf { it.isNotBlank() }
-        ?: ""
+
+    // Build subtitle from most specific → least specific:
+    // road/suburb → city (normalizecity=1 ensures this is set) → state
+    // Falls back to raw display_address string if address object is absent.
+    val addr = address
+    val subtitle = if (addr != null) {
+        val road   = addr.road?.takeIf { it.isNotBlank() }
+        val suburb = addr.suburb?.takeIf { it.isNotBlank() }
+        val city   = (addr.city ?: addr.town ?: addr.village ?: addr.county)?.takeIf { it.isNotBlank() }
+        val state  = addr.state?.takeIf { it.isNotBlank() }
+        // Include road/suburb only when they add context beyond the place name itself
+        val localPart = listOfNotNull(road, suburb).joinToString(", ").takeIf { it.isNotBlank() }
+        listOfNotNull(localPart, city, state).joinToString(", ").ifBlank {
+            displayAddress?.takeIf { it.isNotBlank() } ?: ""
+        }
+    } else {
+        displayAddress?.takeIf { it.isNotBlank() } ?: ""
+    }
+
     val confidence = when {
         importance >= 0.7 -> "high"
         importance >= 0.4 -> "medium"
@@ -61,25 +80,31 @@ data class LocationIqReverseResult(
 data class LocationIqAddress(
     val road: String?,
     val suburb: String?,
+    val neighbourhood: String?,
+    @SerializedName("city_district") val cityDistrict: String?,
     val city: String?,
     val town: String?,
     val village: String?,
     val county: String?,
     val state: String?,
+    val postcode: String?,
     val country: String?
 )
 
 fun LocationIqReverseResult.toSearchResult(lat: Double, lon: Double): GeoSearchResult {
-    val addr   = address
-    val name   = addr?.road
+    val addr = address
+    // For reverse: name is the road/area the pin is on
+    val name = addr?.road
+        ?: addr?.suburb
+        ?: addr?.neighbourhood
         ?: displayName?.split(",")?.firstOrNull()?.trim()
         ?: "Dropped Pin"
-    val city   = addr?.city ?: addr?.town ?: addr?.village ?: addr?.county ?: ""
-    val state  = addr?.state ?: ""
-    val subtitle = listOfNotNull(
-        city.takeIf  { it.isNotBlank() },
-        state.takeIf { it.isNotBlank() }
-    ).joinToString(", ").ifBlank {
+    // normalizeaddress=1 guarantees city is set if any locality data exists
+    // Subtitle: suburb → city → state (low → high, most informative for dropped pin)
+    val suburb = (addr?.suburb ?: addr?.neighbourhood ?: addr?.cityDistrict)?.takeIf { it.isNotBlank() }
+    val city   = (addr?.city ?: addr?.town ?: addr?.village ?: addr?.county)?.takeIf { it.isNotBlank() }
+    val state  = addr?.state?.takeIf { it.isNotBlank() }
+    val subtitle = listOfNotNull(suburb, city, state).joinToString(", ").ifBlank {
         displayName?.takeIf { it.isNotBlank() } ?: ""
     }
     return GeoSearchResult(
@@ -118,23 +143,34 @@ data class PhotonGeometry(
 data class PhotonProperties(
     val name: String?,
     val street: String?,
+    val district: String?,    // neighbourhood / suburb level
+    val locality: String?,    // locality fallback (less common)
     val city: String?,
+    val county: String?,      // county/tehsil — fallback when city is absent
     val state: String?,
     val country: String?,
     val countrycode: String?,
+    val postcode: String?,
     @SerializedName("osm_id")    val osmId: Long?,
     @SerializedName("osm_key")   val osmKey: String?,
     @SerializedName("osm_value") val osmValue: String?
 )
 
 fun PhotonFeature.toSearchResult(): GeoSearchResult {
-    val props    = properties
-    val name     = props.name ?: props.street ?: "Dropped Pin"
-    val subtitle = listOfNotNull(
-        props.city?.takeIf    { it.isNotBlank() },
-        props.state?.takeIf   { it.isNotBlank() },
-        props.country?.takeIf { it.isNotBlank() }
-    ).joinToString(", ")
+    val props = properties
+    val name  = props.name ?: props.street ?: "Dropped Pin"
+
+    // Build subtitle from most specific available fields downward:
+    // street/district (local area) → city (fallback: county/locality) → state
+    val localArea = (props.district ?: props.locality)?.takeIf { it.isNotBlank() }
+    val city      = (props.city ?: props.county ?: props.locality)?.takeIf { it.isNotBlank() }
+    val state     = props.state?.takeIf { it.isNotBlank() }
+
+    // Avoid duplicating name in subtitle (e.g., if result IS a city, don't show "Chennai, Chennai, TN")
+    val cityPart = city?.takeIf { it != name }
+    val subtitle = listOfNotNull(localArea?.takeIf { it != cityPart && it != name }, cityPart, state)
+        .joinToString(", ")
+
     return GeoSearchResult(
         id         = "photon_${props.osmId ?: System.currentTimeMillis()}",
         name       = name,

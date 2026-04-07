@@ -19,9 +19,13 @@ interface LocationIqService {
      */
     @GET("autocomplete")
     suspend fun autocomplete(
-        @Query("q")      query: String,
-        @Query("limit")  limit: Int = 10,
-        @Query("dedupe") dedupe: Int = 1
+        @Query("q")             query: String,
+        @Query("limit")         limit: Int = 5,
+        @Query("dedupe")        dedupe: Int = 1,
+        // normalizecity=1: if address.city is absent, API promotes town/village/county into it
+        @Query("normalizecity") normalizecity: Int = 1,
+        // Exclude postcodes — useless for alarm destinations
+        @Query("layers")        layers: String = "road,neighbourhood,suburb,city,county,state,country"
     ): List<LocationIqAutocompleteResult>
 
     /**
@@ -31,7 +35,9 @@ interface LocationIqService {
      */
     @GET("reverse")
     suspend fun reverse(
-        @Query("lat") lat: Double,
-        @Query("lon") lon: Double
+        @Query("lat")              lat: Double,
+        @Query("lon")              lon: Double,
+        // normalizeaddress=1: guarantees address.city is always populated if any locality data exists
+        @Query("normalizeaddress") normalizeaddress: Int = 1
     ): LocationIqReverseResult
 }

@@ -20,11 +20,22 @@ interface PhotonService {
      */
     @GET("api/")
     suspend fun search(
-        @Query("q")     query: String,
-        @Query("limit") limit: Int = 10,
-        @Query("lang")  lang: String = "en",
-        @Query("lat")   lat: Double? = null,
-        @Query("lon")   lon: Double? = null
+        @Query("q")                   query: String,
+        @Query("limit")               limit: Int = 5,
+        @Query("lang")                lang: String = "en",
+        @Query("lat")                 lat: Double? = null,
+        @Query("lon")                 lon: Double? = null,
+        // zoom=10 → city-level bias radius (~50km). Default 16 is street-level (~100m),
+        // which barely helps when user is in India searching "Mumbai".
+        @Query("zoom")                zoom: Int = 10,
+        // 0.5 → stronger weighting of proximity vs prominence (default 0.2 barely helps).
+        // Makes results from user's country rank much higher.
+        @Query("location_bias_scale") locationBiasScale: Double = 0.5,
+        // Exclude administrative boundary polygons — they have no useful alarm point.
+        @Query("osm_tag")             osmTag: String = "!boundary",
+        // Exclude house/street level — too granular for alarm destinations.
+        // locality = suburbs/neighbourhoods and above.
+        @Query("layer")               layer: String = "locality,district,city,county,state,country"
     ): PhotonResponse
 
     /**
@@ -32,7 +43,9 @@ interface PhotonService {
      */
     @GET("reverse")
     suspend fun reverse(
-        @Query("lat") lat: Double,
-        @Query("lon") lon: Double
+        @Query("lat")    lat: Double,
+        @Query("lon")    lon: Double,
+        // 0.5 km radius — prevents pulling addresses from far away on map tap
+        @Query("radius") radius: Double = 0.5
     ): PhotonResponse
 }
