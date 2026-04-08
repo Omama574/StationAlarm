@@ -5,7 +5,19 @@
       "WebFetch(domain:photon.komoot.io)",
       "WebFetch(domain:api-reference.locationiq.com)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:docs.locationiq.com)"
+      "WebFetch(domain:docs.locationiq.com)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -n \"catch\\\\|try\\\\|throw\" /c/Users/omama/AndroidStudioProjects/StationAlarm/app/src/main/java/com/omama/stationalarm/network/*.kt)",
+      "Bash(git mv:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(git check-ignore:*)",
+      "Bash(./gradlew compileDebugKotlin)",
+      "Bash(cd /tmp)",
+      "Bash(unzip -o /c/Users/omama/.gradle/caches/modules-2/files-2.1/org.osmdroid/osmdroid-android/6.1.20/9e32a3531525ab4caa023da7144549efaa9e69bb/osmdroid-android-6.1.20.aar classes.jar)",
+      "Bash(unzip -l classes.jar)"
     ]
   }
 }

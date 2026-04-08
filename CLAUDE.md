@@ -14,7 +14,7 @@ StationAlarm is an Android app that delivers reliable location-based alerts when
 - Map: osmdroid + OpenStreetMap tiles (unlimited free)
 - Geocoding: LocationIQ via Cloudflare Worker (primary) + Photon by Komoot (fallback)
 - Local Database: Room SQLite (version 3)
-- Core Engine: LocationService + GeofenceManager + GeofenceBroadcastReceiver (unchanged)
+- Core Engine: LocationService (modularized into AlarmAudioController + ServiceWakeLocks + ServiceNotifications) + GeofenceManager + GeofenceBroadcastReceiver
 - Static Data: StationData.kt (hardcoded Indian railway stations)
 - Custom Places: SavedPlaceEntity in Room (saved from map tap or search)
 
@@ -32,12 +32,44 @@ StationAlarm is an Android app that delivers reliable location-based alerts when
 - All static data (stations + future NAP/GTFS for Europe) should eventually be editable from backend without forcing app updates.
 - Caching and graceful fallback are required to handle rate-limit surges gracefully.
 
-## Current Files / Modules to Know
-- StationRepository.kt (central data access)
-- MapSearchScreen.kt + MapSearchViewModel.kt (new map module)
-- StationConfigBottomSheet.kt (shared by both modules)
-- LocationService.kt + GeofenceManager.kt (core engine - do not touch)
-- Room DB with SavedPlaceEntity
+## Current Project Structure
+
+### Service layer (`service/`) — alarm engine
+- **LocationService.kt** — foreground service, GPS polling, state machine. Behaviour-locked. Delegates to three same-package helpers:
+  - **AlarmAudioController.kt** — MediaPlayer + audio focus + vibrator + 5-min auto-dismiss timeout
+  - **ServiceWakeLocks.kt** — alarm wake lock (10-min cap) + GPS anti-doze wake lock (4-hour cap, non-ref-counted)
+  - **ServiceNotifications.kt** — channels, foreground notification, full-screen alert (with dismiss action), watchdog notification
+- **GeofenceManager.kt** — sets up 6 geofences per station (Outer/Mid/Inner × Entry/Exit). Behaviour-locked.
+- **receiver/GeofenceBroadcastReceiver.kt** — geofence event handler
+
+### UI layer
+- **MainActivity.kt** (~70 lines) — just `onCreate`/`onResume` + `hasAllLocationPermissions`/`isGpsEnabled` companion helpers
+- **ui/AppRoot.kt** — `AppRoot` (permission flow), `AppNavigation` (tabs + pager + station-config sheet wiring), `PermissionRationaleDialog`, `GpsDisabledDialog`
+- **ui/screens/HomeScreen.kt** — My Stations tab (active alarms list)
+- **ui/screens/MapSearchScreen.kt** — Map tab (osmdroid + search + radius)
+- **ui/screens/OsmMapView.kt** — the osmdroid `AndroidView` composable, extracted from MapSearchScreen
+- **ui/screens/StationConfigBottomSheet.kt** — shared alarm config sheet (used by both tabs)
+- **ui/screens/AlarmActivity.kt** — full-screen alarm UI
+- **ui/screens/FavoritesBottomSheet.kt** — saved places picker (global FAB)
+- **ui/viewmodel/StationViewModel.kt**, **MapSearchViewModel.kt**
+
+### Data layer
+- **repository/StationRepository.kt** — central data access; only place that touches Room + GeofenceManager
+- **data/db/StationDatabase.kt** — Room v3, two tables: `saved_places`, `active_stations`
+- **data/StationData.kt** — loader for offline `stations.json` (Indian railway DB)
+
+### Network layer (`network/`)
+- **LocationIqService.kt** — Retrofit interface for LocationIQ (called via Cloudflare Worker)
+- **PhotonService.kt** — Retrofit interface for Photon (called direct from device, preserves per-IP quota)
+- **GeocodingModels.kt** — all data models + `toSearchResult()` mappers
+- **RetrofitClient.kt** (`GeocodingClient`) — OkHttp client, dynamic Worker URL via Remote Config
+
+### Other
+- **StationAlarmApplication.kt** — osmdroid config (tile cache, thread counts, DPI scaling), Firebase init, Remote Config fetch
+- **util/Logger.kt** + **util/GpsLogger.kt** — event logger and GPS track CSV logger
+
+### Behaviour-locked files (do not change behaviour without explicit approval)
+`LocationService.kt`, `AlarmAudioController.kt`, `ServiceWakeLocks.kt`, `ServiceNotifications.kt`, `GeofenceManager.kt`, `GeofenceBroadcastReceiver.kt`. Pure structural refactors are fine; semantic changes are not.
 
 ## Non-Functional Goals
 - Battery efficient
