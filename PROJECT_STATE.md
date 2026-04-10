@@ -1,6 +1,6 @@
 # StationAlarm — Project State
 
-> **Last updated:** 2026-04-07
+> **Last updated:** 2026-04-10
 > Update this file at the end of every session with what changed and what's next.
 
 ---
@@ -99,6 +99,11 @@ Tracks currently active alarms.
 
 ## What Has Been Done (Session Log)
 
+### Session: Production Setup & Security Audit (2026-04-10)
+- **Firebase integration:** Successfully connected to real Firebase instance. Placed `google-services.json` securely via `.gitignore`.
+- **Security Audit:** Validated `git ls-files` and codebase grep. Zero API keys, tracking IDs, or keystores are exposed in the public repository structure.
+- **Remote Config:** Directed Geocoding proxy base URL to fetch from Firebase Remote Config via `geocoding_backend_url`.
+
 ### Session: Modularity Refactor (2026-04-07)
 **Goal:** behaviour-preserving structural extraction; zero behavioural change.
 
@@ -184,9 +189,11 @@ Tracks currently active alarms.
 
 ## Known Pending Items
 
-### Must Do (User action required)
-- **Firebase setup:** Create Firebase project, download `google-services.json`, place in `app/`, enable Crashlytics, set Remote Config key `geocoding_backend_url` = Worker URL
-- **Cloudflare Worker deploy:** Update Worker code with error handling + CORS fix + `/search` endpoint (code provided in session)
+### Must Do (QA Testing)
+Before Play Store submission or full trust out in the field, run these load tests:
+- **Doze Mode Recovery:** Enable an alarm, lock the screen off the charger for 3+ hours. Simulate entering the geofence and ensure `ServiceWakeLocks` bypasses deep sleep restrictions correctly.
+- **High-Velocity Polling:** Force a mock location speed of 150-250km/h towards an active station polygon. Validate that the adaptive GPS tracker triggers the alert gracefully before blowing past the threshold.
+- **Failover Chaos Drill:** Misconfigure your staging Cloudflare Remote Config URL temporarily to force a 502/404, strictly verifying that Photon API cleanly overtakes the map module logic.
 
 ### Low Priority (noted, not scheduled)
 - `StationConfigBottomSheet` param `initialNotes` → rename to `customReminder`
