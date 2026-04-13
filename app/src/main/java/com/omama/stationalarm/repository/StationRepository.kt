@@ -159,12 +159,41 @@ object StationRepository {
         }
     }
 
-    /** Transition a station to DISMISSED. Called by user pressing Dismiss. Deletes the row. */
+    /** Transition a station to PAUSED after alarm fires + user dismisses.
+     *  Keeps the row in DB so user can re-arm from the Alarms tab. */
     fun dismissStation(stationId: String) {
         repositoryScope.launch {
-            database.activeStationDao().delete(stationId)
+            database.activeStationDao().updateStatus(stationId, "PAUSED")
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
-            Logger.log("STATION_DISMISSED_AND_DELETED", stationId)
+            Logger.log("STATION_DISMISSED_TO_PAUSED", stationId)
+        }
+    }
+
+    /** Manually pause a station (toggle OFF). Removes geofences but keeps alarm data. */
+    fun pauseStation(stationId: String) {
+        repositoryScope.launch {
+            database.activeStationDao().updateStatus(stationId, "PAUSED")
+            GeofenceManager.removeGeofencesForStation(appContext, stationId)
+            Logger.log("STATION_PAUSED", stationId)
+        }
+    }
+
+    /** Re-arm a paused station (toggle ON). Re-registers geofences and sets MONITORING. */
+    fun rearmStation(stationId: String) {
+        repositoryScope.launch {
+            database.activeStationDao().updateStatus(stationId, "MONITORING")
+            val station = database.activeStationDao().getStationById(stationId)?.toDomainModel() ?: return@launch
+            GeofenceManager.addGeofencesForStation(
+                context = appContext,
+                stationId = station.stationId,
+                radiusLevel5M = (station.radiusLevel5Km * 1000).toFloat(),
+                radiusLevel4M = (station.radiusLevel4Km * 1000).toFloat(),
+                radiusLevel3M = (station.radiusLevel3Km * 1000).toFloat(),
+                radiusLevel2M = (station.radiusLevel2Km * 1000).toFloat(),
+                radiusLevel1M = (station.radiusLevel1Km * 1000).toFloat(),
+                alertDistanceM = (station.alertDistanceKm * 1000).toFloat()
+            )
+            Logger.log("STATION_REARMED", stationId)
         }
     }
 
@@ -184,7 +213,7 @@ object StationRepository {
 
     fun reRegisterAllGeofences() {
         repositoryScope.launch {
-            val activeList = getAllActiveStationsList()
+            val activeList = getAllActiveStationsList().filter { it.status != "PAUSED" }
             for (active in activeList) {
                 GeofenceManager.addGeofencesForStation(
                     context = appContext,

@@ -30,12 +30,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omama.stationalarm.MainActivity
-import com.omama.stationalarm.R
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.service.LocationService
 import com.omama.stationalarm.ui.screens.HomeScreen
 import com.omama.stationalarm.ui.screens.MapSearchScreen
-import com.omama.stationalarm.ui.screens.SaveFavoriteDialog
 import com.omama.stationalarm.ui.screens.StationConfigBottomSheet
 import com.omama.stationalarm.ui.viewmodel.StationViewModel
 import com.omama.stationalarm.util.Logger
@@ -181,19 +179,15 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     val coroutineScope = rememberCoroutineScope()
 
     val activeStations by viewModel.activeStations.observeAsState(initial = emptyList())
-    val tabs = listOf("My Stations", "Map")
+    val tabs = listOf("Alarms", "Map")
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val savedPlaces by com.omama.stationalarm.repository.StationRepository.savedPlacesFlow.collectAsState(initial = emptyList())
-    var showFavoritesSheet by remember { mutableStateOf(false) }
-    var selectedPreset by remember { mutableStateOf<com.omama.stationalarm.data.SavedPlace?>(null) }
     var selectedRadius by remember { mutableStateOf<Double?>(null) }
     var editingStation by remember { mutableStateOf<com.omama.stationalarm.data.ActiveStation?>(null) }
     var isFromMap by remember { mutableStateOf(false) }
-    var showSaveFavoriteDialog by remember { mutableStateOf(false) }
-    var pendingFavStation by remember { mutableStateOf<Station?>(null) }
-    var pendingFavRadius by remember { mutableStateOf(3.0) }
+    // For "View on Map" — station to center on when switching to map tab
+    var viewOnMapStation by remember { mutableStateOf<com.omama.stationalarm.data.ActiveStation?>(null) }
 
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 1 && !isGpsEnabled()) {
@@ -249,6 +243,28 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                                 selectedStation = station
                             }
                         },
+                        onViewOnMap = { activeStation ->
+                            viewOnMapStation = activeStation
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(1)
+                            }
+                        },
+                        onToggleStation = { activeStation, enabled ->
+                            if (enabled) {
+                                viewModel.rearmStation(activeStation.stationId)
+                                // Start LocationService for re-armed station
+                                Intent(context, LocationService::class.java).apply {
+                                    action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
+                                }.also { context.startForegroundService(it) }
+                            } else {
+                                viewModel.pauseStation(activeStation.stationId)
+                            }
+                        },
+                        onNavigateToMap = {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(1)
+                            }
+                        },
                         onShareLogs = {
                             val intent = Logger.shareLog(context)
                             if (intent != null) context.startActivity(intent)
@@ -270,7 +286,9 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                             }
                         },
                         isGpsEnabled = isGpsEnabled,
-                        onRequestGps = { showGpsDialog = true }
+                        onRequestGps = { showGpsDialog = true },
+                        focusStation = viewOnMapStation,
+                        onFocusHandled = { viewOnMapStation = null }
                     )
                 }
             }
@@ -279,40 +297,6 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp)
-        )
-
-        // Global Favorites FAB
-        androidx.compose.material3.FloatingActionButton(
-            onClick = { showFavoritesSheet = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 48.dp, end = 16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = Color.White
-        ) {
-            Icon(
-                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_star),
-                contentDescription = "Favorites"
-            )
-        }
-    }
-
-    if (showFavoritesSheet) {
-        com.omama.stationalarm.ui.screens.FavoritesBottomSheet(
-            savedPlaces = savedPlaces,
-            onSelect = { place ->
-                showFavoritesSheet = false
-                if (isGpsEnabled()) {
-                    selectedPreset = place
-                    selectedStation = place.toStation()
-                } else {
-                    showGpsDialog = true
-                }
-            },
-            onDelete = { placeId ->
-                com.omama.stationalarm.repository.StationRepository.deleteFavoritePlace(placeId)
-            },
-            onDismiss = { showFavoritesSheet = false }
         )
     }
 
@@ -350,14 +334,13 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
         StationConfigBottomSheet(
             station = selectedStation!!,
             isActive = isActive,
-            initialRadius = if (isEditing) editingStation!!.alertDistanceKm else (selectedRadius ?: selectedPreset?.radiusKm ?: 5.0),
-            initialNotify = if (isEditing) editingStation!!.notify else (selectedPreset?.notify ?: true),
-            initialVibrate = if (isEditing) editingStation!!.vibrate else (selectedPreset?.vibrate ?: true),
-            initialSound = if (isEditing) editingStation!!.sound else (selectedPreset?.sound ?: true),
-            initialNotes = if (isEditing) editingStation!!.customReminder else selectedPreset?.notes,
+            initialRadius = if (isEditing) editingStation!!.alertDistanceKm else (selectedRadius ?: 5.0),
+            initialNotify = if (isEditing) editingStation!!.notify else true,
+            initialVibrate = if (isEditing) editingStation!!.vibrate else true,
+            initialSound = if (isEditing) editingStation!!.sound else true,
+            initialNotes = if (isEditing) editingStation!!.customReminder else null,
             onDismiss = {
                 selectedStation = null
-                selectedPreset = null
                 selectedRadius = null
                 editingStation = null
             },
@@ -374,12 +357,11 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     )
                     val stationName = selectedStation!!.name
                     selectedStation = null
-                    selectedPreset = null
                     selectedRadius = null
                     editingStation = null
                     isFromMap = false
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar("✅ Alarm updated for $stationName")
+                        snackbarHostState.showSnackbar("Alarm updated for $stationName")
                     }
                 } else {
                     val isRailway = com.omama.stationalarm.data.StationData.getStationById(selectedStation!!.id) != null
@@ -387,10 +369,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
 
                     val stationName = selectedStation!!.name
                     val wasFromMap = isFromMap
-                    val savedStation = selectedStation!!
-                    val savedRadius = selectedRadius ?: 3.0
                     selectedStation = null
-                    selectedPreset = null
                     selectedRadius = null
                     editingStation = null
                     isFromMap = false
@@ -402,47 +381,10 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     coroutineScope.launch {
                         if (wasFromMap) {
                             pagerState.animateScrollToPage(0)
-                            val result = snackbarHostState.showSnackbar(
-                                message = "✅ Alarm set for $stationName",
-                                actionLabel = "Save ⭐",
-                                duration = SnackbarDuration.Long
-                            )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                pendingFavStation = savedStation
-                                pendingFavRadius = savedRadius
-                                showSaveFavoriteDialog = true
-                            }
-                        } else {
-                            snackbarHostState.showSnackbar("✅ Alarm set for $stationName")
                         }
+                        snackbarHostState.showSnackbar("Alarm set for $stationName")
                     }
                 }
-            }
-        )
-    }
-
-    if (showSaveFavoriteDialog && pendingFavStation != null) {
-        SaveFavoriteDialog(
-            initialName = pendingFavStation!!.name,
-            onSave = { name, notes ->
-                val place = com.omama.stationalarm.data.SavedPlace(
-                    id = "custom-${java.util.UUID.randomUUID()}",
-                    name = name.ifBlank { pendingFavStation!!.name },
-                    lat = pendingFavStation!!.lat,
-                    lon = pendingFavStation!!.lon,
-                    radiusKm = pendingFavRadius,
-                    notes = notes
-                )
-                com.omama.stationalarm.repository.StationRepository.saveFavoritePlace(place)
-                showSaveFavoriteDialog = false
-                pendingFavStation = null
-                coroutineScope.launch {
-                    snackbarHostState.showSnackbar("⭐ Saved to favourites!")
-                }
-            },
-            onDismiss = {
-                showSaveFavoriteDialog = false
-                pendingFavStation = null
             }
         )
     }

@@ -59,6 +59,8 @@ fun MapSearchScreen(
     onStartTrip: (Station, Double) -> Unit,
     isGpsEnabled: () -> Boolean,
     onRequestGps: () -> Unit,
+    focusStation: com.omama.stationalarm.data.ActiveStation? = null,
+    onFocusHandled: () -> Unit = {},
     viewModel: MapSearchViewModel = viewModel()
 ) {
     val query           by viewModel.query.collectAsState()
@@ -74,6 +76,25 @@ fun MapSearchScreen(
 
     // Shared MapView reference so the FAB can trigger animateToCenter
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+
+    // Handle "View on Map" from Alarms tab — center on the requested station
+    LaunchedEffect(focusStation) {
+        val station = focusStation ?: return@LaunchedEffect
+        if (station.lat != 0.0 || station.lon != 0.0) {
+            viewModel.selectResult(
+                com.omama.stationalarm.network.GeoSearchResult(
+                    id = station.stationId,
+                    name = station.stationName.ifEmpty { station.stationId },
+                    subtitle = "Alert radius: ${station.alertDistanceKm} km",
+                    lat = station.lat,
+                    lon = station.lon,
+                    confidence = "exact"
+                )
+            )
+            viewModel.onRadiusChanged(station.alertDistanceKm)
+            onFocusHandled()
+        }
+    }
 
     // Collect location events from FAB
     LaunchedEffect(Unit) {

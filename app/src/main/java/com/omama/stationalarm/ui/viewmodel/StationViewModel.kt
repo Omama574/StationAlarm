@@ -54,5 +54,17 @@ class StationViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun pauseStation(stationId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            StationRepository.pauseStation(stationId)
+        }
+    }
+
+    fun rearmStation(stationId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            StationRepository.rearmStation(stationId)
+        }
+    }
+
     fun getStationById(id: String): Station? = StationRepository.getStationByIdSync(id)
 }
