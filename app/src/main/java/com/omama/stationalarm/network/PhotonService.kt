@@ -32,10 +32,9 @@ interface PhotonService {
         // Makes results from user's country rank much higher.
         @Query("location_bias_scale") locationBiasScale: Double = 0.5,
         // Exclude administrative boundary polygons — they have no useful alarm point.
-        @Query("osm_tag")             osmTag: String = "!boundary",
-        // Exclude house/street level — too granular for alarm destinations.
-        // locality = suburbs/neighbourhoods and above.
-        @Query("layer")               layer: String = "locality,district,city,county,state,country"
+        @Query("osm_tag")             osmTag: String = "!boundary"
+        // layer param intentionally omitted — Photon's "other" layer holds all POIs (bus stations,
+        // railway stations, airports, etc.) and setting layer= without it silently drops them.
     ): PhotonResponse
 
     /**

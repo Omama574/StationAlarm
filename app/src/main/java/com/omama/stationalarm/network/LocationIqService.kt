@@ -23,9 +23,9 @@ interface LocationIqService {
         @Query("limit")         limit: Int = 5,
         @Query("dedupe")        dedupe: Int = 1,
         // normalizecity=1: if address.city is absent, API promotes town/village/county into it
-        @Query("normalizecity") normalizecity: Int = 1,
-        // Exclude postcodes — useless for alarm destinations
-        @Query("layers")        layers: String = "road,neighbourhood,suburb,city,county,state,country"
+        @Query("normalizecity") normalizecity: Int = 1
+        // layers param intentionally omitted — it's an allowlist with no POI/amenity option,
+        // so setting it silently drops bus stations, railway stations, airports, etc.
     ): List<LocationIqAutocompleteResult>
 
     /**
