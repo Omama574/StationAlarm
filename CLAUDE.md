@@ -1,83 +1,128 @@
-# StationAlarm Project Context - Full Overview
 
-## Project Goal
-StationAlarm is an Android app that delivers reliable location-based alerts when the user is approaching a railway station or any custom-saved place. It is designed to work reliably even at high train speeds (100-300 km/h) by overcoming Android OS doze, batching, and wake delays.
+# StationAlarm — CLAUDE.md
 
-## Core Innovation
-- Layered geofences (Outer / Mid / Inner) for redundancy
-- Adaptive speed-aware polling that escalates frequency as the user gets closer
-- Static India railway dataset + full interactive map module for custom places
+Android app that alerts users approaching a railway station or saved place.
+Works at train speeds (100–300 km/h) via layered geofences + adaptive polling.
 
-## Current Tech Stack
-- Language: Kotlin
-- UI: Jetpack Compose + AndroidView
-- Map: osmdroid + OpenStreetMap tiles (unlimited free)
-- Geocoding: LocationIQ via Cloudflare Worker (primary) + Photon by Komoot (fallback)
-- Local Database: Room SQLite (version 3)
-- Core Engine: LocationService (modularized into AlarmAudioController + ServiceWakeLocks + ServiceNotifications) + GeofenceManager + GeofenceBroadcastReceiver
-- Static Data: StationData.kt (hardcoded Indian railway stations)
-- Custom Places: SavedPlaceEntity in Room (saved from map tap or search)
+---
 
-## Key Architecture Decisions
-- Two search modules that converge into the same Station domain model:
-  1. Static India railway list (My Stations tab)
-  2. Map module (MapSearchScreen) with forward/reverse geocoding + live radius circle
-- The map module must integrate seamlessly with the existing StationConfigBottomSheet and core alarm engine without modifying the service layer.
-- Backend proxy (Cloudflare Worker) is deployed — hides API keys and allows switching providers via Firebase Remote Config.
+## Before You Write Anything
 
-## Important Constraints & Decisions
-- No vendor lock-in — using LocationIQ + OSM via Cloudflare Worker proxy.
-- Backend proxy is live (Cloudflare Worker) — URL controlled via Firebase Remote Config.
-- Photon by Komoot is the free fallback when LocationIQ rate-limits.
-- All static data (stations + future NAP/GTFS for Europe) should eventually be editable from backend without forcing app updates.
-- Caching and graceful fallback are required to handle rate-limit surges gracefully.
+<important if="you are about to answer a question about code">
+NEVER answer questions about specific files or behaviour without reading the
+relevant file first. No speculation. If you haven't opened it, open it.
+</important>
 
-## Current Project Structure
+<important if="you are about to delete or remove code">
+Before deleting ANYTHING — a function, import, field, or file — grep the entire
+codebase for usages. If you cannot confirm zero usages, DO NOT delete it. State
+what you found and ask.
+</important>
 
-### Service layer (`service/`) — alarm engine
-- **LocationService.kt** — foreground service, GPS polling, state machine. Behaviour-locked. Delegates to three same-package helpers:
-  - **AlarmAudioController.kt** — MediaPlayer + audio focus + vibrator + 5-min auto-dismiss timeout
-  - **ServiceWakeLocks.kt** — alarm wake lock (10-min cap) + GPS anti-doze wake lock (4-hour cap, non-ref-counted)
-  - **ServiceNotifications.kt** — channels, foreground notification, full-screen alert (with dismiss action), watchdog notification
-- **GeofenceManager.kt** — sets up 6 geofences per station (Outer/Mid/Inner × Entry/Exit). Behaviour-locked.
-- **receiver/GeofenceBroadcastReceiver.kt** — geofence event handler
+<important if="you are unsure">
+Stop. Name what's unclear and ask rather than guessing. Surface tradeoffs.
+Present multiple interpretations when ambiguity exists.
+</important>
 
-### UI layer
-- **MainActivity.kt** (~70 lines) — just `onCreate`/`onResume` + `hasAllLocationPermissions`/`isGpsEnabled` companion helpers
-- **ui/AppRoot.kt** — `AppRoot` (permission flow), `AppNavigation` (tabs + pager + station-config sheet wiring), `PermissionRationaleDialog`, `GpsDisabledDialog`
-- **ui/screens/HomeScreen.kt** — My Stations tab (active alarms list)
-- **ui/screens/MapSearchScreen.kt** — Map tab (osmdroid + search + radius)
-- **ui/screens/OsmMapView.kt** — the osmdroid `AndroidView` composable, extracted from MapSearchScreen
-- **ui/screens/StationConfigBottomSheet.kt** — shared alarm config sheet (used by both tabs)
-- **ui/screens/AlarmActivity.kt** — full-screen alarm UI
-- **ui/screens/FavoritesBottomSheet.kt** — saved places picker (global FAB)
-- **ui/viewmodel/StationViewModel.kt**, **MapSearchViewModel.kt**
+---
 
-### Data layer
-- **repository/StationRepository.kt** — central data access; only place that touches Room + GeofenceManager
-- **data/db/StationDatabase.kt** — Room v3, two tables: `saved_places`, `active_stations`
-- **data/StationData.kt** — loader for offline `stations.json` (Indian railway DB)
+## Behaviour-Locked Files — DO NOT CHANGE SEMANTICS
 
-### Network layer (`network/`)
-- **LocationIqService.kt** — Retrofit interface for LocationIQ (called via Cloudflare Worker)
-- **PhotonService.kt** — Retrofit interface for Photon (called direct from device, preserves per-IP quota)
-- **GeocodingModels.kt** — all data models + `toSearchResult()` mappers
-- **RetrofitClient.kt** (`GeocodingClient`) — OkHttp client, dynamic Worker URL via Remote Config
+These files are frozen. Pure structural refactors (formatting, renaming) are OK.
+Any semantic/behavioural change requires explicit approval before touching:
 
-### Other
-- **StationAlarmApplication.kt** — osmdroid config (tile cache, thread counts, DPI scaling), Firebase init, Remote Config fetch
-- **util/Logger.kt** + **util/GpsLogger.kt** — event logger and GPS track CSV logger
+- `service/LocationService.kt`
+- `service/AlarmAudioController.kt`
+- `service/ServiceWakeLocks.kt`
+- `service/ServiceNotifications.kt`
+- `geofence/GeofenceManager.kt`
+- `receiver/GeofenceBroadcastReceiver.kt`
 
-### Behaviour-locked files (do not change behaviour without explicit approval)
-`LocationService.kt`, `AlarmAudioController.kt`, `ServiceWakeLocks.kt`, `ServiceNotifications.kt`, `GeofenceManager.kt`, `GeofenceBroadcastReceiver.kt`. Pure structural refactors are fine; semantic changes are not.
+---
 
-## Non-Functional Goals
-- Battery efficient
-- Reliable at high speeds
-- No visible API keys in APK
-- Offline-first where possible
-- Scalable to global use (India + Europe)
+## Tech Stack
 
-You are now fully briefed on the entire project. When I ask for code or changes, always respect the existing architecture, especially do not touch the core alarm engine (LocationService / GeofenceManager).
+| Layer | Tech |
+|---|---|
+| Language | Kotlin |
+| UI | Jetpack Compose + AndroidView (osmdroid) |
+| Map | osmdroid 6.1.20 + OSM MAPNIK tiles |
+| Geocoding primary | LocationIQ via Cloudflare Worker proxy |
+| Geocoding fallback | Photon by Komoot — called DIRECTLY from device (not via Worker) |
+| Database | Room SQLite v3 |
+| Backend config | Firebase Remote Config (`geocoding_backend_url`) + Crashlytics |
 
-Ask me questions if anything is unclear.
+---
+
+## Architecture
+
+### Search (3-tier)
+1. **StationData** — offline Indian railway JSON, instant, zero API calls
+2. **LocationIQ** — via Cloudflare Worker, 500ms debounce
+3. **Photon** — direct from device (preserves per-user IP quota, NOT pooled)
+
+### Alarm Flow
+```
+Station selected → StationConfigBottomSheet → StationRepository.addActiveStation()
+→ GeofenceManager: 6 geofences per station (Outer/Mid/Inner × Entry/Exit)
+→ LocationService: adaptive GPS polling
+→ GeofenceBroadcastReceiver → AlarmActivity
+→ dismissStation() → removeGeofencesForStation()
+```
+
+---
+
+## Key Files
+
+| File | Role |
+|---|---|
+| `service/LocationService.kt` | Core alarm engine — LOCKED |
+| `geofence/GeofenceManager.kt` | Geofence setup/teardown — LOCKED |
+| `receiver/GeofenceBroadcastReceiver.kt` | Geofence event handler |
+| `repository/StationRepository.kt` | Only place that touches Room + GeofenceManager |
+| `ui/screens/MapSearchScreen.kt` | Map tab — osmdroid + search + radius |
+| `ui/viewmodel/MapSearchViewModel.kt` | Geocoding calls, search logic |
+| `ui/screens/HomeScreen.kt` | My Stations tab — active alarms list |
+| `ui/screens/StationConfigBottomSheet.kt` | Shared alarm config (both tabs) |
+| `ui/screens/AlarmActivity.kt` | Full-screen alarm UI |
+| `network/LocationIqService.kt` | Retrofit interface — LocationIQ (via Worker) |
+| `network/PhotonService.kt` | Retrofit interface — Photon (direct) |
+| `network/GeocodingModels.kt` | All geocoding models + toSearchResult() mappers |
+| `network/RetrofitClient.kt` | OkHttp client, dynamic Worker URL |
+| `data/StationData.kt` | Loader for stations.json |
+| `data/db/StationDatabase.kt` | Room v3 — saved_places + active_stations |
+| `StationAlarmApplication.kt` | App init — osmdroid config, Firebase, Remote Config |
+
+---
+
+## Non-Negotiable Rules
+
+1. **No API keys in APK** — all geocoding goes via Cloudflare Worker
+2. **No `countrycodes` restriction** — app is global
+3. **Photon is always called directly from device** — never via Worker
+4. **Room DB schema changes require a migration** — bump version in `StationDatabase.kt`
+5. **No Mapbox** — TOS violation (geocoding results on non-Mapbox maps)
+6. **Geocoding stack is locked** — LocationIQ primary, Photon fallback, no other sources
+
+---
+
+## Database Schema (Room v3)
+
+**`saved_places`** — `id, name, lat, lon, radiusKm, notify, vibrate, sound, notes, createdAt`  
+**`active_stations`** — active alarm state per station
+
+---
+
+## Build Commands
+
+```bash
+./gradlew compileDebugKotlin   # check compile only
+./gradlew assembleDebug        # full debug build
+```
+
+---
+
+## When Compacting
+
+Preserve: locked file list, non-negotiable rules, current Room DB version, any
+files modified this session, and any decisions made about geocoding stack.

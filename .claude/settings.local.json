@@ -17,7 +17,8 @@
       "Bash(./gradlew compileDebugKotlin)",
       "Bash(cd /tmp)",
       "Bash(unzip -o /c/Users/omama/.gradle/caches/modules-2/files-2.1/org.osmdroid/osmdroid-android/6.1.20/9e32a3531525ab4caa023da7144549efaa9e69bb/osmdroid-android-6.1.20.aar classes.jar)",
-      "Bash(unzip -l classes.jar)"
+      "Bash(unzip -l classes.jar)",
+      "WebSearch"
     ]
   }
 }

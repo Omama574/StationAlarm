@@ -1,6 +1,7 @@
+```markdown
 # StationAlarm — Project State
 
-> **Last updated:** 2026-04-10
+> **Last updated:** 2026-04-13
 > Update this file at the end of every session with what changed and what's next.
 
 ---
@@ -55,30 +56,10 @@ Station selected → StationConfigBottomSheet → radius/sound/vibrate config
     → dismissStation() → removeGeofencesForStation() cleans up
 ```
 
-### Key Files
+---
 
-| File | Role |
-|---|---|
-| `service/LocationService.kt` | Core alarm engine — **DO NOT TOUCH** |
-| `geofence/GeofenceManager.kt` | Geofence setup/teardown — **DO NOT TOUCH** |
-| `receiver/GeofenceBroadcastReceiver.kt` | Geofence event handler |
-| `repository/StationRepository.kt` | Central data access layer |
-| `ui/screens/MapSearchScreen.kt` | Full map + search UI (osmdroid) |
-| `ui/viewmodel/MapSearchViewModel.kt` | Map search logic, geocoding calls |
-| `ui/screens/HomeScreen.kt` | Main screen — active alarms list |
-| `ui/screens/StationConfigBottomSheet.kt` | Shared alarm config sheet |
-| `ui/screens/AlarmActivity.kt` | Full-screen alarm UI |
-| `network/LocationIqService.kt` | Retrofit interface for LocationIQ (via Worker) |
-| `network/PhotonService.kt` | Retrofit interface for Photon |
-| `network/GeocodingModels.kt` | All geocoding data models + toSearchResult() |
-| `network/RetrofitClient.kt` (GeocodingClient) | HTTP client, Worker URL management |
-| `data/StationData.kt` | Loader for stations.json (Indian railway DB) |
-| `data/db/StationDatabase.kt` | Room DB — SavedPlace + ActiveStation tables |
-| `StationAlarmApplication.kt` | App init — osmdroid config, Firebase, Remote Config |
-| `util/Logger.kt` | Event logger |
-| `util/GpsLogger.kt` | GPS track CSV logger |
+## Cloudflare Worker
 
-### Cloudflare Worker
 - **URL:** `https://stationalarm-geo.mohammedomama2005.workers.dev/`
 - **Endpoints:** `/autocomplete` → LocationIQ v1/autocomplete, `/reverse` → LocationIQ v1/reverse, `/search` → LocationIQ v1/search (future)
 - **Caching:** Autocomplete 24h, reverse 1h (Cloudflare edge cache)
@@ -97,103 +78,68 @@ Tracks currently active alarms.
 
 ---
 
-## What Has Been Done (Session Log)
+## Graveyard — Rejected Decisions (Do Not Revisit Without Strong Reason)
 
-### Session: Production Setup & Security Audit (2026-04-10)
-- **Firebase integration:** Successfully connected to real Firebase instance. Placed `google-services.json` securely via `.gitignore`.
-- **Security Audit:** Validated `git ls-files` and codebase grep. Zero API keys, tracking IDs, or keystores are exposed in the public repository structure.
-- **Remote Config:** Directed Geocoding proxy base URL to fetch from Firebase Remote Config via `geocoding_backend_url`.
-
-### Session: Modularity Refactor (2026-04-07)
-**Goal:** behaviour-preserving structural extraction; zero behavioural change.
-
-**`service/LocationService.kt` slimmed 819 → ~430 lines.** Three helpers extracted into the same package:
-- `service/AlarmAudioController.kt` — owns MediaPlayer, AudioFocusRequest, vibrator, 5-min auto-dismiss timeout, `isAlarmRinging`/`isVibrating` state. Timeout takes a callback so the controller stays pure (DB cleanup happens in the Service).
-- `service/ServiceWakeLocks.kt` — owns the alarm wake lock (10-min cap) and the GPS wake lock (4-hour cap, non-reference-counted, anti-doze).
-- `service/ServiceNotifications.kt` — owns channel creation, foreground notification, full-screen alert (with dismiss action → LocationService), and the watchdog "GPS stalled" notification. All channel IDs and notification IDs preserved verbatim.
-
-**UI extractions:**
-- `ui/screens/OsmMapView.kt` — moved the osmdroid `OsmMapView` composable out of `MapSearchScreen.kt`.
-- `ui/AppRoot.kt` — moved `AppRoot`, `AppNavigation`, `PermissionRationaleDialog`, `GpsDisabledDialog` out of `MainActivity.kt`. MainActivity is now ~70 lines (just `onCreate`/`onResume` + permission/GPS helpers in companion).
-
-**Bug fixes found during refactor:**
-- Removed broken `org.osmdroid.views.overlay.MapTileApproximater()` reference from a previous session — wrong package; the class lives in `tileprovider.modules` and is not an overlay. The DPI scaling + thread-count tile speed improvements still work.
-- Added `app/google-services.json` (stub, gitignored) so Gradle can build without the real Firebase config.
-
-**Verification:** `./gradlew compileDebugKotlin` passes clean.
-
-### Session: Codebase Cleanup (commit `ded5b16`)
-- Removed `removeAllGeofences()` from `GeofenceManager.kt` — per-station cleanup via `removeGeofencesForStation()` is sufficient
-- Removed dead `updateFavoritePlace()` + `SavedPlaceDao.update()` call chain
-- Removed `flushAndClose()` from `Logger.kt` and `GpsLogger.kt` (never called)
-- Removed unused template colors from `Color.kt` (Purple80, Pink80, etc.)
-- Removed `dynamicColor` param from `StationAlarmTheme()` (no callers)
-- Removed commented-out typography block from `Type.kt`
-- Renamed `MapboxGeocodingService.kt` → `LocationIqService.kt`
-- Renamed `MapboxModels.kt` → `GeocodingModels.kt`
-- Fixed `GpsLogger` hardcoded `"IST"` timezone → `TimeZone.getDefault()`
-- Fixed `LogEntry.toCsvLine()` — proper CSV escaping for commas/quotes/newlines
-- Added OkHttp timeouts: 10s connect, 15s read (`RetrofitClient.kt`)
-- Fixed `HomeScreen`: "delete this trip?" → "remove this alarm?", hardcoded colors → MaterialTheme
-- Fixed `HomeScreen` search: synchronous `remember(query)` → `LaunchedEffect` with 300ms debounce
-- Added `key = { it.id }` to search results LazyColumn
-- Fixed `AlarmActivity`: forced dark theme, all hardcoded colors → MaterialTheme
-- Updated `CLAUDE.md` to reflect current geocoding stack
-- Updated `app/build.gradle.kts` comment (Mapbox → LocationIQ + Photon)
-
-### Session: LocationIQ + Photon Optimization (commit `d491904`)
-
-**LocationIQ autocomplete** (`LocationIqService.kt`):
-- `limit` 10 → 5
-- Added `normalizecity=1` — API fills `address.city` from hierarchy when absent
-- Added `layers` filter — excludes postcodes, keeps useful location types
-- **No `lat`/`lon` bias** — not officially supported by LocationIQ autocomplete; Anycast optimization lost via Worker anyway
-
-**LocationIQ reverse** (`LocationIqService.kt`):
-- Added `normalizeaddress=1` — guarantees `address.city` is always populated
-
-**Photon search** (`PhotonService.kt`):
-- `limit` 10 → 5
-- Added `zoom=10` — city-level bias radius (~50km vs default ~100m street-level)
-- Added `location_bias_scale=0.5` — stronger proximity weighting (default 0.2)
-- Added `osm_tag=!boundary` — removes administrative polygon noise
-- Added `layer=locality,district,city,county,state,country` — excludes house/street level
-- Added `radius=0.5` on reverse — prevents distant address matches on map tap
-
-**GeocodingModels.kt**:
-- Added `address: LocationIqAddress?` field to `LocationIqAutocompleteResult`
-- Expanded `LocationIqAddress` — added `neighbourhood`, `cityDistrict`, `postcode`
-- Autocomplete `toSearchResult()`: subtitle now `road + suburb → city → state` (structured, not raw string)
-- Reverse `toSearchResult()`: subtitle now `suburb → city → state`, name uses suburb/neighbourhood fallback
-- Added `district`, `county`, `locality`, `postcode` to `PhotonProperties`
-- Photon `toSearchResult()`: subtitle uses `district/locality → city/county → state`, deduplicates name from city
-
-**Cloudflare Worker** (manual deploy by user):
-- Added try/catch — 502 instead of crash when LocationIQ unreachable
-- CORS headers (`Access-Control-Allow-Origin: *`) on ALL responses (was only on success)
-- Added `/search` endpoint (forward geocoding, future-ready)
-
-### Session: OSM Tile Loading Speed (commit `bd8e230`)
-
-**StationAlarmApplication.kt**:
-- `tileDownloadThreads = 4` (was 2) — 4 parallel tile downloads
-- `tileFileSystemThreads = 4` (was 2) — 4 parallel cache reads
-- `tileDownloadMaxQueueSize = 60` (was 40)
-
-**MapSearchScreen.kt** (`OsmMapView` composable):
-- `isTilesScaledToDpi = true` — fetches 256px tiles and scales up, reduces tile count ~2-4x on HDPI screens
-- Added `MapTileApproximater` overlay at index 0 — shows blurry lower-zoom tiles as placeholders while correct tiles load; eliminates blank grey squares
-- `MapEventsOverlay` shifted to index 1 (was 0)
+| Decision | What was rejected | Why |
+|---|---|---|
+| Mapbox geocoding | Using Mapbox for search | TOS violation — geocoding results cannot be displayed on non-Mapbox maps |
+| Rotating API keys | Multiple LocationIQ keys to beat rate limits | TOS risk |
+| NaPTAN / EU GTFS / AU feeds | Static station data for Europe/Australia | Scope too large, maintenance burden, deferred to Phase 4 |
+| Nominatim direct | As primary geocoder | Rate limits too tight for production use |
+| GADM offline boundaries | Point-in-polygon city tagging | Overkill for current scope |
+| Photon via Worker | Routing Photon through Cloudflare | Destroys per-user IP quota, turns it into pooled server quota |
 
 ---
 
-## Known Pending Items
+## Session Log
 
-### Must Do (QA Testing)
-Before Play Store submission or full trust out in the field, run these load tests:
-- **Doze Mode Recovery:** Enable an alarm, lock the screen off the charger for 3+ hours. Simulate entering the geofence and ensure `ServiceWakeLocks` bypasses deep sleep restrictions correctly.
-- **High-Velocity Polling:** Force a mock location speed of 150-250km/h towards an active station polygon. Validate that the adaptive GPS tracker triggers the alert gracefully before blowing past the threshold.
-- **Failover Chaos Drill:** Misconfigure your staging Cloudflare Remote Config URL temporarily to force a 502/404, strictly verifying that Photon API cleanly overtakes the map module logic.
+### Session: Production Setup & Security Audit (2026-04-10)
+- Firebase integration: connected to real Firebase instance, `google-services.json` secured via `.gitignore`
+- Security audit: `git ls-files` + codebase grep — zero API keys, tracking IDs, or keystores exposed
+- Remote Config: geocoding proxy base URL fetched from Firebase via `geocoding_backend_url`
+
+### Session: Modularity Refactor (2026-04-07)
+- `service/LocationService.kt` slimmed 819 → ~430 lines
+- Extracted into same package: `AlarmAudioController.kt`, `ServiceWakeLocks.kt`, `ServiceNotifications.kt`
+- UI extractions: `OsmMapView.kt` out of `MapSearchScreen.kt`; `AppRoot.kt` + `AppNavigation` out of `MainActivity.kt`
+- `MainActivity.kt` now ~70 lines
+- Fixed broken `MapTileApproximater` package reference from previous session
+- `./gradlew compileDebugKotlin` passes clean
+
+### Session: Codebase Cleanup (commit `ded5b16`)
+- Removed `removeAllGeofences()` from `GeofenceManager.kt`
+- Removed dead `updateFavoritePlace()` + `SavedPlaceDao.update()` chain
+- Removed `flushAndClose()` from `Logger.kt` and `GpsLogger.kt`
+- Removed unused template colors from `Color.kt`
+- Removed `dynamicColor` param from `StationAlarmTheme()`
+- Renamed `MapboxGeocodingService.kt` → `LocationIqService.kt`
+- Renamed `MapboxModels.kt` → `GeocodingModels.kt`
+- Fixed `GpsLogger` hardcoded `"IST"` timezone → `TimeZone.getDefault()`
+- Fixed `LogEntry.toCsvLine()` — proper CSV escaping
+- Added OkHttp timeouts: 10s connect, 15s read
+- Fixed `HomeScreen` search: synchronous `remember(query)` → `LaunchedEffect` 300ms debounce
+- Fixed `AlarmActivity`: forced dark theme, hardcoded colors → MaterialTheme
+
+### Session: LocationIQ + Photon Optimization (commit `d491904`)
+- LocationIQ autocomplete: `limit` 10→5, added `normalizecity=1`, added `layers` filter
+- LocationIQ reverse: added `normalizeaddress=1`
+- Photon: `limit` 10→5, `zoom=10`, `location_bias_scale=0.5`, `osm_tag=!boundary`, `layer` filter, `radius=0.5` on reverse
+- `GeocodingModels.kt`: expanded address fields, structured subtitle logic for both providers
+- Cloudflare Worker: added try/catch (502 on LocationIQ failure), CORS on all responses, `/search` endpoint
+
+### Session: OSM Tile Loading Speed (commit `bd8e230`)
+- `tileDownloadThreads = 4`, `tileFileSystemThreads = 4`, `tileDownloadMaxQueueSize = 60`
+- `isTilesScaledToDpi = true` — reduces tile count ~2-4x on HDPI
+- Added `MapTileApproximater` overlay — eliminates blank grey squares while tiles load
+
+---
+
+## Pending
+
+### Must Do Before Play Store / Field Trust
+- **Doze Mode Recovery:** Lock screen off charger 3+ hours, simulate entering geofence, verify `ServiceWakeLocks` bypasses deep sleep correctly
+- **High-Velocity Polling:** Mock location at 150–250 km/h toward active station, verify adaptive tracker fires before passing threshold
+- **Failover Chaos Drill:** Misconfigure Remote Config URL to force 502, verify Photon cleanly takes over
 
 ### Low Priority (noted, not scheduled)
 - `StationConfigBottomSheet` param `initialNotes` → rename to `customReminder`
@@ -203,13 +149,5 @@ Before Play Store submission or full trust out in the field, run these load test
 ### Future (Phase 4)
 - Play Store submission
 - Europe station data (NAP/GTFS)
-- "Remove all alarms" feature (would use a `removeAllGeofences()` variant)
-
----
-
-## Non-Negotiable Rules
-1. **Never touch** `LocationService.kt` or `GeofenceManager.kt` — core alarm engine
-2. **No API keys in APK** — all go via Cloudflare Worker
-3. **No `countrycodes` restriction** on geocoding — app is global
-4. Photon is always called **directly from device** (not via Worker) to preserve per-user IP quota
-5. Room DB schema changes require a migration — bump version in `StationDatabase.kt`
+- "Remove all alarms" feature
+```
