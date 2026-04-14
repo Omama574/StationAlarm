@@ -128,6 +128,21 @@ Tracks currently active alarms.
 - `GeocodingModels.kt`: expanded address fields, structured subtitle logic for both providers
 - Cloudflare Worker: added try/catch (502 on LocationIQ failure), CORS on all responses, `/search` endpoint
 
+### Session: Legal Pages Authored (2026-04-14)
+- New standalone repo at `C:\Users\omama\AndroidStudioProjects\stationalarm-legal\` (not yet on GitHub).
+- `privacy.html` — full Privacy Policy with actual data-flow table (GPS stays on device; only typed search queries leave; Firebase crash/analytics retention disclosed; third-party list: LocationIQ, Photon, Firebase, Google Play Services, OSM, Cloudflare).
+- `terms.html` — Terms of Use with prominent "best-effort, not safety-critical; always have a backup" callout; governing law = India.
+- `index.html` — landing page with links to both.
+- `style.css` — single stylesheet, light/dark via `prefers-color-scheme`.
+- Two placeholder tokens to find-replace before first production deploy: `<dedicated-email-placeholder>` (user will create dedicated Gmail) and `<effective-date-placeholder>`.
+- Initial commit `4754390` in the new local repo.
+- `AboutScreen.kt` — dropped the `// Placeholder URLs` comment; URL constants unchanged (already match `stationalarm-legal.pages.dev`).
+- **Next steps for the user** (manual, outside Claude):
+  1. Create a public GitHub repo `stationalarm-legal`, push `main` to it.
+  2. Cloudflare Pages → Create project → Connect to Git → pick `stationalarm-legal` → framework preset None, build command blank, build output `/` → deploy.
+  3. Verify `stationalarm-legal.pages.dev/privacy` and `/terms` load.
+  4. Create the dedicated Gmail for app contact; find-replace both placeholder tokens in all three HTML files; commit + push.
+
 ### Session: Production Readiness Pass 1 (commit `72a360d`, 2026-04-14)
 Implemented all "TO-DO IMMEDIATELY" items from `plans/production-readiness.md`:
 - **Signing (#1)**: `app/build.gradle.kts` signing config loaded from optional `keystore.properties` (gitignored along with `*.keystore`/`*.jks`). Missing file → unsigned release so debug builds still work.
@@ -193,7 +208,7 @@ New dep: `androidx.work:work-runtime-ktx:2.9.1` for the BootRestoreWorker.
 
 ### Must Do Before Play Store / Field Trust
 - **Create release keystore:** Generate `.keystore`, write `keystore.properties` (storeFile/storePassword/keyAlias/keyPassword) to project root, confirm `./gradlew assembleRelease` produces a signed AAB
-- **Legal URLs (#2 deferred):** Host real Privacy Policy + Terms pages, replace placeholder URLs in `AboutScreen.kt`
+- **Deploy legal pages:** Push `stationalarm-legal` repo to GitHub, connect Cloudflare Pages, verify `/privacy` + `/terms` load. Find-replace `<dedicated-email-placeholder>` and `<effective-date-placeholder>` with real values.
 - **Battery optimization onboarding (#5 deferred):** First-launch dialog + deep-link to `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (prevents "missed alarm" reviews on MIUI/OneUI)
 - **Localization (#11 deferred):** Hardcoded strings → `strings.xml`
 - **On-device verification (drawer):** Hamburger opens drawer; Settings/About navigate correctly; back returns to main; theme/unit/sound persist across restarts

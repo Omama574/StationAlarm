@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 import com.omama.stationalarm.BuildConfig
 
-// Placeholder URLs — update before Play Store release
 private const val PRIVACY_POLICY_URL = "https://stationalarm-legal.pages.dev/privacy"
 private const val TERMS_OF_USE_URL = "https://stationalarm-legal.pages.dev/terms"
 
