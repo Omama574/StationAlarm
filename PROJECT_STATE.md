@@ -128,6 +128,29 @@ Tracks currently active alarms.
 - `GeocodingModels.kt`: expanded address fields, structured subtitle logic for both providers
 - Cloudflare Worker: added try/catch (502 on LocationIQ failure), CORS on all responses, `/search` endpoint
 
+### Session: Production Readiness Pass 1 (commit `72a360d`, 2026-04-14)
+Implemented all "TO-DO IMMEDIATELY" items from `plans/production-readiness.md`:
+- **Signing (#1)**: `app/build.gradle.kts` signing config loaded from optional `keystore.properties` (gitignored along with `*.keystore`/`*.jks`). Missing file → unsigned release so debug builds still work.
+- **Log hygiene (#3)**: `RetrofitClient.kt` only registers `HttpLoggingInterceptor` when `BuildConfig.DEBUG` — no request/response bodies in Logcat on release.
+- **Room (#4)**: `StationDatabase.kt` now calls `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs wipe instead of crashing.
+- **MediaPlayer error listener (#6, LOCKED)**: `AlarmAudioController.startPlayer` sets `setOnErrorListener` with `isDefaultAttempt` flag; async prepare/playback errors now fall back to system default URI or flip `isAlarmRinging=false` instead of silent-stuck state.
+- **ANR / cached URI (#7, LOCKED)**: `LocationService.observeAlarmSoundUri()` collects `UserPreferences.alarmSoundUriFlow` in `onCreate()` into `@Volatile cachedAlarmSoundUri`. `fireAlert()` reads the var — no more `runBlocking` on Main dispatcher.
+- **URI revalidation (#12, LOCKED)**: new `resolveValidatedAlarmUri()` probes `contentResolver.openInputStream(uri)` before passing to audio; revoked SAF permissions / deleted files fall back to default.
+- **Geofence result propagation (#8+9, LOCKED)**: `GeofenceManager.addGeofencesForStation` returns `Result<Unit>` with typed `GeofenceRegistrationException` (`MissingPermission`, `StationNotFound`, `MaxStationsReached`, `RegistrationFailed`). `StationRepository`:
+  - Pre-checks max cap before DB insert
+  - Rolls back `active_stations` row on failure
+  - Emits user-facing strings via new `errorEvents: SharedFlow<String>`
+  - `rearmStation()` reverts to PAUSED if re-registration fails (toggle can't lie)
+  - New suspend `reRegisterAllGeofencesNow(): Boolean` for use by `BootRestoreWorker`
+- **Notification permission rationale (#10)**: `AppRoot.kt` tracks `POST_NOTIFICATIONS` separately on Android 13+, shows new `NotificationPermissionDialog` on denial, deep-links to `Settings.ACTION_APP_NOTIFICATION_SETTINGS`. Re-checked on `ON_RESUME` so returning from Settings auto-dismisses.
+- **Snackbar error wiring**: `AppRoot.kt` collects `viewModel.errorEvents` and surfaces via existing `snackbarHostState`.
+- **BootReceiver via WorkManager (#13)**: New `receiver/BootRestoreWorker.kt` (CoroutineWorker). `BootReceiver` enqueues `OneTimeWorkRequest` with `ExistingWorkPolicy.KEEP` + `BackoffPolicy.EXPONENTIAL` (10s base). Worker resets stale ALERTING→MONITORING, calls `reRegisterAllGeofencesNow()`, starts `LocationService`; returns `Result.retry()` on failure for WorkManager backoff.
+- **Compose BOM (#14)**: `2024.09.00` → `2025.02.00`.
+- **versionCode (#15)**: `app/build.gradle.kts` — `versionCode = gitCommitCount()` (`git rev-list --count HEAD`, falls back to 1 if git unavailable); `versionName = "1.0.$appVersionCode"`.
+- **Build verification**: `./gradlew compileDebugKotlin` + `./gradlew assembleRelease` both clean. Unsigned release APK produced (expected — no keystore.properties yet).
+
+New dep: `androidx.work:work-runtime-ktx:2.9.1` for the BootRestoreWorker.
+
 ### Session: Navigation Drawer + Settings + About (commit `e555076`, 2026-04-14)
 - Added `ModalNavigationDrawer` with hamburger `TopAppBar` wrapping all screens in `AppRoot.kt`
 - Screen routing via `enum class Screen { Main, Settings, About }` — no Jetpack Navigation, consistent with tab pattern
@@ -169,13 +192,18 @@ Tracks currently active alarms.
 ## Pending
 
 ### Must Do Before Play Store / Field Trust
+- **Create release keystore:** Generate `.keystore`, write `keystore.properties` (storeFile/storePassword/keyAlias/keyPassword) to project root, confirm `./gradlew assembleRelease` produces a signed AAB
+- **Legal URLs (#2 deferred):** Host real Privacy Policy + Terms pages, replace placeholder URLs in `AboutScreen.kt`
+- **Battery optimization onboarding (#5 deferred):** First-launch dialog + deep-link to `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (prevents "missed alarm" reviews on MIUI/OneUI)
+- **Localization (#11 deferred):** Hardcoded strings → `strings.xml`
 - **On-device verification (drawer):** Hamburger opens drawer; Settings/About navigate correctly; back returns to main; theme/unit/sound persist across restarts
-- **On-device verification (alarm sound):** System ringtone picker selects and plays; local audio file via SAF persists URI across reboot; custom sound fires in `fireAlert()`
+- **On-device verification (alarm sound):** System ringtone picker selects and plays; local audio file via SAF persists URI across reboot; custom sound fires in `fireAlert()`; revoked-permission URI falls back to default
 - **On-device verification (alarms tab):** Pause/rearm toggle; proximity bar updates; Edit/Map/Delete buttons function; empty-state CTA
+- **On-device verification (snackbars):** Add 11th alarm → "max 10" snackbar; deny POST_NOTIFICATIONS on Android 13 → rationale dialog appears
+- **On-device verification (boot restore):** Set alarm → reboot → confirm `BootRestoreWorker` runs and geofences are re-registered (check Logger output for `BOOT_RESTORE`)
 - **Doze Mode Recovery:** Lock screen off charger 3+ hours, simulate entering geofence, verify `ServiceWakeLocks` bypasses deep sleep correctly
 - **High-Velocity Polling:** Mock location at 150–250 km/h toward active station, verify adaptive tracker fires before passing threshold
 - **Failover Chaos Drill:** Misconfigure Remote Config URL to force 502, verify Photon cleanly takes over
-- **Legal URLs:** Replace placeholder URLs in `AboutScreen.kt` (`PRIVACY_POLICY_URL`, `TERMS_OF_USE_URL`) with real hosted pages before Play Store submission
 
 ### Low Priority (noted, not scheduled)
 - `StationConfigBottomSheet` param `initialNotes` → rename to `customReminder`
