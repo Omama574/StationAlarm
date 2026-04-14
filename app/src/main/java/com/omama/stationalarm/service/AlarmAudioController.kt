@@ -96,7 +96,10 @@ internal class AlarmAudioController(private val context: Context) {
         val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
-        fun startPlayer(uri: Uri) {
+        // Wrapped in a holder so the async error listener can tell whether it
+        // fired while preparing the custom URI (fall back to default) or the
+        // default URI itself (give up — sound will be silent).
+        fun startPlayer(uri: Uri, isDefaultAttempt: Boolean) {
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(context, uri)
                 setAudioAttributes(audioAttributes)
@@ -107,6 +110,24 @@ internal class AlarmAudioController(private val context: Context) {
                     audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
                     start()
                 }
+                setOnErrorListener { mp, what, extra ->
+                    Log.w(tag, "MediaPlayer error (what=$what, extra=$extra) for uri=$uri")
+                    try { mp.release() } catch (_: Exception) {}
+                    mediaPlayer = null
+                    if (!isDefaultAttempt && defaultUri != null && defaultUri != uri) {
+                        try {
+                            startPlayer(defaultUri, isDefaultAttempt = true)
+                        } catch (e: Exception) {
+                            Log.e(tag, "Default alarm fallback failed after async error", e)
+                            isAlarmRinging = false
+                        }
+                    } else {
+                        // Default URI failed too — nothing we can do. Flip state off
+                        // so callers stop thinking an alarm is playing.
+                        isAlarmRinging = false
+                    }
+                    true // handled — MediaPlayer won't invoke onCompletion
+                }
                 prepareAsync()
             }
         }
@@ -115,20 +136,25 @@ internal class AlarmAudioController(private val context: Context) {
         val preferredUri = customUri ?: defaultUri
         if (preferredUri == null) {
             Log.e(tag, "No alarm URI available")
+            isAlarmRinging = false
             return
         }
+        val startingWithDefault = (preferredUri == defaultUri)
         try {
-            startPlayer(preferredUri)
+            startPlayer(preferredUri, isDefaultAttempt = startingWithDefault)
         } catch (e: Exception) {
             Log.w(tag, "Failed to play custom alarm URI ($preferredUri), falling back to default", e)
             mediaPlayer?.release()
             mediaPlayer = null
             if (defaultUri != null && defaultUri != preferredUri) {
                 try {
-                    startPlayer(defaultUri)
+                    startPlayer(defaultUri, isDefaultAttempt = true)
                 } catch (e2: Exception) {
                     Log.e(tag, "Error playing default alarm after fallback", e2)
+                    isAlarmRinging = false
                 }
+            } else {
+                isAlarmRinging = false
             }
         }
     }

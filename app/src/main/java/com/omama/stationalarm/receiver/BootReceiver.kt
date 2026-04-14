@@ -4,47 +4,38 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import androidx.core.content.ContextCompat
-import com.omama.stationalarm.repository.StationRepository
-import com.omama.stationalarm.service.LocationService
+import androidx.work.BackoffPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.omama.stationalarm.util.Logger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
+/**
+ * Handles BOOT_COMPLETED (and Samsung/HTC QUICKBOOT_POWERON). Instead of doing
+ * the DB + geofence restoration inline — which can fail if the repository
+ * hasn't initialised yet or if Play Services is still starting — we enqueue a
+ * [BootRestoreWorker]. That worker is reliable: WorkManager retries it with
+ * exponential backoff until it succeeds.
+ */
 class BootReceiver : BroadcastReceiver() {
     private val TAG = "BootReceiver"
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == "android.intent.action.QUICKBOOT_POWERON") {
-            Log.d(TAG, "Device booted, restoring active alarms...")
-            Logger.log("SYSTEM_BOOTED", extra = "Restoring alarms")
-
-            // Wait for DB to be accessible
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val activeStations = StationRepository.getAllActiveStationsList()
-                    if (activeStations.isNotEmpty()) {
-                        // Reset any ALERTING stations — user may have rebooted after passing the station
-                        for (station in activeStations) {
-                            if (station.status == "ALERTING") {
-                                StationRepository.resetToMonitoring(station.stationId)
-                            }
-                        }
-                        StationRepository.reRegisterAllGeofences()
-                        
-                        val serviceIntent = Intent(context, LocationService::class.java).apply {
-                            action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
-                        }
-                        ContextCompat.startForegroundService(context, serviceIntent)
-                        Logger.log("BOOT_RESTORE", extra = "Restored ${activeStations.size} stations")
-                    } else {
-                        Logger.log("BOOT_RESTORE", extra = "No active stations to restore")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error restoring alarms on boot", e)
-                }
-            }
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
+            intent.action != "android.intent.action.QUICKBOOT_POWERON") {
+            return
         }
+        Log.d(TAG, "Device booted, scheduling alarm restoration worker...")
+        Logger.log("SYSTEM_BOOTED", extra = "Enqueueing BootRestoreWorker")
+
+        val request = OneTimeWorkRequestBuilder<BootRestoreWorker>()
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
+            .build()
+
+        // KEEP policy: if BOOT_COMPLETED fires twice or the worker is already
+        // queued/running, don't duplicate it.
+        WorkManager.getInstance(context.applicationContext)
+            .enqueueUniqueWork(BootRestoreWorker.WORK_NAME, ExistingWorkPolicy.KEEP, request)
     }
 }

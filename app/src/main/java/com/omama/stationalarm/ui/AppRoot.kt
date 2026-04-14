@@ -60,12 +60,33 @@ fun AppRoot() {
 
     var showPermissionRationale by remember { mutableStateOf(false) }
 
+    // Track POST_NOTIFICATIONS separately on Android 13+. Without it, the
+    // foreground-service notification and alarm alerts won't appear on a locked
+    // screen — users routinely blame the app for "missed alarms" without
+    // realising they denied notifications.
+    val notificationsRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    var hasNotificationsPermission by remember {
+        mutableStateOf(
+            if (notificationsRequired) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            } else true
+        )
+    }
+    var showNotificationRationale by remember { mutableStateOf(false) }
+
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val fineLocationLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         hasFineLocation = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        if (notificationsRequired) {
+            val granted = permissions[Manifest.permission.POST_NOTIFICATIONS]
+            if (granted != null) {
+                hasNotificationsPermission = granted
+                if (!granted) showNotificationRationale = true
+            }
+        }
         if (hasFineLocation && !hasBackgroundLocation) {
             showPermissionRationale = true
         }
@@ -85,6 +106,13 @@ fun AppRoot() {
                 hasBackgroundLocation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
                 } else true
+                if (notificationsRequired) {
+                    hasNotificationsPermission = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                    // User came back from Settings and granted — dismiss rationale.
+                    if (hasNotificationsPermission) showNotificationRationale = false
+                }
 
                 if (!hasFineLocation) {
                     val initialPermissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -120,7 +148,66 @@ fun AppRoot() {
                 }
             }
         }
+
+        // On Android 13+, POST_NOTIFICATIONS is runtime. Denying it silently
+        // breaks foreground-service visibility and alarm alerts on a locked
+        // screen, so we explain the consequence and deep-link to the app's
+        // notification settings.
+        if (showNotificationRationale && notificationsRequired && !hasNotificationsPermission) {
+            NotificationPermissionDialog(
+                onOpenSettings = {
+                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    }
+                    try {
+                        context.startActivity(intent)
+                    } catch (_: Exception) {
+                        // Fallback: open the generic app details page.
+                        context.startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                        )
+                    }
+                },
+                onDismiss = { showNotificationRationale = false }
+            )
+        }
     }
+}
+
+@Composable
+fun NotificationPermissionDialog(onOpenSettings: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Enable Notifications",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                "StationAlarm needs notification permission to show alarms while your " +
+                        "phone is locked. Without it, the alarm may ring silently in the " +
+                        "background and you'll miss your stop.",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onOpenSettings) {
+                Text("Open Settings", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Not Now", color = Color.Gray)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp)
+    )
 }
 
 @Composable
@@ -215,6 +302,14 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 1 && !isGpsEnabled()) {
             showGpsDialog = true
+        }
+    }
+
+    // Surface one-shot errors from StationRepository (e.g. max-alarms reached,
+    // geofence registration failures) to the user via the existing snackbar host.
+    LaunchedEffect(Unit) {
+        viewModel.errorEvents.collect { message ->
+            snackbarHostState.showSnackbar(message)
         }
     }
 

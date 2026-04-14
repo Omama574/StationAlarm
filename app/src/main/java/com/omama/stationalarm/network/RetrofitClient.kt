@@ -24,10 +24,15 @@ object GeocodingClient {
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
-        .addInterceptor(HttpLoggingInterceptor().apply {
-            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
-                    else HttpLoggingInterceptor.Level.NONE
-        })
+        .apply {
+            // Never add the logging interceptor in release — request/response bodies
+            // can contain user-entered location queries, which must not leak to Logcat.
+            if (BuildConfig.DEBUG) {
+                addInterceptor(HttpLoggingInterceptor().apply {
+                    level = HttpLoggingInterceptor.Level.BODY
+                })
+            }
+        }
         .build()
 
     // ── Dynamic Worker URL (set by Remote Config on startup) ──────────────────

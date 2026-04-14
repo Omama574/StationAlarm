@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -9,6 +11,44 @@ plugins {
 
 apply(plugin = "com.google.android.gms.oss-licenses-plugin")
 
+// ── Version generation ────────────────────────────────────────────────────
+// versionCode is derived from the Git commit count so it increases monotonically
+// without manual bookkeeping. If git is unavailable (e.g. source tarball build),
+// falls back to 1 so assembleDebug still works.
+fun gitCommitCount(): Int {
+    return try {
+        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+            .directory(rootDir)
+            .redirectErrorStream(true)
+            .start()
+        process.waitFor()
+        process.inputStream.bufferedReader().readText().trim().toIntOrNull() ?: 1
+    } catch (_: Exception) {
+        1
+    }
+}
+
+val appVersionCode = gitCommitCount()
+val appVersionName = "1.0.$appVersionCode"
+
+// ── Signing config (release) ──────────────────────────────────────────────
+// Keystore credentials are loaded from an untracked keystore.properties file.
+// If the file is absent (e.g. during local debug builds on a machine without
+// the release keystore), the release build skips signing rather than failing.
+// To set up: create keystore.properties in the project root with:
+//   storeFile=/absolute/path/to/release.keystore
+//   storePassword=...
+//   keyAlias=...
+//   keyPassword=...
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseSigningConfig = keystorePropertiesFile.exists() &&
+    keystoreProperties.getProperty("storeFile")?.isNotBlank() == true
+
 android {
     namespace = "com.omama.stationalarm"
     compileSdk {
@@ -19,13 +59,24 @@ android {
         applicationId = "com.omama.stationalarm"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
+        }
+    }
+
+    signingConfigs {
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
         }
     }
 
@@ -37,6 +88,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
@@ -105,4 +159,7 @@ dependencies {
     implementation(libs.play.services.oss.licenses)
     // OssLicensesMenuActivity extends AppCompatActivity — needed on the classpath
     implementation("androidx.appcompat:appcompat:1.7.0")
+
+    // ── WorkManager (used by BootReceiver retry path) ────────────────────────
+    implementation(libs.androidx.work.runtime.ktx)
 }

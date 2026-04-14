@@ -66,6 +66,9 @@ abstract class StationDatabase : RoomDatabase() {
                     "station_database"
                 )
                     .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    // Version 1 was only ever a dev/emulator schema and has no written
+                    // 1→2 migration. Wipe those legacy DBs instead of crashing on upgrade.
+                    .fallbackToDestructiveMigrationFrom(1)
                     .build()
                 INSTANCE = instance
                 instance

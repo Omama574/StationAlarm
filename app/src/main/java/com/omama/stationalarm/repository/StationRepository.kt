@@ -14,8 +14,11 @@ import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -38,6 +41,18 @@ object StationRepository {
 
     private val _distancesFlow = MutableStateFlow<Map<String, Double>>(emptyMap())
     val distancesFlow: StateFlow<Map<String, Double>> = _distancesFlow.asStateFlow()
+
+    /**
+     * One-shot events for user-facing errors (e.g. max-alarms reached,
+     * geofence registration failed). UI listens via the ViewModel and shows
+     * these as snackbars. Buffer is small because events are ephemeral —
+     * if the UI isn't alive when one fires, it's safe to drop.
+     */
+    private val _errorEvents = MutableSharedFlow<String>(
+        replay = 0,
+        extraBufferCapacity = 4
+    )
+    val errorEvents: SharedFlow<String> = _errorEvents.asSharedFlow()
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
@@ -106,6 +121,19 @@ object StationRepository {
 
     fun addActiveStation(activeStation: ActiveStation, customStation: Station? = null) {
         repositoryScope.launch {
+            // Pre-flight the max-alarms cap before we touch any DB rows. Without
+            // this, we'd insert into active_stations, hit the cap inside
+            // addGeofencesForStation, and leave an orphan row with no geofence.
+            val existing = getAllActiveStationsList()
+            val alreadyActive = existing.any { it.stationId == activeStation.stationId }
+            if (!alreadyActive && existing.size >= GeofenceManager.MAX_ACTIVE_STATIONS) {
+                _errorEvents.emit(
+                    "You have reached the maximum of ${GeofenceManager.MAX_ACTIVE_STATIONS} alarms. " +
+                            "Please delete some before adding more."
+                )
+                return@launch
+            }
+
             // Resolve lat/lon: prefer customStation, then hardcoded lookup, then active station itself
             val resolvedStation = customStation
                 ?: StationData.getStationById(activeStation.stationId)
@@ -130,7 +158,7 @@ object StationRepository {
             }
             database.activeStationDao().insert(entityWithCoords.toEntity())
 
-            GeofenceManager.addGeofencesForStation(
+            val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = entityWithCoords.stationId,
                 radiusLevel5M = (entityWithCoords.radiusLevel5Km * 1000).toFloat(),
@@ -140,6 +168,14 @@ object StationRepository {
                 radiusLevel1M = (entityWithCoords.radiusLevel1Km * 1000).toFloat(),
                 alertDistanceM = (entityWithCoords.alertDistanceKm * 1000).toFloat()
             )
+            result.onFailure { e ->
+                // Registration failed — roll back the active_stations row so the
+                // UI doesn't show a ghost alarm that will never fire.
+                database.activeStationDao().delete(entityWithCoords.stationId)
+                val msg = e.message ?: "Failed to register alarm."
+                _errorEvents.emit(msg)
+                Logger.log("STATION_ADD_ROLLED_BACK", entityWithCoords.stationId, msg)
+            }
         }
     }
 
@@ -183,7 +219,7 @@ object StationRepository {
         repositoryScope.launch {
             database.activeStationDao().updateStatus(stationId, "MONITORING")
             val station = database.activeStationDao().getStationById(stationId)?.toDomainModel() ?: return@launch
-            GeofenceManager.addGeofencesForStation(
+            val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = station.stationId,
                 radiusLevel5M = (station.radiusLevel5Km * 1000).toFloat(),
@@ -193,7 +229,16 @@ object StationRepository {
                 radiusLevel1M = (station.radiusLevel1Km * 1000).toFloat(),
                 alertDistanceM = (station.alertDistanceKm * 1000).toFloat()
             )
-            Logger.log("STATION_REARMED", stationId)
+            result.onSuccess {
+                Logger.log("STATION_REARMED", stationId)
+            }.onFailure { e ->
+                // Re-registration failed — flip back to PAUSED so the toggle
+                // doesn't lie about the alarm being armed.
+                database.activeStationDao().updateStatus(stationId, "PAUSED")
+                val msg = e.message ?: "Failed to re-arm alarm."
+                _errorEvents.emit(msg)
+                Logger.log("STATION_REARM_FAILED", stationId, msg)
+            }
         }
     }
 
@@ -213,20 +258,36 @@ object StationRepository {
 
     fun reRegisterAllGeofences() {
         repositoryScope.launch {
-            val activeList = getAllActiveStationsList().filter { it.status != "PAUSED" }
-            for (active in activeList) {
-                GeofenceManager.addGeofencesForStation(
-                    context = appContext,
-                    stationId = active.stationId,
-                    radiusLevel5M = (active.radiusLevel5Km * 1000).toFloat(),
-                    radiusLevel4M = (active.radiusLevel4Km * 1000).toFloat(),
-                    radiusLevel3M = (active.radiusLevel3Km * 1000).toFloat(),
-                    radiusLevel2M = (active.radiusLevel2Km * 1000).toFloat(),
-                    radiusLevel1M = (active.radiusLevel1Km * 1000).toFloat(),
-                    alertDistanceM = (active.alertDistanceKm * 1000).toFloat()
-                )
+            reRegisterAllGeofencesNow()
+        }
+    }
+
+    /**
+     * Suspend variant callable from WorkManager's CoroutineWorker without
+     * spawning another coroutine. Returns true if every registration
+     * succeeded, false if any failed (the caller — e.g. BootRestoreWorker —
+     * decides whether to retry).
+     */
+    suspend fun reRegisterAllGeofencesNow(): Boolean {
+        val activeList = getAllActiveStationsList().filter { it.status != "PAUSED" }
+        var allOk = true
+        for (active in activeList) {
+            val result = GeofenceManager.addGeofencesForStation(
+                context = appContext,
+                stationId = active.stationId,
+                radiusLevel5M = (active.radiusLevel5Km * 1000).toFloat(),
+                radiusLevel4M = (active.radiusLevel4Km * 1000).toFloat(),
+                radiusLevel3M = (active.radiusLevel3Km * 1000).toFloat(),
+                radiusLevel2M = (active.radiusLevel2Km * 1000).toFloat(),
+                radiusLevel1M = (active.radiusLevel1Km * 1000).toFloat(),
+                alertDistanceM = (active.alertDistanceKm * 1000).toFloat()
+            )
+            if (result.isFailure) {
+                allOk = false
+                Logger.log("GEOFENCE_RE_REGISTER_FAILED", active.stationId, result.exceptionOrNull()?.message)
             }
         }
+        return allOk
     }
 
     /** Reset an ALERTING station back to MONITORING (e.g., after device reboot). */
@@ -250,7 +311,7 @@ object StationRepository {
             // Re-register geofences with new radius
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
             val updated = database.activeStationDao().getStationById(stationId)?.toDomainModel() ?: return@launch
-            GeofenceManager.addGeofencesForStation(
+            val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = updated.stationId,
                 radiusLevel5M = (updated.radiusLevel5Km * 1000).toFloat(),
@@ -260,6 +321,10 @@ object StationRepository {
                 radiusLevel1M = (updated.radiusLevel1Km * 1000).toFloat(),
                 alertDistanceM = (updated.alertDistanceKm * 1000).toFloat()
             )
+            result.onFailure { e ->
+                _errorEvents.emit(e.message ?: "Failed to update alarm.")
+                Logger.log("STATION_UPDATE_GEOFENCE_FAILED", stationId, e.message)
+            }
             Logger.log("STATION_SETTINGS_UPDATED", stationId, "radius=$radius notify=$notify vibrate=$vibrate sound=$sound")
         }
     }

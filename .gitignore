@@ -16,3 +16,6 @@ local.properties
 .kotlin/
 google-services.json
 /plans/
+keystore.properties
+*.keystore
+*.jks

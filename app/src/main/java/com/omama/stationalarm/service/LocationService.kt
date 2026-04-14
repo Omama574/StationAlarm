@@ -18,9 +18,7 @@ import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -69,6 +67,11 @@ class LocationService : Service() {
 
     private var serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
+
+    // Cached alarm URI string — updated whenever UserPreferences.alarmSoundUriFlow
+    // emits. Reading this in fireAlert() avoids blocking the Main dispatcher on
+    // DataStore disk I/O (was an ANR risk with runBlocking). Blank = system default.
+    @Volatile private var cachedAlarmSoundUri: String = ""
 
     private var lastLocationTimeMs = 0L
     private val watchdogHandler = Handler(Looper.getMainLooper())
@@ -119,6 +122,20 @@ class LocationService : Service() {
         }
 
         syncWithDatabase()
+        observeAlarmSoundUri()
+    }
+
+    /**
+     * Keep [cachedAlarmSoundUri] in sync with DataStore so [fireAlert] never has
+     * to block for disk I/O. DataStore emits the current value on subscribe and
+     * then on every update.
+     */
+    private fun observeAlarmSoundUri() {
+        serviceScope.launch {
+            UserPreferences.alarmSoundUriFlow.collect { uri ->
+                cachedAlarmSoundUri = uri
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -335,16 +352,11 @@ class LocationService : Service() {
         val startedNewAlarm = (!audio.isAlarmRinging && active.sound) || (!audio.isVibrating && active.vibrate)
 
         if (active.sound && !audio.isAlarmRinging) {
-            // Resolve user's custom alarm sound URI (blank → default). Blocking is
-            // safe here: DataStore's first emission is cached in memory after init
-            // and returns in microseconds. Falls back to default inside the player.
-            val customUri: android.net.Uri? = try {
-                val uriStr = runBlocking { UserPreferences.alarmSoundUriFlow.first() }
-                if (uriStr.isBlank()) null else android.net.Uri.parse(uriStr)
-            } catch (e: Exception) {
-                Logger.log("ALARM_URI_READ_FAIL", extra = e.message ?: "unknown")
-                null
-            }
+            // Use the cached URI (populated by observeAlarmSoundUri). Also
+            // validates readability — persisted SAF permissions are sometimes
+            // revoked by the OS after reboot, so a URI that worked at pick
+            // time may no longer resolve. Null → default sound.
+            val customUri: android.net.Uri? = resolveValidatedAlarmUri(cachedAlarmSoundUri)
             audio.playAlarmSound(customUri)
         }
 
@@ -510,6 +522,30 @@ class LocationService : Service() {
     // ============================
     //       UTILITIES
     // ============================
+
+    /**
+     * Parses and validates the cached custom alarm URI. Returns null (→ default
+     * sound) when the URI string is blank, malformed, or no longer readable
+     * (e.g., SAF persistable permission revoked after reboot, local file
+     * deleted). Errors are logged but never thrown — the alarm MUST fire.
+     */
+    private fun resolveValidatedAlarmUri(uriStr: String): android.net.Uri? {
+        if (uriStr.isBlank()) return null
+        return try {
+            val uri = android.net.Uri.parse(uriStr)
+            // Cheap read probe — opens and immediately closes the stream. If the
+            // URI is unreadable, this throws and we fall back to default.
+            contentResolver.openInputStream(uri)?.use { /* probe only */ }
+                ?: run {
+                    Logger.log("ALARM_URI_UNREADABLE", extra = "null stream for $uri")
+                    return null
+                }
+            uri
+        } catch (e: Exception) {
+            Logger.log("ALARM_URI_INVALID", extra = e.message ?: "parse/read failed")
+            null
+        }
+    }
 
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val results = FloatArray(1)

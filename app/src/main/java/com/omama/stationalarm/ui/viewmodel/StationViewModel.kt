@@ -10,6 +10,7 @@ import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.repository.StationRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 
 class StationViewModel(application: Application) : AndroidViewModel(application) {
@@ -23,6 +24,9 @@ class StationViewModel(application: Application) : AndroidViewModel(application)
     ) { stations, distances ->
         stations.map { it.copy(currentDistanceKm = distances[it.stationId]) }
     }.asLiveData(Dispatchers.IO)
+
+    /** One-shot user-facing error messages (max-alarms reached, geofence failures). */
+    val errorEvents: SharedFlow<String> = StationRepository.errorEvents
 
     fun searchStations(query: String): List<Station> {
         return StationRepository.searchStations(query)

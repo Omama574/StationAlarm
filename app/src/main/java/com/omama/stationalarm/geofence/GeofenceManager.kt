@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.Geofence
@@ -23,6 +22,19 @@ object GeofenceManager {
 
     private const val TAG = "GeofenceManager"
     private const val ACTION_GEOFENCE = "com.omama.stationalarm.ACTION_GEOFENCE"
+    const val MAX_ACTIVE_STATIONS = 10
+
+    /** Typed failure reasons so the UI can show specific messages. */
+    sealed class GeofenceRegistrationException(message: String) : Exception(message) {
+        class MissingPermission : GeofenceRegistrationException("Location permission is required.")
+        class StationNotFound(id: String) : GeofenceRegistrationException("Station $id not found.")
+        class MaxStationsReached : GeofenceRegistrationException(
+            "You have reached the maximum of $MAX_ACTIVE_STATIONS alarms. Please delete some before adding more."
+        )
+        class RegistrationFailed(cause: Throwable?) : GeofenceRegistrationException(
+            cause?.message ?: "Failed to register geofence. Try again."
+        )
+    }
 
     private fun geofencingClient(context: Context): GeofencingClient =
         LocationServices.getGeofencingClient(context.applicationContext)
@@ -36,6 +48,13 @@ object GeofenceManager {
         return PendingIntent.getBroadcast(context, 0, intent, flags)
     }
 
+    /**
+     * Registers the 6-tier geofence stack for [stationId]. Returns a [Result]
+     * whose failure carries a typed [GeofenceRegistrationException] so callers
+     * can show the right user-facing message (e.g. snackbar). Previously this
+     * failed silently, leaving the UI showing a "registered" alarm that would
+     * never actually fire.
+     */
     suspend fun addGeofencesForStation(
         context: Context,
         stationId: String,
@@ -45,7 +64,7 @@ object GeofenceManager {
         radiusLevel2M: Float,
         radiusLevel1M: Float,
         alertDistanceM: Float
-    ) {
+    ): Result<Unit> {
         if (ActivityCompat.checkSelfPermission(
                 context,
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -53,15 +72,15 @@ object GeofenceManager {
         ) {
             Log.e(TAG, "Missing location permission")
             Logger.log("GEOFENCE_REG_FAILED", stationId, "Missing permission")
-            return
+            return Result.failure(GeofenceRegistrationException.MissingPermission())
         }
-    
+
         // Use the suspend version to ensure we hit the DB if memory cache is cold (e.g. on boot)
         val station = com.omama.stationalarm.repository.StationRepository.getStationById(stationId)
         if (station == null) {
             Log.e(TAG, "Station not found: $stationId")
             Logger.log("GEOFENCE_REG_FAILED", stationId, "Station not found")
-            return
+            return Result.failure(GeofenceRegistrationException.StationNotFound(stationId))
         }
 
         // Clamp alert geofence radius to Android's minimum of 100m
@@ -69,10 +88,10 @@ object GeofenceManager {
 
         // Hardcap: max 10 destinations
         val activeStations = com.omama.stationalarm.repository.StationRepository.getAllActiveStationsList()
-        if (activeStations.size >= 10 && !activeStations.any { it.stationId == stationId }) {
-            Log.e(TAG, "Maximum 10 destinations allowed")
-            Logger.log("GEOFENCE_REG_FAILED", stationId, "Max 10 destinations reached")
-            return
+        if (activeStations.size >= MAX_ACTIVE_STATIONS && !activeStations.any { it.stationId == stationId }) {
+            Log.e(TAG, "Maximum $MAX_ACTIVE_STATIONS destinations allowed")
+            Logger.log("GEOFENCE_REG_FAILED", stationId, "Max $MAX_ACTIVE_STATIONS destinations reached")
+            return Result.failure(GeofenceRegistrationException.MaxStationsReached())
         }
 
         val geofences = listOf(
@@ -92,9 +111,9 @@ object GeofenceManager {
         var retryCount = 0
         val maxRetries = 3
         var delayMs = 2000L
-        var success = false
+        var lastError: Throwable? = null
 
-        while (retryCount < maxRetries && !success) {
+        while (retryCount < maxRetries) {
             try {
                 suspendCancellableCoroutine<Unit> { cont ->
                     geofencingClient(context)
@@ -110,8 +129,9 @@ object GeofenceManager {
                             if (cont.isActive) cont.resumeWithException(e)
                         }
                 }
-                success = true
+                return Result.success(Unit)
             } catch (e: Exception) {
+                lastError = e
                 retryCount++
                 if (retryCount < maxRetries) {
                     delay(delayMs)
@@ -122,10 +142,11 @@ object GeofenceManager {
                 }
             }
         }
+        return Result.failure(GeofenceRegistrationException.RegistrationFailed(lastError))
     }
 
     /**
-     * Remove all five geofences for a station.
+     * Remove all six geofences for a station.
      */
     fun removeGeofencesForStation(context: Context, stationId: String) {
         val requestIds = listOf(
