@@ -38,6 +38,8 @@ import com.omama.stationalarm.data.SavedPlace
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.ui.viewmodel.MapSearchViewModel
+import com.omama.stationalarm.util.LocalDistanceUnit
+import com.omama.stationalarm.util.formatDistance
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -415,6 +417,7 @@ private fun BottomControlBar(
     onSetAlarm : () -> Unit,
     modifier   : Modifier = Modifier
 ) {
+    val unit = LocalDistanceUnit.current
     Surface(
         modifier       = modifier.fillMaxWidth(),
         color          = MaterialTheme.colorScheme.surface,
@@ -461,7 +464,7 @@ private fun BottomControlBar(
                     color      = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    "${String.format("%.1f", radiusKm)} km",
+                    formatDistance(radiusKm, unit),
                     fontWeight = FontWeight.Bold,
                     fontSize   = 15.sp,
                     color      = MapAccentBlue
@@ -491,8 +494,8 @@ private fun BottomControlBar(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("3 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-                Text("20 km", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                Text(formatDistance(3.0, unit), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                Text(formatDistance(20.0, unit), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
             }
 
             Spacer(Modifier.height(10.dp))

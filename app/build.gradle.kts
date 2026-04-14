@@ -7,6 +7,8 @@ plugins {
     alias(libs.plugins.firebase.crashlytics.plugin)
 }
 
+apply(plugin = "com.google.android.gms.oss-licenses-plugin")
+
 android {
     namespace = "com.omama.stationalarm"
     compileSdk {
@@ -97,4 +99,10 @@ dependencies {
     implementation(libs.firebase.crashlytics)
     implementation(libs.firebase.remote.config)
     implementation(libs.firebase.analytics)
+
+    // ── Preferences + OSS Licenses ───────────────────────────────────────────
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.play.services.oss.licenses)
+    // OssLicensesMenuActivity extends AppCompatActivity — needed on the classpath
+    implementation("androidx.appcompat:appcompat:1.7.0")
 }

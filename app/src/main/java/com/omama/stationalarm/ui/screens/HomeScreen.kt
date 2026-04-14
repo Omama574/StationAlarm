@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -36,6 +35,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.ui.viewmodel.StationViewModel
+import com.omama.stationalarm.util.LocalDistanceUnit
+import com.omama.stationalarm.util.formatDistance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,8 +46,6 @@ fun HomeScreen(
     onViewOnMap: (ActiveStation) -> Unit,
     onToggleStation: (ActiveStation, Boolean) -> Unit,
     onNavigateToMap: () -> Unit,
-    onShareLogs: () -> Unit,
-    onShareGpsLogs: () -> Unit,
     viewModel: StationViewModel = viewModel()
 ) {
     val activeStations by viewModel.activeStations.observeAsState(emptyList())
@@ -77,39 +76,6 @@ fun HomeScreen(
                 .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "My Stations",
-                    fontSize = 28.sp,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(
-                        onClick = onShareGpsLogs,
-                        modifier = Modifier
-                            .shadow(4.dp, RoundedCornerShape(12.dp))
-                            .background(Color(0xFF4FC3F7), RoundedCornerShape(12.dp)) // MapAccentBlue
-                    ) {
-                        Icon(Icons.Default.LocationOn, contentDescription = "Share GPS Logs", tint = Color.Black)
-                    }
-                    IconButton(
-                        onClick = onShareLogs,
-                        modifier = Modifier
-                            .shadow(4.dp, RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.onBackground, RoundedCornerShape(12.dp))
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = "Share App Logs", tint = MaterialTheme.colorScheme.background)
-                    }
-                }
-            }
-
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -256,6 +222,7 @@ fun StationCard(
     val stationData = station.getStation()
     val name = stationData?.name ?: station.stationName.ifEmpty { station.stationId }
 
+    val unit = LocalDistanceUnit.current
     val isAlerting = station.status == "ALERTING"
     val isPaused = station.status == "PAUSED"
     val isActive = !isPaused
@@ -348,7 +315,7 @@ fun StationCard(
             // ── Row 2: Alert radius ──
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Alert radius: ${station.alertDistanceKm} km",
+                text = "Alert radius: ${formatDistance(station.alertDistanceKm, unit)}",
                 fontSize = 13.sp,
                 color = Color.Gray
             )
@@ -363,7 +330,7 @@ fun StationCard(
                     (1.0 - (distanceKm / maxRange)).coerceIn(0.0, 1.0).toFloat()
                 } else 0f
 
-                val distanceText = distanceKm?.let { "%.1f km".format(it) } ?: "--"
+                val distanceText = distanceKm?.let { formatDistance(it, unit) } ?: "--"
 
                 val barColor = when {
                     progress > 0.85f -> Color(0xFF4CAF50) // green — very close

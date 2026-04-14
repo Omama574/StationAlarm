@@ -6,12 +6,19 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -32,11 +39,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omama.stationalarm.MainActivity
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.service.LocationService
+import com.omama.stationalarm.ui.screens.AboutScreen
 import com.omama.stationalarm.ui.screens.HomeScreen
 import com.omama.stationalarm.ui.screens.MapSearchScreen
+import com.omama.stationalarm.ui.screens.SettingsScreen
 import com.omama.stationalarm.ui.screens.StationConfigBottomSheet
 import com.omama.stationalarm.ui.viewmodel.StationViewModel
-import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.launch
 
 /**
@@ -170,6 +178,10 @@ fun PermissionRationaleDialog(onOpenSettings: () -> Unit) {
     }
 }
 
+/** Top-level screens reachable from the navigation drawer. */
+private enum class Screen { Main, Settings, About }
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(isGpsEnabled: () -> Boolean) {
     var selectedStation by remember { mutableStateOf<Station?>(null) }
@@ -189,115 +201,188 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     // For "View on Map" — station to center on when switching to map tab
     var viewOnMapStation by remember { mutableStateOf<com.omama.stationalarm.data.ActiveStation?>(null) }
 
+    var currentScreen by remember { mutableStateOf(Screen.Main) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    // Back handling for sub-screens and open drawer
+    BackHandler(enabled = currentScreen != Screen.Main) {
+        currentScreen = Screen.Main
+    }
+    BackHandler(enabled = currentScreen == Screen.Main && drawerState.isOpen) {
+        coroutineScope.launch { drawerState.close() }
+    }
+
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 1 && !isGpsEnabled()) {
             showGpsDialog = true
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            TabRow(
-                selectedTabIndex = pagerState.currentPage,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = pagerState.currentPage == index,
-                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
-                        text = {
-                            Text(
-                                title,
-                                fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 14.sp
-                            )
-                        }
-                    )
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = currentScreen == Screen.Main,
+        drawerContent = {
+            AppDrawerContent(
+                onSettings = {
+                    coroutineScope.launch { drawerState.close() }
+                    currentScreen = Screen.Settings
+                },
+                onAbout = {
+                    coroutineScope.launch { drawerState.close() }
+                    currentScreen = Screen.About
+                },
+                onRateUs = {
+                    coroutineScope.launch { drawerState.close() }
+                    val pkg = context.packageName
+                    val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+                    }
+                    try {
+                        context.startActivity(marketIntent)
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg"))
+                        )
+                    }
+                },
+                onShareApp = {
+                    coroutineScope.launch { drawerState.close() }
+                    val pkg = context.packageName
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "StationAlarm")
+                        putExtra(
+                            Intent.EXTRA_TEXT,
+                            "Check out StationAlarm — a location-based train/place alarm app.\nhttps://play.google.com/store/apps/details?id=$pkg"
+                        )
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share StationAlarm"))
                 }
-            }
+            )
+        }
+    ) {
+        when (currentScreen) {
+            Screen.Settings -> SettingsScreen(onBack = { currentScreen = Screen.Main })
+            Screen.About -> AboutScreen(onBack = { currentScreen = Screen.Main })
+            Screen.Main -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        CenterAlignedTopAppBar(
+                            title = {
+                                Text(
+                                    "StationAlarm",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+                            },
+                            navigationIcon = {
+                                IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
+                                    Icon(Icons.Default.Menu, contentDescription = "Menu")
+                                }
+                            },
+                            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
 
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .weight(1f)
-                    .clipToBounds(),
-                // Disable swipe gestures — tabs only.
-                // This prevents the pager from stealing horizontal drags
-                // that the osmdroid MapView needs for panning.
-                userScrollEnabled = false
-            ) { page ->
-                when (page) {
-                    0 -> HomeScreen(
-                        onStationSelected = { station ->
-                            if (isGpsEnabled()) {
-                                selectedStation = station
-                            } else {
-                                showGpsDialog = true
+                        TabRow(
+                            selectedTabIndex = pagerState.currentPage,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ) {
+                            tabs.forEachIndexed { index, title ->
+                                Tab(
+                                    selected = pagerState.currentPage == index,
+                                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
+                                    text = {
+                                        Text(
+                                            title,
+                                            fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                )
                             }
-                        },
-                        onEditStation = { activeStation ->
-                            val station = activeStation.getStation()
-                            if (station != null) {
-                                editingStation = activeStation
-                                selectedStation = station
+                        }
+
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clipToBounds(),
+                            // Disable swipe gestures — tabs only.
+                            // This prevents the pager from stealing horizontal drags
+                            // that the osmdroid MapView needs for panning.
+                            userScrollEnabled = false
+                        ) { page ->
+                            when (page) {
+                                0 -> HomeScreen(
+                                    onStationSelected = { station ->
+                                        if (isGpsEnabled()) {
+                                            selectedStation = station
+                                        } else {
+                                            showGpsDialog = true
+                                        }
+                                    },
+                                    onEditStation = { activeStation ->
+                                        val station = activeStation.getStation()
+                                        if (station != null) {
+                                            editingStation = activeStation
+                                            selectedStation = station
+                                        }
+                                    },
+                                    onViewOnMap = { activeStation ->
+                                        viewOnMapStation = activeStation
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(1)
+                                        }
+                                    },
+                                    onToggleStation = { activeStation, enabled ->
+                                        if (enabled) {
+                                            viewModel.rearmStation(activeStation.stationId)
+                                            // Start LocationService for re-armed station
+                                            Intent(context, LocationService::class.java).apply {
+                                                action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
+                                            }.also { context.startForegroundService(it) }
+                                        } else {
+                                            viewModel.pauseStation(activeStation.stationId)
+                                        }
+                                    },
+                                    onNavigateToMap = {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(1)
+                                        }
+                                    },
+                                    viewModel = viewModel
+                                )
+                                1 -> MapSearchScreen(
+                                    onStartTrip = { station, alertDistanceKm ->
+                                        if (isGpsEnabled()) {
+                                            isFromMap = true
+                                            selectedStation = station
+                                            selectedRadius = alertDistanceKm
+                                        } else {
+                                            showGpsDialog = true
+                                        }
+                                    },
+                                    isGpsEnabled = isGpsEnabled,
+                                    onRequestGps = { showGpsDialog = true },
+                                    focusStation = viewOnMapStation,
+                                    onFocusHandled = { viewOnMapStation = null }
+                                )
                             }
-                        },
-                        onViewOnMap = { activeStation ->
-                            viewOnMapStation = activeStation
-                            coroutineScope.launch {
-                                pagerState.animateScrollToPage(1)
-                            }
-                        },
-                        onToggleStation = { activeStation, enabled ->
-                            if (enabled) {
-                                viewModel.rearmStation(activeStation.stationId)
-                                // Start LocationService for re-armed station
-                                Intent(context, LocationService::class.java).apply {
-                                    action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
-                                }.also { context.startForegroundService(it) }
-                            } else {
-                                viewModel.pauseStation(activeStation.stationId)
-                            }
-                        },
-                        onNavigateToMap = {
-                            coroutineScope.launch {
-                                pagerState.animateScrollToPage(1)
-                            }
-                        },
-                        onShareLogs = {
-                            val intent = Logger.shareLog(context)
-                            if (intent != null) context.startActivity(intent)
-                        },
-                        onShareGpsLogs = {
-                            val intent = com.omama.stationalarm.util.GpsLogger.shareLog(context)
-                            if (intent != null) context.startActivity(intent)
-                        },
-                        viewModel = viewModel
-                    )
-                    1 -> MapSearchScreen(
-                        onStartTrip = { station, alertDistanceKm ->
-                            if (isGpsEnabled()) {
-                                isFromMap = true
-                                selectedStation = station
-                                selectedRadius = alertDistanceKm
-                            } else {
-                                showGpsDialog = true
-                            }
-                        },
-                        isGpsEnabled = isGpsEnabled,
-                        onRequestGps = { showGpsDialog = true },
-                        focusStation = viewOnMapStation,
-                        onFocusHandled = { viewOnMapStation = null }
+                        }
+                    }
+
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp)
                     )
                 }
             }
         }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp)
-        )
     }
 
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -386,6 +471,71 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     }
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun AppDrawerContent(
+    onSettings: () -> Unit,
+    onAbout: () -> Unit,
+    onRateUs: () -> Unit,
+    onShareApp: () -> Unit
+) {
+    ModalDrawerSheet(
+        drawerContainerColor = MaterialTheme.colorScheme.surface,
+        drawerContentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        // Header
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+        ) {
+            Text(
+                "StationAlarm",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "v${com.omama.stationalarm.BuildConfig.VERSION_NAME}",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+
+        Spacer(Modifier.height(8.dp))
+
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+            label = { Text("Settings") },
+            selected = false,
+            onClick = onSettings,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Info, contentDescription = null) },
+            label = { Text("About") },
+            selected = false,
+            onClick = onAbout,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Star, contentDescription = null) },
+            label = { Text("Rate Us") },
+            selected = false,
+            onClick = onRateUs,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Share, contentDescription = null) },
+            label = { Text("Share App") },
+            selected = false,
+            onClick = onShareApp,
+            modifier = Modifier.padding(horizontal = 12.dp)
         )
     }
 }

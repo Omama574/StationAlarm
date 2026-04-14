@@ -12,12 +12,15 @@ import android.os.Looper
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.*
 import com.omama.stationalarm.data.ActiveStation
+import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -332,7 +335,17 @@ class LocationService : Service() {
         val startedNewAlarm = (!audio.isAlarmRinging && active.sound) || (!audio.isVibrating && active.vibrate)
 
         if (active.sound && !audio.isAlarmRinging) {
-            audio.playAlarmSound()
+            // Resolve user's custom alarm sound URI (blank → default). Blocking is
+            // safe here: DataStore's first emission is cached in memory after init
+            // and returns in microseconds. Falls back to default inside the player.
+            val customUri: android.net.Uri? = try {
+                val uriStr = runBlocking { UserPreferences.alarmSoundUriFlow.first() }
+                if (uriStr.isBlank()) null else android.net.Uri.parse(uriStr)
+            } catch (e: Exception) {
+                Logger.log("ALARM_URI_READ_FAIL", extra = e.message ?: "unknown")
+                null
+            }
+            audio.playAlarmSound(customUri)
         }
 
         if (active.vibrate && !audio.isVibrating) {

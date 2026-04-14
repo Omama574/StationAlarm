@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
+import com.omama.stationalarm.util.LocalDistanceUnit
+import com.omama.stationalarm.util.formatDistance
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,6 +33,7 @@ fun StationConfigBottomSheet(
     onDismiss: () -> Unit,
     onConfirm: (ActiveStation) -> Unit
 ) {
+    val unit = LocalDistanceUnit.current
     var alertDistance by remember { mutableStateOf(initialRadius) }
     var notifyEnabled by remember { mutableStateOf(initialNotify) }
     var vibrateEnabled by remember { mutableStateOf(initialVibrate) }
@@ -66,8 +69,9 @@ fun StationConfigBottomSheet(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
+            val roundedKm = (alertDistance * 10).roundToInt() / 10.0
             Text(
-                text = "Alert at ${(alertDistance * 10).roundToInt() / 10.0} km",
+                text = "Alert at ${formatDistance(roundedKm, unit)}",
                 fontSize = 16.sp,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)

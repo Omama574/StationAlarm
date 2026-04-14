@@ -6,6 +6,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -56,7 +57,15 @@ internal class AlarmAudioController(private val context: Context) {
         }
     }
 
-    fun playAlarmSound() {
+    fun playAlarmSound() = playAlarmSound(null)
+
+    /**
+     * Plays the alarm using [customUri] if provided, otherwise falls back to
+     * the system default alarm/notification ringtone. If [customUri] fails to
+     * open (e.g., revoked SAF permission, deleted file), falls back to the
+     * system default so the alarm never silently fails.
+     */
+    fun playAlarmSound(customUri: Uri?) {
         if (isAlarmRinging) return
 
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -83,25 +92,44 @@ internal class AlarmAudioController(private val context: Context) {
         }
 
         isAlarmRinging = true
+
+        val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+        fun startPlayer(uri: Uri) {
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(context, uri)
+                setAudioAttributes(audioAttributes)
+                isLooping = true
+                setOnPreparedListener {
+                    setVolume(1.0f, 1.0f)
+                    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+                    audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
+                    start()
+                }
+                prepareAsync()
+            }
+        }
+
+        // Try custom URI first, then fall back to default on any failure
+        val preferredUri = customUri ?: defaultUri
+        if (preferredUri == null) {
+            Log.e(tag, "No alarm URI available")
+            return
+        }
         try {
-            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            if (alarmUri != null) {
-                mediaPlayer = MediaPlayer().apply {
-                    setDataSource(context, alarmUri)
-                    setAudioAttributes(audioAttributes)
-                    isLooping = true
-                    setOnPreparedListener {
-                        setVolume(1.0f, 1.0f)
-                        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-                        audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
-                        start()
-                    }
-                    prepareAsync()
+            startPlayer(preferredUri)
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to play custom alarm URI ($preferredUri), falling back to default", e)
+            mediaPlayer?.release()
+            mediaPlayer = null
+            if (defaultUri != null && defaultUri != preferredUri) {
+                try {
+                    startPlayer(defaultUri)
+                } catch (e2: Exception) {
+                    Log.e(tag, "Error playing default alarm after fallback", e2)
                 }
             }
-        } catch (e: Exception) {
-            Log.e(tag, "Error playing alarm", e)
         }
     }
 
