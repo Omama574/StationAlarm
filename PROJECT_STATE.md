@@ -1,7 +1,7 @@
 ```markdown
 # StationAlarm — Project State
 
-> **Last updated:** 2026-04-14
+> **Last updated:** 2026-04-15
 > Update this file at the end of every session with what changed and what's next.
 
 ---
@@ -93,6 +93,32 @@ Tracks currently active alarms.
 ---
 
 ## Session Log
+
+### Session: Alarm Reliability Fixes (2026-04-15)
+Four user-reported critical issues fixed; `./gradlew compileDebugKotlin` clean.
+
+1. **Alarm re-fires after dismissal** — `GeofenceBroadcastReceiver` used `StationRepository.isActive()` which returns `true` for any row, including `PAUSED`. After dismiss the row transitions to `PAUSED` while `removeGeofencesForStation()` is still in flight asynchronously on GMS; pending geofence events slipped through and called `markAlerting()`, re-triggering the alarm seconds after the user dismissed.
+   - `ActiveStationDao.kt` — added `suspend fun getStatus(stationId): String?`
+   - `StationRepository.kt` — added `suspend fun isArmed(stationId): Boolean` (returns false for missing rows or `PAUSED`)
+   - `GeofenceBroadcastReceiver.kt` — swapped `isActive` → `isArmed`; PAUSED-window events are now dropped with a log line
+
+2. **Toggle ON without GPS check** — `AppRoot.kt` `onToggleStation` re-armed and started the foreground service without the `isGpsEnabled()` gate the other entry points use, so the toggle would flip ON but no location updates would ever arrive. Same bug also present on `onEditStation` (re-registers geofences on save).
+   - `AppRoot.kt` — added `isGpsEnabled()` gate to both `onToggleStation` (when `enabled=true`) and `onEditStation`; both now raise `showGpsDialog` on failure, matching `onStationSelected` and `onStartTrip`. All four alarm-creating/arming paths now consistently gate on GPS.
+
+3. **"Monitoring stations…" notification + GPS wake lock lingered after alarm dismiss** — In `LocationService.syncWithDatabase()`, when both monitoring and alerting sets became empty it still called `updateForegroundNotification()` (which re-posted "Monitoring stations…" via `manager.notify`) immediately before `stopForeground(REMOVE)` — leaving a ghost notification. GPS teardown relied on step-3's else branch implicitly.
+   - `LocationService.kt` (LOCKED — behavioural change required + scoped to this bug) — full-teardown branch now explicitly calls `stopLocationUpdates()` (releases fused client + GPS wake lock via `ServiceWakeLocks.releaseGps()`), then `stopForeground(STOP_FOREGROUND_REMOVE)`, then `notifications.cancelForeground()`, then `stopSelf()`. The re-notify path is skipped entirely when shutting down. GPS is still acquired freely by the map/config screens (they use FusedLocation independently of `LocationService`), so the map, search, and radius-picker flows are unaffected — GPS is only released when there are zero armed stations.
+   - `ServiceNotifications.kt` — added `cancelForeground()` helper (`manager.cancel(FOREGROUND_NOTIFICATION_ID)`) since `stopForeground(REMOVE)` alone sometimes races with a prior `notifyForeground` call and leaves the notification visible.
+
+4. **Proximity progress bar jumped between polls and looked "full" on long trips** — Bar was computed against a fixed `alertDistance + 60 km` window, so a 200 km trip looked nearly full from the start and never moved. It also snapped instantly on every poll (10s / 30s / 5m intervals looked like teleport jumps).
+   - `HomeScreen.kt` `StationCard` — bar now anchored to the **largest observed distance per `stationId`** (via `remember(station.stationId) { mutableStateOf<Double?>(null) }` + a `LaunchedEffect` that grows but never shrinks the anchor); progress fills linearly as device closes in: `(anchor − current) / (anchor − alertDistance)`. Wrapped in `animateFloatAsState(tween 900ms, LinearEasing)` so the bar slides smoothly between poll intervals instead of jumping.
+
+**User-flow sanity pass after touching LOCKED `LocationService.kt`:**
+- Fresh alarm add → MONITORING → `isArmed=true` → receiver passes → unchanged behaviour.
+- Alarm fires → dismiss → PAUSED: sync sees empty sets → full teardown → GPS released, foreground notification gone, service stops.
+- Re-toggling ON re-arms and restarts service (after GPS check passes).
+- Toggle ON with GPS off: dialog prompts, no ghost "armed" state.
+- Multi-alarm case where one fires and another is still MONITORING: sets non-empty → `updateForegroundNotification()` still runs → teardown only on full empty. Correct.
+- Boot restore: `BootRestoreWorker` resets `ALERTING → MONITORING`; `isArmed` passes; unchanged.
 
 ### Session: Production Setup & Security Audit (2026-04-10)
 - Firebase integration: connected to real Firebase instance, `google-services.json` secured via `.gitignore`

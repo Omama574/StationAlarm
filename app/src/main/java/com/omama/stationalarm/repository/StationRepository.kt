@@ -256,6 +256,14 @@ object StationRepository {
         return database.activeStationDao().isActive(stationId)
     }
 
+    /** True only when the station is armed (MONITORING or ALERTING), not PAUSED.
+     *  Used by GeofenceBroadcastReceiver to ignore late-delivered events for
+     *  paused stations whose geofence removal is still in flight. */
+    suspend fun isArmed(stationId: String): Boolean {
+        val status = database.activeStationDao().getStatus(stationId) ?: return false
+        return status != "PAUSED"
+    }
+
     fun reRegisterAllGeofences() {
         repositoryScope.launch {
             reRegisterAllGeofencesNow()

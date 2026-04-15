@@ -265,14 +265,20 @@ class LocationService : Service() {
                     stopLocationUpdates()
                 }
 
-                // --- 4. Update foreground notification ---
-                updateForegroundNotification()
-
-                // --- 5. Service shutdown check ---
+                // --- 4. Update foreground notification / shutdown ---
                 if (monitoringStations.isEmpty() && alertingStationIds.isEmpty()) {
+                    // Full teardown: no monitoring, no alerting. Release GPS,
+                    // drop the foreground notification explicitly (stopForeground
+                    // REMOVE can race with a prior notifyForeground and leave a
+                    // stale "Monitoring stations..." visible), and stop the
+                    // service so the OS frees it instead of keeping it alive.
                     Logger.log("SERVICE_STOPPING", extra = "No monitoring, no alerting stations")
+                    stopLocationUpdates()
                     stopForeground(STOP_FOREGROUND_REMOVE)
+                    notifications.cancelForeground()
                     stopSelf()
+                } else {
+                    updateForegroundNotification()
                 }
             }
         }

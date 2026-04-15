@@ -23,6 +23,9 @@ interface ActiveStationDao {
     @Query("SELECT EXISTS(SELECT 1 FROM active_stations WHERE stationId = :stationId)")
     suspend fun isActive(stationId: String): Boolean
 
+    @Query("SELECT status FROM active_stations WHERE stationId = :stationId LIMIT 1")
+    suspend fun getStatus(stationId: String): String?
+
     @Query("UPDATE active_stations SET status = :status WHERE stationId = :stationId")
     suspend fun updateStatus(stationId: String, status: String)
 

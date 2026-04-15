@@ -54,9 +54,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     val stationId = parts[1]
                     val layer = parts[2]
 
-                    // Verify station is still active
-                    if (!StationRepository.isActive(stationId)) {
-                        Log.d(TAG, "Station $stationId is no longer active, ignoring geofence")
+                    // Verify station is still armed (not deleted, not PAUSED).
+                    // PAUSED rows linger after dismissal while geofence removal is
+                    // in flight — events delivered in that window must be dropped,
+                    // otherwise the alarm re-fires seconds after being dismissed.
+                    if (!StationRepository.isArmed(stationId)) {
+                        Log.d(TAG, "Station $stationId is not armed, ignoring geofence")
                         continue
                     }
 

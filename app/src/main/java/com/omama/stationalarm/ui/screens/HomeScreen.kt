@@ -325,10 +325,38 @@ fun StationCard(
             // ── Row 3: Proximity bar + distance (active only) or "--" ──
             if (isActive) {
                 val distanceKm = station.currentDistanceKm
-                val maxRange = station.radiusLevel5Km // alertDistance + 60 km
-                val progress = if (distanceKm != null && maxRange > 0) {
-                    (1.0 - (distanceKm / maxRange)).coerceIn(0.0, 1.0).toFloat()
+                // Anchor the bar to the FIRST observed distance for this card —
+                // progress then fills linearly as the device closes in. Using a
+                // fixed +60 km window made far-away trips look "full" from the
+                // start and never move. The anchor is remembered per stationId
+                // so switching journeys resets it.
+                var startDistanceKm by remember(station.stationId) {
+                    mutableStateOf<Double?>(null)
+                }
+                LaunchedEffect(station.stationId, distanceKm) {
+                    val d = distanceKm ?: return@LaunchedEffect
+                    val current = startDistanceKm
+                    // Grow the anchor if we ever observe a larger distance (e.g.
+                    // GPS fix improves after initial coarse reading). Never shrink.
+                    if (current == null || d > current) startDistanceKm = d
+                }
+
+                val anchor = startDistanceKm ?: station.alertDistanceKm
+                val rawProgress = if (distanceKm != null && anchor > station.alertDistanceKm) {
+                    val span = anchor - station.alertDistanceKm
+                    val covered = (anchor - distanceKm).coerceAtLeast(0.0)
+                    (covered / span).coerceIn(0.0, 1.0).toFloat()
+                } else if (distanceKm != null && distanceKm <= station.alertDistanceKm) {
+                    1f
                 } else 0f
+
+                // Smooth the bar between polls so 10s/30s/5m intervals don't
+                // look like teleport jumps.
+                val progress by animateFloatAsState(
+                    targetValue = rawProgress,
+                    animationSpec = tween(durationMillis = 900, easing = LinearEasing),
+                    label = "proximityProgress"
+                )
 
                 val distanceText = distanceKm?.let { formatDistance(it, unit) } ?: "--"
 

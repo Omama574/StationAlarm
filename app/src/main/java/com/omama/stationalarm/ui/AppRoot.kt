@@ -424,8 +424,14 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                                     onEditStation = { activeStation ->
                                         val station = activeStation.getStation()
                                         if (station != null) {
-                                            editingStation = activeStation
-                                            selectedStation = station
+                                            // Editing re-registers the geofence stack on save;
+                                            // gate on GPS so the saved alarm is actually live.
+                                            if (!isGpsEnabled()) {
+                                                showGpsDialog = true
+                                            } else {
+                                                editingStation = activeStation
+                                                selectedStation = station
+                                            }
                                         }
                                     },
                                     onViewOnMap = { activeStation ->
@@ -436,11 +442,17 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                                     },
                                     onToggleStation = { activeStation, enabled ->
                                         if (enabled) {
-                                            viewModel.rearmStation(activeStation.stationId)
-                                            // Start LocationService for re-armed station
-                                            Intent(context, LocationService::class.java).apply {
-                                                action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
-                                            }.also { context.startForegroundService(it) }
+                                            // Re-arming requires live GPS — without this check the
+                                            // toggle would flip ON, the foreground service would
+                                            // start, and no location updates would ever arrive.
+                                            if (!isGpsEnabled()) {
+                                                showGpsDialog = true
+                                            } else {
+                                                viewModel.rearmStation(activeStation.stationId)
+                                                Intent(context, LocationService::class.java).apply {
+                                                    action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
+                                                }.also { context.startForegroundService(it) }
+                                            }
                                         } else {
                                             viewModel.pauseStation(activeStation.stationId)
                                         }

@@ -111,6 +111,13 @@ internal class ServiceNotifications(private val context: Context) {
         manager.cancel(stationId.hashCode())
     }
 
+    /** Explicitly remove the foreground notification. stopForeground(REMOVE)
+     *  alone sometimes leaves a stale visible notification when the service is
+     *  stopping right after a notifyForeground() call. */
+    fun cancelForeground() {
+        manager.cancel(FOREGROUND_NOTIFICATION_ID)
+    }
+
     fun showWatchdog() {
         val intent = Intent(context, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
