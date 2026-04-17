@@ -313,9 +313,15 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
         }
     }
 
+    // On the Map tab the drawer would steal horizontal drags meant for panning
+    // the osmdroid MapView, so swipe-to-open is disabled there — the menu icon
+    // is the only way in. Swipe-to-close still works once the drawer is open.
+    val drawerGesturesEnabled = currentScreen == Screen.Main &&
+        (pagerState.currentPage != 1 || drawerState.isOpen)
+
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = currentScreen == Screen.Main,
+        gesturesEnabled = drawerGesturesEnabled,
         drawerContent = {
             AppDrawerContent(
                 onSettings = {
