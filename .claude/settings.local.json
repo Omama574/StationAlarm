@@ -18,7 +18,15 @@
       "Bash(cd /tmp)",
       "Bash(unzip -o /c/Users/omama/.gradle/caches/modules-2/files-2.1/org.osmdroid/osmdroid-android/6.1.20/9e32a3531525ab4caa023da7144549efaa9e69bb/osmdroid-android-6.1.20.aar classes.jar)",
       "Bash(unzip -l classes.jar)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(claude plugin:*)",
+      "Bash(where claude:*)",
+      "Read(//c/Users/omama/.claude/**)",
+      "Bash(claude --version)",
+      "Bash(ls ~/.claude/plugins/*/)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\omama\\AndroidStudioProjects\\StationAlarm"
     ]
   }
 }

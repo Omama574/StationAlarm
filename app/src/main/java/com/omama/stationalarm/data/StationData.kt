@@ -1,8 +1,10 @@
 package com.omama.stationalarm.data
 
 import android.content.Context
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.omama.stationalarm.util.Logger
 import java.io.InputStreamReader
 
 object StationData {
@@ -16,10 +18,18 @@ object StationData {
             val inputStream = context.assets.open(STATIONS_FILE)
             val reader = InputStreamReader(inputStream)
             val type = object : TypeToken<List<Station>>() {}.type
-            stations = Gson().fromJson(reader, type)
+            val parsed = Gson().fromJson<List<Station>?>(reader, type)
             reader.close()
+            stations = parsed ?: emptyList()
+            if (parsed.isNullOrEmpty()) {
+                Logger.log("STATION_DATA_EMPTY", extra = "stations.json parsed to empty list")
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            // Previously this was e.printStackTrace() then silent emptyList — the
+            // only signal was "No stations found" in search, indistinguishable from
+            // a query miss. Now it's in the shareable log.
+            Log.e("StationData", "Failed to load $STATIONS_FILE", e)
+            Logger.log("STATION_DATA_LOAD_FAILED", extra = e.message ?: "unknown")
             stations = emptyList()
         }
     }

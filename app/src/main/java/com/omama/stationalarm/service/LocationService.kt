@@ -3,14 +3,18 @@ package com.omama.stationalarm.service
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.Context
 import android.content.pm.ServiceInfo
 import android.location.Location
+import android.location.LocationManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.*
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.repository.StationRepository
@@ -74,18 +78,17 @@ class LocationService : Service() {
     @Volatile private var cachedAlarmSoundUri: String = ""
 
     private var lastLocationTimeMs = 0L
+    // Self-heal state. Set when silent recovery is in flight; cleared on first
+    // fix arrival (→ cancels any visible watchdog notification). Also drives
+    // whether we've already escalated to the user-visible Tier 2 state.
+    private var watchdogRecoveryPending = false
+    private var watchdogNotified = false
+    private var watchdogRecoveryToken: CancellationTokenSource? = null
     private val watchdogHandler = Handler(Looper.getMainLooper())
     private val watchdogRunnable = object : Runnable {
         override fun run() {
             if (isPolling && monitoringStations.isNotEmpty()) {
-                val timeSinceLastMs = System.currentTimeMillis() - lastLocationTimeMs
-                val timeoutMs = maxOf(60_000L, currentPollingIntervalMs * 3)
-                if (timeSinceLastMs > timeoutMs) {
-                    Logger.log("WATCHDOG_TRIGGERED", extra = "GPS stalled for ${timeSinceLastMs / 1000}s. Restarting.")
-                    notifications.showWatchdog()
-                    restartLocationUpdates()
-                    lastLocationTimeMs = System.currentTimeMillis()
-                }
+                handleWatchdogTick()
             }
             watchdogHandler.postDelayed(this, 30_000L)
         }
@@ -106,6 +109,14 @@ class LocationService : Service() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 lastLocationTimeMs = System.currentTimeMillis()
+                if (watchdogRecoveryPending || watchdogNotified) {
+                    Logger.log("WATCHDOG_RECOVERED", extra = "fix arrived, clearing watchdog state")
+                    watchdogRecoveryPending = false
+                    watchdogNotified = false
+                    watchdogRecoveryToken?.cancel()
+                    watchdogRecoveryToken = null
+                    notifications.cancelWatchdog()
+                }
                 if (ActivityCompat.checkSelfPermission(
                         this@LocationService,
                         android.Manifest.permission.ACCESS_FINE_LOCATION
@@ -235,6 +246,7 @@ class LocationService : Service() {
                     if (alertingStationIds.isEmpty()) {
                         audio.stopAll()
                         wakeLocks.releaseAlarm()
+                        notifications.cancelAudioFailureNotification()
                     }
                     for (id in noLongerAlerting) {
                         notifications.cancelAlert(id)
@@ -363,7 +375,15 @@ class LocationService : Service() {
             // revoked by the OS after reboot, so a URI that worked at pick
             // time may no longer resolve. Null → default sound.
             val customUri: android.net.Uri? = resolveValidatedAlarmUri(cachedAlarmSoundUri)
-            audio.playAlarmSound(customUri)
+            val stationLabel = active.getStation()?.name ?: active.stationId
+            audio.playAlarmSound(customUri) {
+                // Both custom and default URIs failed — escalate so the user
+                // doesn't think the alarm silently failed. The full-screen
+                // alert still fires; this just adds vibration + a notification.
+                if (!audio.isVibrating) audio.startVibrator()
+                notifications.showAudioFailureNotification(stationLabel)
+                Logger.log("AUDIO_TERMINAL_FAILURE", active.stationId, "fell back to vibration only")
+            }
         }
 
         if (active.vibrate && !audio.isVibrating) {
@@ -404,6 +424,7 @@ class LocationService : Service() {
         if (alertingStationIds.isEmpty()) {
             audio.stopAll()
             wakeLocks.releaseAlarm()
+            notifications.cancelAudioFailureNotification()
         }
 
         // 2. Cancel this station's notification
@@ -557,5 +578,98 @@ class LocationService : Service() {
         val results = FloatArray(1)
         Location.distanceBetween(lat1, lon1, lat2, lon2, results)
         return (results[0] / 1000.0)
+    }
+
+    // ============================
+    //     WATCHDOG ENGINE
+    // ============================
+
+    private fun handleWatchdogTick() {
+        val now = System.currentTimeMillis()
+        val stallMs = now - lastLocationTimeMs
+        val tier1Threshold = maxOf(60_000L, currentPollingIntervalMs * 3)
+        if (stallMs <= tier1Threshold) return
+
+        val tier2Threshold = maxOf(180_000L, currentPollingIntervalMs * 2)
+        val gpsOff = !isGpsProviderEnabled()
+        val dozing = isDozingWithScreenOff()
+
+        // Suppress user-visible escalation while the device is idle with screen
+        // off — stalls there are expected behaviour, not a fault. Silent retry
+        // only; any arriving fix will clear state via onLocationResult.
+        if (dozing && !gpsOff) {
+            Logger.log("WATCHDOG_SELF_HEAL", extra = "dozing stall=${stallMs / 1000}s (suppressed)")
+            kickSilentRecovery()
+            return
+        }
+
+        if (stallMs >= tier2Threshold || gpsOff) {
+            // Tier 2 — notify (ongoing, low-priority, auto-cleared on fix) and
+            // keep fighting for a fix. Force polling back to the 10s floor.
+            watchdogNotified = true
+            watchdogRecoveryPending = true
+            if (currentPollingIntervalMs != 10_000L) {
+                currentPollingIntervalMs = 10_000L
+            }
+            val minutes = (stallMs / 60_000L).coerceAtLeast(1)
+            val (title, body) = if (gpsOff) {
+                "Location is off" to "Tap to enable location — alarm is paused until then."
+            } else {
+                "Searching for GPS…" to "Still tracking — last fix ${minutes}m ago."
+            }
+            Logger.log("WATCHDOG_TRIGGERED", extra = "tier2 stall=${stallMs / 1000}s gpsOff=$gpsOff")
+            notifications.showWatchdog(title, body)
+            restartLocationUpdates()
+            kickSilentRecovery()
+        } else {
+            // Tier 1 — silent recovery.
+            Logger.log("WATCHDOG_SELF_HEAL", extra = "tier1 stall=${stallMs / 1000}s")
+            watchdogRecoveryPending = true
+            restartLocationUpdates()
+            kickSilentRecovery()
+        }
+    }
+
+    private fun kickSilentRecovery() {
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        watchdogRecoveryToken?.cancel()
+        val token = CancellationTokenSource()
+        watchdogRecoveryToken = token
+        try {
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, token.token)
+                .addOnSuccessListener { loc ->
+                    if (loc != null) {
+                        // Feed into the normal pipeline — this also clears
+                        // watchdog state because lastLocationTimeMs is bumped
+                        // by processLocationUpdate's onLocationResult path via
+                        // adjustPollingInterval callers; do it explicitly here.
+                        lastLocationTimeMs = System.currentTimeMillis()
+                        if (watchdogRecoveryPending || watchdogNotified) {
+                            Logger.log("WATCHDOG_RECOVERED", extra = "one-shot fix")
+                            watchdogRecoveryPending = false
+                            watchdogNotified = false
+                            notifications.cancelWatchdog()
+                        }
+                        processLocationUpdate(loc)
+                    }
+                }
+        } catch (e: SecurityException) {
+            Logger.log("WATCHDOG_RECOVERY_FAILED", extra = e.message ?: "security")
+        }
+    }
+
+    private fun isGpsProviderEnabled(): Boolean {
+        val lm = getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return true
+        return lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+            lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+    }
+
+    private fun isDozingWithScreenOff(): Boolean {
+        // Only true system doze — prolonged stillness + screen off. Screen-off
+        // alone is common on a train ride, so we do NOT suppress on that.
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && pm.isDeviceIdleMode
     }
 }

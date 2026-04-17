@@ -17,6 +17,8 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
+import retrofit2.HttpException
+import java.io.IOException
 import java.util.UUID
 
 @OptIn(FlowPreview::class)
@@ -109,6 +111,7 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                 val results = GeocodingClient.locationIqService.autocomplete(query = q)
                 if (results.isNotEmpty()) {
                     _searchResults.value = results.map { it.toSearchResult() }
+                        .filter { it.hasValidCoords }
                     return
                 }
             } catch (e: Exception) {
@@ -123,14 +126,27 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                 lon   = bias?.longitude
             )
             _searchResults.value = photonResponse.features.map { it.toSearchResult() }
+                .filter { it.hasValidCoords }
 
         } catch (e: Exception) {
-            _searchError.value = "Search unavailable"
+            _searchError.value = errorMessageFor(e)
             _searchResults.value = emptyList()
             android.util.Log.e("MapSearch", "All geocoding failed for '$q'", e)
         } finally {
             _isSearching.value = false
         }
+    }
+
+    /** Translates a network-level failure into a short user-facing message so the
+     *  Map snackbar tells the user *why* search failed, not just that it did. */
+    private fun errorMessageFor(e: Throwable): String = when (e) {
+        is IOException -> "No internet connection."
+        is HttpException -> when (e.code()) {
+            429 -> "Too many requests — try again in a moment."
+            in 500..599 -> "Search service is down — try again shortly."
+            else -> "Search unavailable (${e.code()})."
+        }
+        else -> "Search unavailable."
     }
 
     // ── Map interactions ──────────────────────────────────────────────────────
@@ -231,6 +247,17 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                             _userLocation.emit(geoPoint)
                         }
                     }
+                } else if (!emitToCenter) {
+                    // FAB request: lastLocation is sometimes null on first launch
+                    // before any client has triggered a fix. Surface so the user
+                    // doesn't tap the FAB and silently wonder why nothing happened.
+                    _searchError.value = "No recent location fix — try moving to an open area."
+                }
+            }
+            .addOnFailureListener { e ->
+                android.util.Log.w("MapSearch", "lastLocation failed", e)
+                if (!emitToCenter) {
+                    _searchError.value = "Couldn't read your location."
                 }
             }
     }

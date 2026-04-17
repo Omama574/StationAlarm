@@ -146,9 +146,32 @@ object GeofenceManager {
     }
 
     /**
-     * Remove all six geofences for a station.
+     * Remove all six geofences for a station with bounded retry. On terminal
+     * failure, schedules a persistent [GeofenceCleanupWorker] so leaked
+     * geofences don't accumulate against GMS's 100/app cap over time.
+     *
+     * The previous fire-and-forget implementation could leave 6 dead geofences
+     * per failed teardown; combined with the 10-station cap that's up to 60
+     * leaks before symptoms surface as registration failures.
      */
-    fun removeGeofencesForStation(context: Context, stationId: String) {
+    suspend fun removeGeofencesForStation(context: Context, stationId: String) {
+        val result = attemptRemoveGeofencesForStation(context, stationId)
+        if (result.isFailure) {
+            Logger.log("GEOFENCE_REMOVE_FALLBACK", stationId, "enqueueing cleanup worker")
+            GeofenceCleanupWorker.enqueue(context, stationId)
+        }
+    }
+
+    /**
+     * Single removal attempt with 3 retries (500ms → 1s → 2s backoff). Returns
+     * Result.failure on terminal failure so [GeofenceCleanupWorker] can call
+     * this directly without re-triggering the fallback enqueue (which would
+     * spawn an infinite chain).
+     */
+    internal suspend fun attemptRemoveGeofencesForStation(
+        context: Context,
+        stationId: String
+    ): Result<Unit> {
         val requestIds = listOf(
             "geofence_${stationId}_level5",
             "geofence_${stationId}_level4",
@@ -157,16 +180,40 @@ object GeofenceManager {
             "geofence_${stationId}_level1",
             "geofence_${stationId}_alert"
         )
-        geofencingClient(context)
-            .removeGeofences(requestIds)
-            .addOnSuccessListener {
-                Log.d(TAG, "Geofences removed for $stationId")
-                Logger.log("GEOFENCE_REMOVED", stationId)
+
+        var attempt = 0
+        val maxAttempts = 3
+        var delayMs = 500L
+        var lastError: Throwable? = null
+
+        while (attempt < maxAttempts) {
+            try {
+                suspendCancellableCoroutine<Unit> { cont ->
+                    geofencingClient(context)
+                        .removeGeofences(requestIds)
+                        .addOnSuccessListener {
+                            Log.d(TAG, "Geofences removed for $stationId")
+                            Logger.log("GEOFENCE_REMOVED", stationId)
+                            if (cont.isActive) cont.resume(Unit)
+                        }
+                        .addOnFailureListener { e ->
+                            if (cont.isActive) cont.resumeWithException(e)
+                        }
+                }
+                return Result.success(Unit)
+            } catch (e: Exception) {
+                lastError = e
+                attempt++
+                Log.e(TAG, "Failed to remove geofences for $stationId (attempt $attempt)", e)
+                if (attempt < maxAttempts) {
+                    delay(delayMs)
+                    delayMs *= 2
+                }
             }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to remove geofences for $stationId", e)
-                Logger.log("GEOFENCE_REMOVE_FAILED", stationId, e.message)
-            }
+        }
+
+        Logger.log("GEOFENCE_REMOVE_FAILED", stationId, lastError?.message)
+        return Result.failure(lastError ?: Exception("Unknown geofence removal failure"))
     }
 
     private fun buildGeofence(

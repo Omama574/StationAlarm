@@ -8,6 +8,10 @@ import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
 import com.omama.stationalarm.network.GeocodingClient
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.util.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import java.io.File
 
@@ -54,6 +58,17 @@ class StationAlarmApplication : Application() {
             if (url.isNotBlank()) GeocodingClient.setWorkerUrl(url)
             if (!task.isSuccessful) {
                 android.util.Log.w("RemoteConfig", "Fetch failed — using default Worker URL")
+            }
+        }
+
+        // Reconcile any orphan active_stations rows whose geofences may have been
+        // lost to process death between DB insert and GMS registration. Idempotent
+        // and cheap. Off the main thread so cold start isn't blocked.
+        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            try {
+                StationRepository.reconcileOrphans()
+            } catch (e: Exception) {
+                android.util.Log.w("Reconcile", "reconcileOrphans failed", e)
             }
         }
     }

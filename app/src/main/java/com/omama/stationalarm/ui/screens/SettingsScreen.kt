@@ -139,6 +139,12 @@ fun SettingsScreen(onBack: () -> Unit) {
             val currentSoundName = remember(alarmSoundUri) {
                 resolveSoundName(context, alarmSoundUri)
             }
+            // Probe the URI on entry so the user sees a warning if the SAF grant
+            // was revoked or the source file deleted between picking and now —
+            // otherwise the alarm fire path silently falls back to default.
+            val soundReachable = remember(alarmSoundUri) {
+                probeAlarmUri(context, alarmSoundUri)
+            }
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -150,13 +156,21 @@ fun SettingsScreen(onBack: () -> Unit) {
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    if (!soundReachable) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "⚠ Sound unavailable — re-select to fix.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = { showSoundPicker = true },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Change")
+                            Text(if (!soundReachable) "Re-select" else "Change")
                         }
                         if (alarmSoundUri.isNotBlank()) {
                             OutlinedButton(
@@ -283,6 +297,20 @@ private fun ThemeOption(label: String, selected: Boolean, onClick: () -> Unit) {
             fontSize = 15.sp,
             color = MaterialTheme.colorScheme.onBackground
         )
+    }
+}
+
+/** Cheap reachability probe — opens then immediately closes a stream. Returns
+ *  true for blank (= use system default, always available) and for URIs we can
+ *  open. Mirrors the LocationService.resolveValidatedAlarmUri logic so what the
+ *  Settings screen reports matches what the alarm will actually do. */
+private fun probeAlarmUri(context: android.content.Context, uriStr: String): Boolean {
+    if (uriStr.isBlank()) return true
+    val uri = try { Uri.parse(uriStr) } catch (_: Exception) { return false }
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { true } ?: false
+    } catch (_: Exception) {
+        false
     }
 }
 

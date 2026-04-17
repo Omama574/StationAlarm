@@ -2,6 +2,7 @@ package com.omama.stationalarm.repository
 
 import android.content.Context
 import androidx.lifecycle.asLiveData
+import androidx.room.withTransaction
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.SavedPlace
 import com.omama.stationalarm.data.Station
@@ -13,6 +14,7 @@ import com.omama.stationalarm.geofence.GeofenceManager
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,12 +47,14 @@ object StationRepository {
     /**
      * One-shot events for user-facing errors (e.g. max-alarms reached,
      * geofence registration failed). UI listens via the ViewModel and shows
-     * these as snackbars. Buffer is small because events are ephemeral —
-     * if the UI isn't alive when one fires, it's safe to drop.
+     * these as snackbars. With DROP_OLDEST, a backlog of stale errors during
+     * UI startup gets squeezed out in favour of the freshest one — the user
+     * sees the most relevant message rather than chronological noise.
      */
     private val _errorEvents = MutableSharedFlow<String>(
         replay = 0,
-        extraBufferCapacity = 4
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val errorEvents: SharedFlow<String> = _errorEvents.asSharedFlow()
 
@@ -144,19 +148,25 @@ object StationRepository {
                 stationName = resolvedStation?.name ?: activeStation.stationName
             )
 
-            if (customStation != null) {
-                val place = SavedPlace(
-                    id = customStation.id,
-                    name = customStation.name,
-                    lat = customStation.lat,
-                    lon = customStation.lon,
-                    radiusKm = activeStation.alertDistanceKm,
-                    notes = "Custom alarmed location",
-                    createdAt = System.currentTimeMillis()
-                )
-                database.savedPlaceDao().insert(place.toEntity())
+            // Atomic DB insert: if the process dies between the two inserts, Room
+            // rolls back so we never end up with a saved_place but no active_station
+            // (or vice versa). Geofence registration stays outside the transaction
+            // because it's GMS, not Room — its rollback is handled below.
+            database.withTransaction {
+                if (customStation != null) {
+                    val place = SavedPlace(
+                        id = customStation.id,
+                        name = customStation.name,
+                        lat = customStation.lat,
+                        lon = customStation.lon,
+                        radiusKm = activeStation.alertDistanceKm,
+                        notes = "Custom alarmed location",
+                        createdAt = System.currentTimeMillis()
+                    )
+                    database.savedPlaceDao().insert(place.toEntity())
+                }
+                database.activeStationDao().insert(entityWithCoords.toEntity())
             }
-            database.activeStationDao().insert(entityWithCoords.toEntity())
 
             val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
@@ -169,14 +179,47 @@ object StationRepository {
                 alertDistanceM = (entityWithCoords.alertDistanceKm * 1000).toFloat()
             )
             result.onFailure { e ->
-                // Registration failed — roll back the active_stations row so the
-                // UI doesn't show a ghost alarm that will never fire.
-                database.activeStationDao().delete(entityWithCoords.stationId)
+                // Registration failed — roll back both rows in a single transaction
+                // so the UI doesn't show a ghost alarm and the saved_place doesn't
+                // leak as a phantom favourite.
+                database.withTransaction {
+                    database.activeStationDao().delete(entityWithCoords.stationId)
+                    if (customStation != null) {
+                        database.savedPlaceDao().delete(customStation.id)
+                    }
+                }
                 val msg = e.message ?: "Failed to register alarm."
                 _errorEvents.emit(msg)
                 Logger.log("STATION_ADD_ROLLED_BACK", entityWithCoords.stationId, msg)
             }
         }
+    }
+
+    /**
+     * Re-registers geofences for any active (non-PAUSED) station that may have
+     * lost its GMS-side registration during process death between the DB insert
+     * and the geofence call. `addGeofencesForStation` is idempotent (overwrites
+     * by request ID), so calling it for already-registered stations is a no-op
+     * besides a small refresh. Cheap to run on every cold start.
+     */
+    suspend fun reconcileOrphans() {
+        val active = getAllActiveStationsList().filter { it.status != "PAUSED" }
+        if (active.isEmpty()) return
+        var reconciled = 0
+        for (station in active) {
+            val result = GeofenceManager.addGeofencesForStation(
+                context = appContext,
+                stationId = station.stationId,
+                radiusLevel5M = (station.radiusLevel5Km * 1000).toFloat(),
+                radiusLevel4M = (station.radiusLevel4Km * 1000).toFloat(),
+                radiusLevel3M = (station.radiusLevel3Km * 1000).toFloat(),
+                radiusLevel2M = (station.radiusLevel2Km * 1000).toFloat(),
+                radiusLevel1M = (station.radiusLevel1Km * 1000).toFloat(),
+                alertDistanceM = (station.alertDistanceKm * 1000).toFloat()
+            )
+            if (result.isSuccess) reconciled++
+        }
+        Logger.log("RECONCILED", extra = "$reconciled/${active.size} active stations refreshed at startup")
     }
 
     fun removeActiveStation(stationId: String) {

@@ -54,15 +54,27 @@ object UserPreferences {
         get() = dataStore.data.map { it[KEY_ALARM_SOUND_URI] ?: "" }
 
     // ── Setters ─────────────────────────────────────────────────────────────
+    // DataStore writes can throw IOException on disk-full / corrupted preferences.
+    // Callers launch these from rememberCoroutineScope, where an unhandled throw
+    // would crash the recomposition that started it. Swallow + log instead — a
+    // failed pref write is never worth a crash.
     suspend fun setThemeMode(mode: String) {
-        dataStore.edit { it[KEY_THEME] = mode }
+        runSafely("setThemeMode") { dataStore.edit { it[KEY_THEME] = mode } }
     }
 
     suspend fun setDistanceUnit(unit: String) {
-        dataStore.edit { it[KEY_DISTANCE_UNIT] = unit }
+        runSafely("setDistanceUnit") { dataStore.edit { it[KEY_DISTANCE_UNIT] = unit } }
     }
 
     suspend fun setAlarmSoundUri(uri: String) {
-        dataStore.edit { it[KEY_ALARM_SOUND_URI] = uri }
+        runSafely("setAlarmSoundUri") { dataStore.edit { it[KEY_ALARM_SOUND_URI] = uri } }
+    }
+
+    private suspend inline fun runSafely(op: String, crossinline block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: Exception) {
+            android.util.Log.e("UserPreferences", "$op failed", e)
+        }
     }
 }

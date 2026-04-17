@@ -24,6 +24,8 @@ internal class ServiceNotifications(private val context: Context) {
     companion object {
         const val FOREGROUND_NOTIFICATION_ID = 12345
         const val WATCHDOG_NOTIFICATION_ID = 9999
+        const val AUDIO_FAILURE_NOTIFICATION_ID = 12346
+        const val EXTRA_STATION_NAME = "stationName"
         const val CHANNEL_ID = "location_channel"
         const val ALARM_CHANNEL_ID = "alarm_channel"
         private const val CHANNEL_NAME = "Station Alarm Service"
@@ -72,9 +74,14 @@ internal class ServiceNotifications(private val context: Context) {
     }
 
     fun showAlert(active: ActiveStation) {
+        // stationName extra lets AlarmActivity render the right title on its
+        // first frame instead of briefly showing the raw stationId while the
+        // async DB lookup loads.
+        val resolvedName = active.getStation()?.name ?: active.stationId
         val fullscreenIntent = Intent(context, AlarmActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("stationId", active.stationId)
+            putExtra(EXTRA_STATION_NAME, resolvedName)
         }
         val pendingIntent = PendingIntent.getActivity(
             context, active.stationId.hashCode(), fullscreenIntent,
@@ -118,19 +125,55 @@ internal class ServiceNotifications(private val context: Context) {
         manager.cancel(FOREGROUND_NOTIFICATION_ID)
     }
 
-    fun showWatchdog() {
+    fun showWatchdog(
+        title: String = "Searching for GPS…",
+        body: String = "Still tracking — will resume when a fix returns."
+    ) {
         val intent = Intent(context, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             context, 0, intent,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_IMMUTABLE
         )
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("Location Stalled")
-            .setContentText("GPS signal lost. Tap to open app and restart tracking.")
+            .setContentTitle(title)
+            .setContentText(body)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
         manager.notify(WATCHDOG_NOTIFICATION_ID, builder.build())
+    }
+
+    fun cancelWatchdog() {
+        manager.cancel(WATCHDOG_NOTIFICATION_ID)
+    }
+
+    /**
+     * Posts when both the user-picked alarm URI AND the system default URI
+     * fail to play (the only remaining "silent alarm" path). The full-screen
+     * AlarmActivity still launches and vibration still runs — this just tells
+     * the user *why* they didn't hear a sound, so they don't think the alarm
+     * silently failed.
+     */
+    fun showAudioFailureNotification(stationName: String) {
+        val intent = Intent(context, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = NotificationCompat.Builder(context, ALARM_CHANNEL_ID)
+            .setContentTitle("Alarm fired silently")
+            .setContentText("Audio system error at $stationName — vibration only.")
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+        manager.notify(AUDIO_FAILURE_NOTIFICATION_ID, builder.build())
+    }
+
+    fun cancelAudioFailureNotification() {
+        manager.cancel(AUDIO_FAILURE_NOTIFICATION_ID)
     }
 }

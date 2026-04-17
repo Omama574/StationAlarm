@@ -11,7 +11,15 @@ data class GeoSearchResult(
     val lat: Double,
     val lon: Double,
     val confidence: String  // "exact" | "high" | "medium" | "low"
-)
+) {
+    /** True only if lat/lon parse cleanly and lie inside Earth's geographic bounds.
+     *  Filters out NaN-from-bad-string and the (0,0) Atlantic placeholder that
+     *  some upstream APIs return for "no result". */
+    val hasValidCoords: Boolean
+        get() = !lat.isNaN() && !lon.isNaN() &&
+                lat in -90.0..90.0 && lon in -180.0..180.0 &&
+                !(lat == 0.0 && lon == 0.0)
+}
 
 // ── LocationIQ models ─────────────────────────────────────────────────────────
 // These map to the JSON returned by our Cloudflare Worker (which proxies LocationIQ).
@@ -62,8 +70,8 @@ fun LocationIqAutocompleteResult.toSearchResult(): GeoSearchResult {
         id         = "liq_${osmId ?: placeId}",
         name       = name,
         subtitle   = subtitle,
-        lat        = lat.toDoubleOrNull() ?: 0.0,
-        lon        = lon.toDoubleOrNull() ?: 0.0,
+        lat        = lat.toDoubleOrNull() ?: Double.NaN,
+        lon        = lon.toDoubleOrNull() ?: Double.NaN,
         confidence = confidence
     )
 }

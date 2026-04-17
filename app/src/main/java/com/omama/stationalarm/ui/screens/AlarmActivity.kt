@@ -23,12 +23,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.service.LocationService
+import com.omama.stationalarm.service.ServiceNotifications
 import com.omama.stationalarm.ui.theme.StationAlarmTheme
 import com.omama.stationalarm.util.Logger
 
 class AlarmActivity : ComponentActivity() {
 
     private var stationId: String? = null
+    private var initialStationName: String? = null
     private var dismissed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,16 +51,22 @@ class AlarmActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         stationId = intent.getStringExtra("stationId")
+        initialStationName = intent.getStringExtra(ServiceNotifications.EXTRA_STATION_NAME)
 
         setContent {
             var activeStation by remember { mutableStateOf<com.omama.stationalarm.data.ActiveStation?>(null) }
-            var station by remember { mutableStateOf<com.omama.stationalarm.data.Station?>(null) }
+            // Seed the displayed name from the intent extra so the first frame
+            // shows the real station name instead of briefly flashing the raw
+            // stationId during the async DB lookup.
+            var stationName by remember {
+                mutableStateOf(initialStationName ?: stationId ?: "Destination")
+            }
 
             LaunchedEffect(stationId) {
                 if (stationId != null) {
                     val allActive = StationRepository.getAllActiveStationsList()
                     activeStation = allActive.find { it.stationId == stationId }
-                    station = activeStation?.getStation()
+                    activeStation?.getStation()?.name?.let { stationName = it }
                 }
             }
 
@@ -68,7 +76,7 @@ class AlarmActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     AlarmScreen(
-                        stationName = station?.name ?: stationId ?: "Destination",
+                        stationName = stationName,
                         customReminder = if (activeStation?.sendReminder == true) activeStation?.customReminder else null,
                         onDismiss = { dismissAlarm() }
                     )
