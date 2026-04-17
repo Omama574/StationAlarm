@@ -5,32 +5,70 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.CompositionLocalProvider
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Color.White,
-    secondary = Color.LightGray,
-    tertiary = Color.White,
-    background = Color(0xFF121212),
-    surface = Color(0xFF1E1E1E),
-    onPrimary = Color.Black,
-    onSecondary = Color.Black,
-    onTertiary = Color.Black,
-    onBackground = Color.White,
-    onSurface = Color.White
+private val LightColors = lightColorScheme(
+    primary = BrandPrimaryLight,
+    onPrimary = BrandOnPrimaryLight,
+    primaryContainer = BrandPrimaryContainerLight,
+    onPrimaryContainer = BrandOnPrimaryContainerLight,
+    secondary = BrandSecondaryLight,
+    onSecondary = BrandOnSecondaryLight,
+    secondaryContainer = BrandSecondaryContainerLight,
+    onSecondaryContainer = BrandOnSecondaryContainerLight,
+    tertiary = BrandTertiaryLight,
+    onTertiary = BrandOnTertiaryLight,
+    tertiaryContainer = BrandTertiaryContainerLight,
+    onTertiaryContainer = BrandOnTertiaryContainerLight,
+    error = BrandErrorLight,
+    onError = BrandOnErrorLight,
+    errorContainer = BrandErrorContainerLight,
+    onErrorContainer = BrandOnErrorContainerLight,
+    background = BrandBackgroundLight,
+    onBackground = BrandOnBackgroundLight,
+    surface = BrandSurfaceLight,
+    onSurface = BrandOnSurfaceLight,
+    surfaceVariant = BrandSurfaceVariantLight,
+    onSurfaceVariant = BrandOnSurfaceVariantLight,
+    surfaceTint = BrandPrimaryLight,
+    outline = BrandOutlineLight,
+    outlineVariant = BrandOutlineVariantLight,
+    scrim = BrandScrimLight,
+    inverseSurface = BrandInverseSurfaceLight,
+    inverseOnSurface = BrandInverseOnSurfaceLight,
+    inversePrimary = BrandInversePrimaryLight
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Color.Black,
-    secondary = Color.DarkGray,
-    tertiary = Color.Black,
-    background = Color.White,
-    surface = Color.White,
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color.Black,
-    onSurface = Color.Black
+private val DarkColors = darkColorScheme(
+    primary = BrandPrimaryDark,
+    onPrimary = BrandOnPrimaryDark,
+    primaryContainer = BrandPrimaryContainerDark,
+    onPrimaryContainer = BrandOnPrimaryContainerDark,
+    secondary = BrandSecondaryDark,
+    onSecondary = BrandOnSecondaryDark,
+    secondaryContainer = BrandSecondaryContainerDark,
+    onSecondaryContainer = BrandOnSecondaryContainerDark,
+    tertiary = BrandTertiaryDark,
+    onTertiary = BrandOnTertiaryDark,
+    tertiaryContainer = BrandTertiaryContainerDark,
+    onTertiaryContainer = BrandOnTertiaryContainerDark,
+    error = BrandErrorDark,
+    onError = BrandOnErrorDark,
+    errorContainer = BrandErrorContainerDark,
+    onErrorContainer = BrandOnErrorContainerDark,
+    background = BrandBackgroundDark,
+    onBackground = BrandOnBackgroundDark,
+    surface = BrandSurfaceDark,
+    onSurface = BrandOnSurfaceDark,
+    surfaceVariant = BrandSurfaceVariantDark,
+    onSurfaceVariant = BrandOnSurfaceVariantDark,
+    surfaceTint = BrandPrimaryDark,
+    outline = BrandOutlineDark,
+    outlineVariant = BrandOutlineVariantDark,
+    scrim = BrandScrimDark,
+    inverseSurface = BrandInverseSurfaceDark,
+    inverseOnSurface = BrandInverseOnSurfaceDark,
+    inversePrimary = BrandInversePrimaryDark
 )
 
 @Composable
@@ -38,11 +76,14 @@ fun StationAlarmTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = if (darkTheme) DarkColors else LightColors
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(LocalSpacing provides Spacing()) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = Shapes,
+            content = content
+        )
+    }
 }

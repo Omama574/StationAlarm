@@ -1,24 +1,47 @@
 package com.omama.stationalarm.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
+import com.omama.stationalarm.ui.theme.spacing
 import com.omama.stationalarm.util.LocalDistanceUnit
 import com.omama.stationalarm.util.formatDistance
 import kotlin.math.roundToInt
+
+private const val MAX_REMINDER_CHARS = 200
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,176 +57,230 @@ fun StationConfigBottomSheet(
     onConfirm: (ActiveStation) -> Unit
 ) {
     val unit = LocalDistanceUnit.current
+    val haptic = LocalHapticFeedback.current
+    val spacing = MaterialTheme.spacing
+    val colors = MaterialTheme.colorScheme
+
     var alertDistance by remember { mutableStateOf(initialRadius) }
     var notifyEnabled by remember { mutableStateOf(initialNotify) }
     var vibrateEnabled by remember { mutableStateOf(initialVibrate) }
     var soundEnabled by remember { mutableStateOf(initialSound) }
-    
     var customReminder by remember { mutableStateOf(initialNotes ?: "") }
     var sendReminder by remember { mutableStateOf(initialNotes != null) }
-    
-    val haptic = LocalHapticFeedback.current
+
+    val displayCode = displayableStationCode(station.id)
+    val roundedKm = (alertDistance * 10).roundToInt() / 10.0
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.onSurface) }
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = colors.surface,
+        contentColor = colors.onSurface,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.onSurfaceVariant) }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = spacing.lg)
+                .padding(bottom = spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(spacing.md)
         ) {
-            Text(
-                text = station.name,
-                fontSize = 22.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = station.id,
-                fontSize = 16.sp,
-                color = Color.Gray,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            // ── Header: name + optional railway code chip ────────────────────
+            Column {
+                Text(
+                    text = station.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.onSurface,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (displayCode != null) {
+                    Spacer(Modifier.height(spacing.xs))
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = colors.secondaryContainer,
+                        contentColor = colors.onSecondaryContainer
+                    ) {
+                        Text(
+                            text = displayCode,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(
+                                horizontal = spacing.sm,
+                                vertical = 2.dp
+                            )
+                        )
+                    }
+                }
+            }
 
-            val roundedKm = (alertDistance * 10).roundToInt() / 10.0
-            Text(
-                text = "Alert at ${formatDistance(roundedKm, unit)}",
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            // ── Alert distance ──────────────────────────────────────────────
+            SectionLabel("Alert distance")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Ring when within",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant
+                )
+                Text(
+                    text = formatDistance(roundedKm, unit),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = colors.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             Slider(
                 value = alertDistance.toFloat(),
                 onValueChange = { alertDistance = it.toDouble() },
                 valueRange = 3f..20f,
                 steps = 33,
                 colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.onSurface,
-                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
-                    inactiveTrackColor = Color.Gray
-                ),
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = customReminder,
-                onValueChange = { customReminder = it },
-                label = { Text("Custom Reminder (Optional)", color = Color.Gray) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedBorderColor = Color.Gray,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    thumbColor = colors.primary,
+                    activeTrackColor = colors.primary,
+                    inactiveTrackColor = colors.surfaceVariant
                 )
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // ── Custom reminder ─────────────────────────────────────────────
+            OutlinedTextField(
+                value = customReminder,
+                onValueChange = { if (it.length <= MAX_REMINDER_CHARS) customReminder = it },
+                label = { Text("Reminder note (optional)") },
+                supportingText = {
+                    Text("${customReminder.length} / $MAX_REMINDER_CHARS")
+                },
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = colors.primary,
+                    unfocusedBorderColor = colors.outline,
+                    focusedLabelColor = colors.primary,
+                    unfocusedLabelColor = colors.onSurfaceVariant
+                )
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "Show Reminder", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
+                Column(Modifier.padding(end = spacing.md)) {
+                    Text(
+                        "Show reminder when alarm fires",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurface
+                    )
+                    Text(
+                        "Displayed on the alarm screen and notification.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant
+                    )
+                }
                 Switch(
                     checked = sendReminder,
                     onCheckedChange = { sendReminder = it },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.surface,
-                        checkedTrackColor = MaterialTheme.colorScheme.onSurface,
-                        uncheckedThumbColor = Color.Gray,
-                        uncheckedTrackColor = Color.DarkGray
-                    )
+                    enabled = customReminder.isNotBlank()
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
+            // ── Alert channels ──────────────────────────────────────────────
+            SectionLabel("Alert by")
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm)
             ) {
-                NotificationToggle(
+                ChannelChip(
                     label = "Notify",
-                    checked = notifyEnabled,
-                    onCheckedChange = { notifyEnabled = it }
+                    selected = notifyEnabled,
+                    onChange = { notifyEnabled = it },
+                    modifier = Modifier.weight(1f)
                 )
-                NotificationToggle(
+                ChannelChip(
                     label = "Vibrate",
-                    checked = vibrateEnabled,
-                    onCheckedChange = { vibrateEnabled = it }
+                    selected = vibrateEnabled,
+                    onChange = { vibrateEnabled = it },
+                    modifier = Modifier.weight(1f)
                 )
-                NotificationToggle(
+                ChannelChip(
                     label = "Sound",
-                    checked = soundEnabled,
-                    onCheckedChange = { soundEnabled = it }
+                    selected = soundEnabled,
+                    onChange = { soundEnabled = it },
+                    modifier = Modifier.weight(1f)
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(spacing.xs))
 
             Button(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    val active = ActiveStation(
-                        stationId = station.id,
-                        alertDistanceKm = alertDistance,
-                        notify = notifyEnabled,
-                        vibrate = vibrateEnabled,
-                        sound = soundEnabled,
-                        customReminder = customReminder.takeIf { it.isNotBlank() },
-                        sendReminder = sendReminder
+                    onConfirm(
+                        ActiveStation(
+                            stationId = station.id,
+                            alertDistanceKm = alertDistance,
+                            notify = notifyEnabled,
+                            vibrate = vibrateEnabled,
+                            sound = soundEnabled,
+                            customReminder = customReminder.takeIf { it.isNotBlank() },
+                            sendReminder = sendReminder
+                        )
                     )
-                    onConfirm(active)
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.onSurface,
-                    contentColor = MaterialTheme.colorScheme.surface
+                    containerColor = colors.primary,
+                    contentColor = colors.onPrimary
                 ),
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.large,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
-                    .shadow(8.dp, RoundedCornerShape(12.dp))
             ) {
-                Text(if (isActive) "Update Alarm" else "Set Alarm", fontSize = 18.sp)
+                Text(
+                    text = if (isActive) "Update alarm" else "Set alarm",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-fun NotificationToggle(
+private fun SectionLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChannelChip(
     label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    selected: Boolean,
+    onChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colorScheme.surface,
-                checkedTrackColor = MaterialTheme.colorScheme.onSurface,
-                uncheckedThumbColor = Color.Gray,
-                uncheckedTrackColor = Color.DarkGray
+    FilterChip(
+        selected = selected,
+        onClick = { onChange(!selected) },
+        modifier = modifier.height(48.dp),
+        label = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
             )
+        },
+        shape = MaterialTheme.shapes.medium,
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = if (checked) MaterialTheme.colorScheme.onSurface else Color.Gray,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-    }
+    )
 }

@@ -1,7 +1,6 @@
-```markdown
 # StationAlarm — Project State
 
-> **Last updated:** 2026-04-15
+> **Last updated:** 2026-04-18
 > Update this file at the end of every session with what changed and what's next.
 
 ---
@@ -49,12 +48,12 @@ User types in MapSearchScreen
 ### Alarm Flow
 ```
 Station selected → StationConfigBottomSheet → radius/sound/vibrate config
-    → StationRepository.addActiveStation()
+    → StationRepository.addActiveStation()  [withTransaction; rolls back on geofence-reg failure]
     → GeofenceManager.setupGeofencesForStation()
         → 6 geofences per station (Outer/Mid/Inner × Entry/Exit)
     → LocationService (foreground) polls GPS at adaptive intervals
-    → GeofenceBroadcastReceiver fires → AlarmActivity shown
-    → dismissStation() → removeGeofencesForStation() cleans up
+    → GeofenceBroadcastReceiver fires (gated on isArmed) → AlarmActivity shown
+    → dismissStation() → removeGeofencesForStation() (suspend, retried, worker-backed)
 ```
 
 ---
@@ -62,10 +61,10 @@ Station selected → StationConfigBottomSheet → radius/sound/vibrate config
 ## Cloudflare Worker
 
 - **URL:** `https://stationalarm-geo.mohammedomama2005.workers.dev/`
-- **Endpoints:** `/autocomplete` → LocationIQ v1/autocomplete, `/reverse` → LocationIQ v1/reverse, `/search` → LocationIQ v1/search (future)
+- **Endpoints:** `/autocomplete`, `/reverse`, `/search` → LocationIQ v1/* equivalents
 - **Caching:** Autocomplete 24h, reverse 1h (Cloudflare edge cache)
 - **Auth:** API key injected server-side via `env.LOCATIONIQ_KEY` — never in APK
-- **URL is dynamic:** Firebase Remote Config key `geocoding_backend_url` overrides at runtime
+- **URL is dynamic:** Firebase Remote Config key `geocoding_backend_url` overrides at runtime. The compiled-in default in `RetrofitClient.kt` matches the live Worker, so a missed RC fetch is not a stale-URL hazard.
 
 ---
 
@@ -75,7 +74,10 @@ Station selected → StationConfigBottomSheet → radius/sound/vibrate config
 `id, name, lat, lon, radiusKm, notify, vibrate, sound, notes, createdAt`
 
 ### `active_stations` table (`ActiveStationEntity`)
-Tracks currently active alarms.
+Tracks currently active alarms. Status enum: `MONITORING`, `ALERTING`, `PAUSED`.
+`PAUSED` is the post-dismiss state — row stays so the user can re-arm without re-configuring.
+
+Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs wipe instead of crashing. Bump version + write migration for any schema change going forward.
 
 ---
 
@@ -85,176 +87,144 @@ Tracks currently active alarms.
 |---|---|---|
 | Mapbox geocoding | Using Mapbox for search | TOS violation — geocoding results cannot be displayed on non-Mapbox maps |
 | Rotating API keys | Multiple LocationIQ keys to beat rate limits | TOS risk |
-| NaPTAN / EU GTFS / AU feeds | Static station data for Europe/Australia | Scope too large, maintenance burden, deferred to Phase 4 |
-| Nominatim direct | As primary geocoder | Rate limits too tight for production use |
+| NaPTAN / EU GTFS / AU feeds | Static station data for Europe/Australia | Scope too large, deferred to Phase 4 |
+| Nominatim direct | As primary geocoder | Rate limits too tight for production |
 | GADM offline boundaries | Point-in-polygon city tagging | Overkill for current scope |
-| Photon via Worker | Routing Photon through Cloudflare | Destroys per-user IP quota, turns it into pooled server quota |
+| Photon via Worker | Routing Photon through Cloudflare | Destroys per-user IP quota, becomes pooled server quota |
+| `layers` filter on geocoders | Allowlist of OSM layers in LocationIQ/Photon | Excluded `amenity`/POI results (bus stands, stations, airports) |
+| Watchdog as terminal alert | Single 60s stall → loud user-visible notification | Misfired on every transient dip; no self-heal attempted |
+| Delete-on-dismiss | Removing the active_stations row when alarm fires | Lost user config; replaced with `PAUSED` state |
 
 ---
 
 ## Session Log
 
+### Session: UI Redesign & Proximity Bar Fix (2026-04-18)
+Two user-reported UX issues (drawer steals map drags; proximity bar pre-filled at setup; random UUIDs leaking into the UI) fixed alongside a full M3 pass across the two primary screens. `./gradlew compileDebugKotlin` clean.
+
+**Drawer gesture gate** (`ui/AppRoot.kt`, commit `67d926f`):
+- Old gate `gesturesEnabled = currentScreen == Screen.Main` meant any horizontal drag anywhere opened the drawer, hijacking map pan gestures on the Map tab.
+- New compound gate: `currentScreen == Screen.Main && (pagerState.currentPage != 1 || drawerState.isOpen)`. Map tab only responds to swipe-to-close (drawer already open) or the menu icon; other tabs keep swipe-to-open.
+
+**M3 redesign** — `StationConfigBottomSheet.kt`, `HomeScreen.kt`:
+- Replaced hardcoded `Color.Gray`/`DarkGray`/`Color(0xFFFFEBEE)` with M3 color roles (`primary`/`onPrimary`, `primaryContainer`/`onPrimaryContainer`, `errorContainer`/`onErrorContainer`, `secondaryContainer`, `tertiaryContainer`, `surfaceVariant`, `outline`, `onSurfaceVariant`) — gives correct contrast in both light and dark themes.
+- Introduced token files: `ui/theme/Spacing.kt` (8dp grid: xs/sm/md/lg/xl/xxl via `MaterialTheme.spacing`), `ui/theme/Shape.kt` (M3 shape scale), `ui/theme/SemanticColors.kt` (proximity far/near/imminent semantic colors mapped from theme).
+- `StationConfigBottomSheet`: three toggle columns → horizontal `FilterChip` row (Notify/Vibrate/Sound); 200-char supporting-text counter on the reminder field; "Show reminder when alarm fires" switch disables when reminder blank.
+- `HomeScreen`: alerting card uses `errorContainer`/`onErrorContainer`, paused card uses `surfaceVariant`, status badges use `tertiaryContainer`/`errorContainer`/`outline`, search field has leading/trailing icons (`Search`/`Close`), empty state has circular `primaryContainer` hero.
+- Animated color transitions via `animateColorAsState` on proximity bar colors as the phone crosses thresholds.
+- **Constraint noted:** `material-icons-extended` is NOT in deps — must stick to core `Icons.Default.*` set. `EditLocationAlt`/`DeleteOutline`/`NotificationsActive`/`Vibration`/`VolumeUp`/`MapsHomeWork` are unavailable; use `Edit`/`Delete`/`Notifications`/`Place` instead (and the FilterChips have no leading icon).
+
+**UUID leak fix** — new `ui/screens/StationDisplay.kt`:
+- `displayableStationCode(id)` returns null for `custom-<uuid>` ids (map-dropped pins generated at `MapSearchViewModel.kt:270`), otherwise returns the id (railway codes like `NDLS`, `BCT`). Callers in `StationConfigBottomSheet` and elsewhere only render the code chip when non-null.
+
+**Proximity bar anchor fix** — `HomeScreen.StationCard` → new `ProximityRow` composable:
+- **Root cause:** old code set `val anchor = startDistanceKm ?: station.alertDistanceKm`, combined with an `else if (distanceKm <= alertDistance) 1f` branch. Result: on the very first frame after setup — before `LaunchedEffect` had time to observe the live distance and set the anchor — the bar would jump to near-100% whenever the phone was already inside the alert radius (or worse, appear partially filled randomly).
+- **Fix:** per-station `remember(stationId) { mutableStateOf<Double?>(null) }` anchor; `LaunchedEffect` grows-but-never-shrinks the anchor as fixes come in. Progress returns 0 until BOTH `distanceKm` AND `anchorKm` are non-null. Once both are set, `progress = (anchor - distanceKm) / (anchor - alertDistanceKm)`, clamped to `[0, 1]`. Bar starts empty, fills as the train covers ground toward the alert radius, saturates to full at the ring.
+
+**Files modified:** `ui/theme/Color.kt`, `ui/theme/Theme.kt`, `ui/theme/Type.kt` (wired up new tokens), `ui/screens/HomeScreen.kt`, `ui/screens/StationConfigBottomSheet.kt`.
+**Files added:** `ui/screens/StationDisplay.kt`, `ui/theme/Spacing.kt`, `ui/theme/Shape.kt`, `ui/theme/SemanticColors.kt`.
+
+### Session: Production Readiness Pass 2 — Real-Bug Wave (2026-04-16)
+Audit-driven fixes after re-verifying `plans/splendid-mixing-pelican.md` against actual code. `./gradlew compileDebugKotlin` clean.
+
+**Real bugs (Wave 1):**
+- **#A Boot restore ordering** — `BootRestoreWorker.kt`: service start now gated on `reRegisterAllGeofencesNow()` returning all-OK. Failed attempts return `Result.retry()` without starting the service, so users no longer see a "Monitoring…" notification while geofences are silently broken. After 5 retries the worker posts a user-visible "Restart needed" notification (high-priority, on the existing tracking channel) and returns `Result.failure()` rather than retrying forever in silence.
+- **#B Atomic add + startup reconciliation** — `StationRepository.kt`: both DAO inserts in `addActiveStation()` are wrapped in `database.withTransaction { … }`; the failure-rollback path is also transactional and now also deletes the orphan `saved_places` row when `customStation != null`. New `suspend fun reconcileOrphans()` re-registers geofences for any non-`PAUSED` active station whose registration may have been lost across process death; runs once from `StationAlarmApplication.onCreate()` on `Dispatchers.IO`. `addGeofencesForStation` is idempotent (overwrites by request ID), so reconciliation is safe to run unconditionally.
+- **#D Geofence removal retry + persistent cleanup** — `GeofenceManager.kt` (LOCKED, approved): `removeGeofencesForStation` is now `suspend`, with 3 in-process attempts at 500ms → 1s → 2s backoff via `suspendCancellableCoroutine`. On terminal failure it enqueues the new `GeofenceCleanupWorker` (10 attempts, exponential backoff from 30s, unique per stationId, `ExistingWorkPolicy.REPLACE`). The worker calls a new internal `attemptRemoveGeofencesForStation()` that does NOT enqueue, breaking the recursion. Net effect: leaked geofences are no longer possible against the GMS 100/app cap. Immediate re-fire is already blocked by the `isArmed()` PAUSED gate from the prior session, so this is purely a long-tail leak fix.
+- **#E Audio terminal-failure escalation** — `AlarmAudioController.kt` (LOCKED, approved): `playAlarmSound` accepts an optional `onAudioTerminalFailure: (() -> Unit)?` callback fired only when both the user-picked URI AND the system default URI fail (the only remaining "silent alarm" path). `LocationService.fireAlert` (LOCKED, approved) passes a callback that starts the vibrator (if not already vibrating) and calls the new `notifications.showAudioFailureNotification(stationLabel)` (`ServiceNotifications.kt`, LOCKED, approved — high-priority, ongoing, "Alarm fired silently — audio system error at <name>"). Both alarm-teardown branches in `LocationService` (sync auto-prune in `syncWithDatabase` and `handleDismiss`) now also call `cancelAudioFailureNotification()` so the notice doesn't linger after dismiss.
+
+**Polish (Wave 2):**
+- **#F SharedFlow buffer** — `StationRepository.errorEvents`: bumped `extraBufferCapacity` to 16 with `BufferOverflow.DROP_OLDEST` so error bursts (e.g., max-cap → re-add → max-cap) don't suspend the producer.
+- **#J First-frame station name** — `ServiceNotifications.showAlert` puts `EXTRA_STATION_NAME` (new `companion object` constant) into the full-screen intent. `AlarmActivity.onCreate` reads it and seeds `stationName` state from it, so the first frame shows the real name instead of briefly flashing the raw `stationId` while the async DB lookup loads.
+- **#L Invalid coords** — `GeocodingModels.kt`: `toSearchResult()` mappers parse to `Double.NaN` instead of `0.0` on failure; new `GeoSearchResult.hasValidCoords` checks NaN + range + not-(0,0). `MapSearchViewModel` filters results through `hasValidCoords` so degenerate rows can't sneak into the UI as "Null Island" pins.
+- **#M Typed network errors** — `MapSearchViewModel.errorMessageFor(Throwable)` branches on `IOException`, HTTP 429, 500..599, default; surfaced via `_searchError`. The location-FAB path also now handles null fix and `addOnFailureListener` with user-readable copy ("No recent location fix" / "Couldn't read your location").
+- **#O SAF URI reachability** — `SettingsScreen.kt`: alarm sound row probes the persisted URI via `contentResolver.openInputStream(uri)?.use { true }` on entry; if it fails, shows a "⚠ Sound unavailable — re-select to fix." line in the error color and switches the button label to "Re-select". Complements the fire-path validation already in `LocationService.resolveValidatedAlarmUri`.
+- **#Q DataStore writes** — `UserPreferences.kt`: all three setters wrap their `edit { … }` calls in a `runSafely(op, block)` helper that swallows IOException with a Log.e instead of crashing the caller.
+- **#V Station data load** — `StationData.kt`: catch path now logs `STATION_DATA_LOAD_FAILED`; null/empty parse logs `STATION_DATA_EMPTY`. Search fallback unchanged — silent empty list was the visible-only failure mode before.
+- **2nd-pass:** custom-reminder `OutlinedTextField` in `StationConfigBottomSheet` capped at 200 chars in `onValueChange` (notification body and alarm card both show the full string, so longer text was a cosmetic + DB-bloat hazard).
+
+**Verified-not-bug (per audit recheck):**
+- `processLocationUpdate` NPE — already null-safe via `?: continue`.
+- Receiver init race — `StationRepository.initialize()` runs synchronously in `Application.onCreate` before any broadcast can land.
+- Background-loc not rechecked — `AppRoot.kt` already rechecks on `ON_RESUME`.
+- Notification-rationale re-show — intentional per user.
+
+**LOCKED-file changes this session (all approved by user's "carry out all the necessary bug fixes"):** `GeofenceManager.kt`, `AlarmAudioController.kt`, `ServiceNotifications.kt`, `LocationService.kt`.
+
+**New file:** `geofence/GeofenceCleanupWorker.kt`.
+
+### Session: Self-Healing GPS Watchdog (2026-04-16)
+Old watchdog treated any 60s stall as terminal and posted a user-visible high-priority notification, so any transient dip on a long trip misfired. Redesigned as a **self-healing status indicator** with tiered escalation. `./gradlew compileDebugKotlin` clean.
+
+- `ServiceNotifications.showWatchdog(title, body)` (LOCKED — approved): now ongoing, `PRIORITY_LOW`, `setOnlyAlertOnce(true)`. Caller supplies copy per cause. Added `cancelWatchdog()`.
+- `LocationService.handleWatchdogTick()` (LOCKED — approved):
+  - **Tier 0 (healthy):** stall ≤ `max(60s, 3× currentPollingIntervalMs)` → noop.
+  - **Tier 1 (silent recovery):** Tier 0 < stall < Tier 2 → `restartLocationUpdates()` + one-shot `getCurrentLocation(PRIORITY_HIGH_ACCURACY, token)`. No UI.
+  - **Tier 2 (notify + keep fighting):** stall ≥ `max(180s, 2× currentPollingIntervalMs)` **or** GPS provider off. Copy depends on cause. Forces polling floor to 10s, re-kicks one-shot recovery each tick. Notification re-posts silently with updated age.
+  - **Doze suppression:** `PowerManager.isDeviceIdleMode` (true system doze, not screen-off alone) keeps it in silent mode unless GPS is off.
+- **Recovery:** any incoming fix in `onLocationResult` (or the one-shot success listener) clears watchdog state and calls `cancelWatchdog()`. Notification disappears automatically — user never has to tap.
+- New log events: `WATCHDOG_SELF_HEAL`, `WATCHDOG_TRIGGERED` (with cause), `WATCHDOG_RECOVERED`, `WATCHDOG_RECOVERY_FAILED`.
+
+**Why:** treat the watchdog as a state indicator, not an event. Alarm is never abandoned — polling forced to 10s during Tier 2, recovery kicks continuously.
+
 ### Session: Alarm Reliability Fixes (2026-04-15)
-Four user-reported critical issues fixed; `./gradlew compileDebugKotlin` clean.
+Four user-reported critical issues fixed; `./gradlew compileDebugKotlin` clean. Architectural decisions worth preserving:
 
-1. **Alarm re-fires after dismissal** — `GeofenceBroadcastReceiver` used `StationRepository.isActive()` which returns `true` for any row, including `PAUSED`. After dismiss the row transitions to `PAUSED` while `removeGeofencesForStation()` is still in flight asynchronously on GMS; pending geofence events slipped through and called `markAlerting()`, re-triggering the alarm seconds after the user dismissed.
-   - `ActiveStationDao.kt` — added `suspend fun getStatus(stationId): String?`
-   - `StationRepository.kt` — added `suspend fun isArmed(stationId): Boolean` (returns false for missing rows or `PAUSED`)
-   - `GeofenceBroadcastReceiver.kt` — swapped `isActive` → `isArmed`; PAUSED-window events are now dropped with a log line
-
-2. **Toggle ON without GPS check** — `AppRoot.kt` `onToggleStation` re-armed and started the foreground service without the `isGpsEnabled()` gate the other entry points use, so the toggle would flip ON but no location updates would ever arrive. Same bug also present on `onEditStation` (re-registers geofences on save).
-   - `AppRoot.kt` — added `isGpsEnabled()` gate to both `onToggleStation` (when `enabled=true`) and `onEditStation`; both now raise `showGpsDialog` on failure, matching `onStationSelected` and `onStartTrip`. All four alarm-creating/arming paths now consistently gate on GPS.
-
-3. **"Monitoring stations…" notification + GPS wake lock lingered after alarm dismiss** — In `LocationService.syncWithDatabase()`, when both monitoring and alerting sets became empty it still called `updateForegroundNotification()` (which re-posted "Monitoring stations…" via `manager.notify`) immediately before `stopForeground(REMOVE)` — leaving a ghost notification. GPS teardown relied on step-3's else branch implicitly.
-   - `LocationService.kt` (LOCKED — behavioural change required + scoped to this bug) — full-teardown branch now explicitly calls `stopLocationUpdates()` (releases fused client + GPS wake lock via `ServiceWakeLocks.releaseGps()`), then `stopForeground(STOP_FOREGROUND_REMOVE)`, then `notifications.cancelForeground()`, then `stopSelf()`. The re-notify path is skipped entirely when shutting down. GPS is still acquired freely by the map/config screens (they use FusedLocation independently of `LocationService`), so the map, search, and radius-picker flows are unaffected — GPS is only released when there are zero armed stations.
-   - `ServiceNotifications.kt` — added `cancelForeground()` helper (`manager.cancel(FOREGROUND_NOTIFICATION_ID)`) since `stopForeground(REMOVE)` alone sometimes races with a prior `notifyForeground` call and leaves the notification visible.
-
-4. **Proximity progress bar jumped between polls and looked "full" on long trips** — Bar was computed against a fixed `alertDistance + 60 km` window, so a 200 km trip looked nearly full from the start and never moved. It also snapped instantly on every poll (10s / 30s / 5m intervals looked like teleport jumps).
-   - `HomeScreen.kt` `StationCard` — bar now anchored to the **largest observed distance per `stationId`** (via `remember(station.stationId) { mutableStateOf<Double?>(null) }` + a `LaunchedEffect` that grows but never shrinks the anchor); progress fills linearly as device closes in: `(anchor − current) / (anchor − alertDistance)`. Wrapped in `animateFloatAsState(tween 900ms, LinearEasing)` so the bar slides smoothly between poll intervals instead of jumping.
-
-**User-flow sanity pass after touching LOCKED `LocationService.kt`:**
-- Fresh alarm add → MONITORING → `isArmed=true` → receiver passes → unchanged behaviour.
-- Alarm fires → dismiss → PAUSED: sync sees empty sets → full teardown → GPS released, foreground notification gone, service stops.
-- Re-toggling ON re-arms and restarts service (after GPS check passes).
-- Toggle ON with GPS off: dialog prompts, no ghost "armed" state.
-- Multi-alarm case where one fires and another is still MONITORING: sets non-empty → `updateForegroundNotification()` still runs → teardown only on full empty. Correct.
-- Boot restore: `BootRestoreWorker` resets `ALERTING → MONITORING`; `isArmed` passes; unchanged.
-
-### Session: Production Setup & Security Audit (2026-04-10)
-- Firebase integration: connected to real Firebase instance, `google-services.json` secured via `.gitignore`
-- Security audit: `git ls-files` + codebase grep — zero API keys, tracking IDs, or keystores exposed
-- Remote Config: geocoding proxy base URL fetched from Firebase via `geocoding_backend_url`
-
-### Session: Modularity Refactor (2026-04-07)
-- `service/LocationService.kt` slimmed 819 → ~430 lines
-- Extracted into same package: `AlarmAudioController.kt`, `ServiceWakeLocks.kt`, `ServiceNotifications.kt`
-- UI extractions: `OsmMapView.kt` out of `MapSearchScreen.kt`; `AppRoot.kt` + `AppNavigation` out of `MainActivity.kt`
-- `MainActivity.kt` now ~70 lines
-- Fixed broken `MapTileApproximater` package reference from previous session
-- `./gradlew compileDebugKotlin` passes clean
-
-### Session: Codebase Cleanup (commit `ded5b16`)
-- Removed `removeAllGeofences()` from `GeofenceManager.kt`
-- Removed dead `updateFavoritePlace()` + `SavedPlaceDao.update()` chain
-- Removed `flushAndClose()` from `Logger.kt` and `GpsLogger.kt`
-- Removed unused template colors from `Color.kt`
-- Removed `dynamicColor` param from `StationAlarmTheme()`
-- Renamed `MapboxGeocodingService.kt` → `LocationIqService.kt`
-- Renamed `MapboxModels.kt` → `GeocodingModels.kt`
-- Fixed `GpsLogger` hardcoded `"IST"` timezone → `TimeZone.getDefault()`
-- Fixed `LogEntry.toCsvLine()` — proper CSV escaping
-- Added OkHttp timeouts: 10s connect, 15s read
-- Fixed `HomeScreen` search: synchronous `remember(query)` → `LaunchedEffect` 300ms debounce
-- Fixed `AlarmActivity`: forced dark theme, hardcoded colors → MaterialTheme
-
-### Session: LocationIQ + Photon Optimization (commit `d491904`)
-- LocationIQ autocomplete: `limit` 10→5, added `normalizecity=1`, added `layers` filter
-- LocationIQ reverse: added `normalizeaddress=1`
-- Photon: `limit` 10→5, `zoom=10`, `location_bias_scale=0.5`, `osm_tag=!boundary`, `layer` filter, `radius=0.5` on reverse
-- `GeocodingModels.kt`: expanded address fields, structured subtitle logic for both providers
-- Cloudflare Worker: added try/catch (502 on LocationIQ failure), CORS on all responses, `/search` endpoint
-
-### Session: Legal Pages Authored (2026-04-14)
-- New standalone repo at `C:\Users\omama\AndroidStudioProjects\stationalarm-legal\` (not yet on GitHub).
-- `privacy.html` — full Privacy Policy with actual data-flow table (GPS stays on device; only typed search queries leave; Firebase crash/analytics retention disclosed; third-party list: LocationIQ, Photon, Firebase, Google Play Services, OSM, Cloudflare).
-- `terms.html` — Terms of Use with prominent "best-effort, not safety-critical; always have a backup" callout; governing law = India.
-- `index.html` — landing page with links to both.
-- `style.css` — single stylesheet, light/dark via `prefers-color-scheme`.
-- Two placeholder tokens to find-replace before first production deploy: `<dedicated-email-placeholder>` (user will create dedicated Gmail) and `<effective-date-placeholder>`.
-- Initial commit `4754390` in the new local repo.
-- `AboutScreen.kt` — dropped the `// Placeholder URLs` comment; URL constants unchanged (already match `stationalarm-legal.pages.dev`).
-- **Next steps for the user** (manual, outside Claude):
-  1. Create a public GitHub repo `stationalarm-legal`, push `main` to it.
-  2. Cloudflare Pages → Create project → Connect to Git → pick `stationalarm-legal` → framework preset None, build command blank, build output `/` → deploy.
-  3. Verify `stationalarm-legal.pages.dev/privacy` and `/terms` load.
-  4. Create the dedicated Gmail for app contact; find-replace both placeholder tokens in all three HTML files; commit + push.
+1. **Re-fire-after-dismiss gate (`isArmed`)** — `GeofenceBroadcastReceiver` previously used `isActive`, which returned true for any row including `PAUSED`, so geofence events queued in GMS during the async `removeGeofencesForStation` window slipped through and re-triggered the alarm. New `StationRepository.isArmed(stationId): Boolean` (false for missing rows or `PAUSED`) is now the single arming check; `ActiveStationDao.getStatus` added to back it.
+2. **GPS gate parity** — `AppRoot.onToggleStation` and `onEditStation` now have the same `isGpsEnabled()` gate that `onStationSelected` and `onStartTrip` already had. All four arming paths consistently raise `showGpsDialog` on failure.
+3. **Full teardown on last alarm** — `LocationService.syncWithDatabase` (LOCKED — approved) full-empty branch explicitly: `stopLocationUpdates()` (releases fused client + GPS wake lock) → `stopForeground(STOP_FOREGROUND_REMOVE)` → `notifications.cancelForeground()` → `stopSelf()`. Skips the re-notify path entirely on shutdown. `cancelForeground()` is required because `stopForeground(REMOVE)` alone races with a prior `notifyForeground` and leaves the notification visible. Map/config screens use FusedLocation independently of `LocationService`, so this only affects the no-armed-stations case.
+4. **Smooth proximity bar** — `HomeScreen.StationCard` bar now anchored to the **largest observed distance per stationId** (remember + LaunchedEffect that grows but never shrinks), wrapped in `animateFloatAsState(tween 900ms)` so polling intervals don't look like teleport jumps.
 
 ### Session: Production Readiness Pass 1 (commit `72a360d`, 2026-04-14)
-Implemented all "TO-DO IMMEDIATELY" items from `plans/production-readiness.md`:
-- **Signing (#1)**: `app/build.gradle.kts` signing config loaded from optional `keystore.properties` (gitignored along with `*.keystore`/`*.jks`). Missing file → unsigned release so debug builds still work.
-- **Log hygiene (#3)**: `RetrofitClient.kt` only registers `HttpLoggingInterceptor` when `BuildConfig.DEBUG` — no request/response bodies in Logcat on release.
-- **Room (#4)**: `StationDatabase.kt` now calls `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs wipe instead of crashing.
-- **MediaPlayer error listener (#6, LOCKED)**: `AlarmAudioController.startPlayer` sets `setOnErrorListener` with `isDefaultAttempt` flag; async prepare/playback errors now fall back to system default URI or flip `isAlarmRinging=false` instead of silent-stuck state.
-- **ANR / cached URI (#7, LOCKED)**: `LocationService.observeAlarmSoundUri()` collects `UserPreferences.alarmSoundUriFlow` in `onCreate()` into `@Volatile cachedAlarmSoundUri`. `fireAlert()` reads the var — no more `runBlocking` on Main dispatcher.
-- **URI revalidation (#12, LOCKED)**: new `resolveValidatedAlarmUri()` probes `contentResolver.openInputStream(uri)` before passing to audio; revoked SAF permissions / deleted files fall back to default.
-- **Geofence result propagation (#8+9, LOCKED)**: `GeofenceManager.addGeofencesForStation` returns `Result<Unit>` with typed `GeofenceRegistrationException` (`MissingPermission`, `StationNotFound`, `MaxStationsReached`, `RegistrationFailed`). `StationRepository`:
-  - Pre-checks max cap before DB insert
-  - Rolls back `active_stations` row on failure
-  - Emits user-facing strings via new `errorEvents: SharedFlow<String>`
-  - `rearmStation()` reverts to PAUSED if re-registration fails (toggle can't lie)
-  - New suspend `reRegisterAllGeofencesNow(): Boolean` for use by `BootRestoreWorker`
-- **Notification permission rationale (#10)**: `AppRoot.kt` tracks `POST_NOTIFICATIONS` separately on Android 13+, shows new `NotificationPermissionDialog` on denial, deep-links to `Settings.ACTION_APP_NOTIFICATION_SETTINGS`. Re-checked on `ON_RESUME` so returning from Settings auto-dismisses.
-- **Snackbar error wiring**: `AppRoot.kt` collects `viewModel.errorEvents` and surfaces via existing `snackbarHostState`.
-- **BootReceiver via WorkManager (#13)**: New `receiver/BootRestoreWorker.kt` (CoroutineWorker). `BootReceiver` enqueues `OneTimeWorkRequest` with `ExistingWorkPolicy.KEEP` + `BackoffPolicy.EXPONENTIAL` (10s base). Worker resets stale ALERTING→MONITORING, calls `reRegisterAllGeofencesNow()`, starts `LocationService`; returns `Result.retry()` on failure for WorkManager backoff.
-- **Compose BOM (#14)**: `2024.09.00` → `2025.02.00`.
-- **versionCode (#15)**: `app/build.gradle.kts` — `versionCode = gitCommitCount()` (`git rev-list --count HEAD`, falls back to 1 if git unavailable); `versionName = "1.0.$appVersionCode"`.
-- **Build verification**: `./gradlew compileDebugKotlin` + `./gradlew assembleRelease` both clean. Unsigned release APK produced (expected — no keystore.properties yet).
+Implemented all "TO-DO IMMEDIATELY" items from `plans/production-readiness.md`. Architecturally meaningful pieces:
 
-New dep: `androidx.work:work-runtime-ktx:2.9.1` for the BootRestoreWorker.
+- **Signing**: `app/build.gradle.kts` reads optional `keystore.properties` (gitignored along with `*.keystore`/`*.jks`); missing file → unsigned release so debug builds still work.
+- **Log hygiene**: `RetrofitClient.kt` only registers `HttpLoggingInterceptor` when `BuildConfig.DEBUG`.
+- **Cached alarm URI (LOCKED)**: `LocationService.observeAlarmSoundUri()` collects `UserPreferences.alarmSoundUriFlow` in `onCreate` into `@Volatile cachedAlarmSoundUri`. `fireAlert` reads the var — no more `runBlocking` on Main dispatcher.
+- **URI revalidation (LOCKED)**: `LocationService.resolveValidatedAlarmUri()` probes `contentResolver.openInputStream(uri)` before passing to audio; revoked SAF perms / deleted files fall back to default.
+- **Geofence Result-typing (LOCKED)**: `GeofenceManager.addGeofencesForStation` returns `Result<Unit>` with `GeofenceRegistrationException` (`MissingPermission`, `StationNotFound`, `MaxStationsReached`, `RegistrationFailed`). `StationRepository` pre-checks max cap, rolls back on failure, emits user-facing strings via `errorEvents: SharedFlow<String>`. `rearmStation()` reverts to PAUSED if re-registration fails (toggle can't lie). Suspend `reRegisterAllGeofencesNow(): Boolean` exists for `BootRestoreWorker`.
+- **Notification-permission rationale**: `AppRoot.kt` tracks `POST_NOTIFICATIONS` separately on Android 13+, deep-links to `Settings.ACTION_APP_NOTIFICATION_SETTINGS`, re-checks on `ON_RESUME`.
+- **Boot restore via WorkManager**: `BootReceiver` enqueues `OneTimeWorkRequest` with `ExistingWorkPolicy.KEEP` + `BackoffPolicy.EXPONENTIAL`. Worker resets stale `ALERTING → MONITORING` (ALERTING is treated as a transient state — anything still ALERTING at boot is a leftover from a crashed/killed dismiss path), calls `reRegisterAllGeofencesNow()`, starts `LocationService`. Dep added: `androidx.work:work-runtime-ktx:2.9.1`.
+- **Versioning**: `versionCode = gitCommitCount()` (`git rev-list --count HEAD`, falls back to 1); `versionName = "1.0.$appVersionCode"`.
 
-### Session: Navigation Drawer + Settings + About (commit `e555076`, 2026-04-14)
-- Added `ModalNavigationDrawer` with hamburger `TopAppBar` wrapping all screens in `AppRoot.kt`
-- Screen routing via `enum class Screen { Main, Settings, About }` — no Jetpack Navigation, consistent with tab pattern
-- `data/UserPreferences.kt` — DataStore singleton with flows and suspend setters for: `theme_mode`, `distance_unit`, `custom_alarm_sound_uri`; initialized in `StationAlarmApplication.onCreate()`
-- `util/DistanceUnit.kt` — `KM`/`MILES` enum, `LocalDistanceUnit` CompositionLocal, `formatDistance()` helper; provided at `MainActivity` level; distances displayed in correct unit across `HomeScreen`, `StationConfigBottomSheet`, `MapSearchScreen`
-- `ui/screens/SettingsScreen.kt` — distance unit (`SingleChoiceSegmentedButtonRow`), theme (radio buttons), alarm sound picker (system ringtones via `RingtoneManager.ACTION_RINGTONE_PICKER` + local files via SAF `OpenDocument`; `takePersistableUriPermission` for persistence), debug log share buttons (moved from HomeScreen header)
-- `ui/screens/AboutScreen.kt` — version, Privacy Policy / Terms of Use (placeholder URLs), Open Source Licenses via `OssLicensesMenuActivity`, Rate Us + Share App drawer items
-- `service/AlarmAudioController.kt` (LOCKED) — added `playAlarmSound(customUri: Uri?)` overload; no-arg version delegates to it with `null`; falls back to default system alarm URI on failure
-- `service/LocationService.kt` (LOCKED) — reads custom URI via `runBlocking { UserPreferences.alarmSoundUriFlow.first() }` in `fireAlert()`; try/catch falls through to `null` so default sound always fires on error
-- OSS Licenses plugin wired via `buildscript { classpath(...) }` (not Gradle plugin portal); AppCompat 1.7.0 added as dependency
-- `HomeScreen.kt` share-log buttons and header row removed (moved to Settings); all distance strings use `formatDistance()`
+### Session: Legal Pages Authored (2026-04-14)
+- New standalone repo at `C:\Users\omama\AndroidStudioProjects\stationalarm-legal\` (not yet on GitHub). `privacy.html`, `terms.html`, `index.html`, `style.css` — light/dark via `prefers-color-scheme`.
+- Two placeholder tokens to find-replace before deploy: `<dedicated-email-placeholder>`, `<effective-date-placeholder>`.
+- Initial commit `4754390`. `AboutScreen.kt` URL constants point to `stationalarm-legal.pages.dev` (correct target).
+- **External next steps** (manual, outside Claude): create public GitHub repo `stationalarm-legal`, Cloudflare Pages → Connect to Git → no framework/build, deploy. Then create dedicated Gmail and find-replace both placeholder tokens.
 
-### Session: Alarms Tab Redesign (commit `0334620`, 2026-04-14)
-- Replaced delete-on-dismiss with pause/rearm toggle — alarms persist after firing (`PAUSED` state instead of row deletion)
-- Each station card now shows: alarm type badge, proximity progress bar (distance to station), Edit / Map / Delete action buttons, ON/OFF toggle
-- Removed separate Save/Favorites flow — "Alarms" tab (renamed from "My Stations") is the single source of truth
-- Added empty-state CTA when no alarms are active
-- `StationRepository.kt` — added `pauseStation()` / `rearmStation()`, updated `dismissStation()` to set PAUSED rather than delete
-- `StationViewModel.kt` — exposed new toggle actions; proximity distance observable added
-- `MapSearchScreen.kt` — minor integration for "add alarm" CTA from empty state
+### Session: Production Setup & Security Audit (2026-04-10)
+- Firebase integration: `google-services.json` secured via `.gitignore`.
+- Security audit: `git ls-files` + grep — zero API keys, tracking IDs, or keystores tracked.
+- Remote Config: `geocoding_backend_url` is the only RC key in use.
 
-### Session: Geocoding Layer Filter Fix (commit `314e8ca`, 2026-04-13)
-- Removed `layers`/`layer` query params from `LocationIqService.kt` and `PhotonService.kt`
-- Root cause: allowlist filters excluded all `amenity`/POI result types (bus stands, railway stations, airports); e.g. "Vellore New Bus Stand" returned zero results because `class:amenity` is not an administrative layer
-- Both providers now return all result types
-
-### Session: Testing Guide Rewrite (commit `811599d`, 2026-04-12)
-- Rewrote `TESTING_GUIDE.md` — removed all emulator content
-- Added deep step-by-step instructions for 7 test scenarios on physical devices via USB + Lockito
-- Includes GPS verification commands, terminal setup, doze-state validation, copy-paste command blocks
-
-### Session: OSM Tile Loading Speed (commit `bd8e230`)
-- `tileDownloadThreads = 4`, `tileFileSystemThreads = 4`, `tileDownloadMaxQueueSize = 60`
-- `isTilesScaledToDpi = true` — reduces tile count ~2-4x on HDPI
-- Added `MapTileApproximater` overlay — eliminates blank grey squares while tiles load
+### Session: Modularity Refactor (2026-04-07)
+`service/LocationService.kt` slimmed 819 → ~430 lines. Extracted same-package: `AlarmAudioController.kt`, `ServiceWakeLocks.kt`, `ServiceNotifications.kt`. UI extractions: `OsmMapView.kt` out of `MapSearchScreen.kt`; `AppRoot.kt` + `AppNavigation` out of `MainActivity.kt`. Current state of these files is the canonical record — see code, not log entries.
 
 ---
 
 ## Pending
 
 ### Must Do Before Play Store / Field Trust
-- **Create release keystore:** Generate `.keystore`, write `keystore.properties` (storeFile/storePassword/keyAlias/keyPassword) to project root, confirm `./gradlew assembleRelease` produces a signed AAB
-- **Deploy legal pages:** Push `stationalarm-legal` repo to GitHub, connect Cloudflare Pages, verify `/privacy` + `/terms` load. Find-replace `<dedicated-email-placeholder>` and `<effective-date-placeholder>` with real values.
-- **Battery optimization onboarding (#5 deferred):** First-launch dialog + deep-link to `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (prevents "missed alarm" reviews on MIUI/OneUI)
-- **Localization (#11 deferred):** Hardcoded strings → `strings.xml`
-- **On-device verification (drawer):** Hamburger opens drawer; Settings/About navigate correctly; back returns to main; theme/unit/sound persist across restarts
-- **On-device verification (alarm sound):** System ringtone picker selects and plays; local audio file via SAF persists URI across reboot; custom sound fires in `fireAlert()`; revoked-permission URI falls back to default
-- **On-device verification (alarms tab):** Pause/rearm toggle; proximity bar updates; Edit/Map/Delete buttons function; empty-state CTA
-- **On-device verification (snackbars):** Add 11th alarm → "max 10" snackbar; deny POST_NOTIFICATIONS on Android 13 → rationale dialog appears
-- **On-device verification (boot restore):** Set alarm → reboot → confirm `BootRestoreWorker` runs and geofences are re-registered (check Logger output for `BOOT_RESTORE`)
-- **Doze Mode Recovery:** Lock screen off charger 3+ hours, simulate entering geofence, verify `ServiceWakeLocks` bypasses deep sleep correctly
-- **High-Velocity Polling:** Mock location at 150–250 km/h toward active station, verify adaptive tracker fires before passing threshold
-- **Failover Chaos Drill:** Misconfigure Remote Config URL to force 502, verify Photon cleanly takes over
+- **Create release keystore:** Generate `.keystore`, write `keystore.properties` (storeFile/storePassword/keyAlias/keyPassword) to project root, confirm `./gradlew assembleRelease` produces a signed AAB.
+- **Deploy legal pages:** Push `stationalarm-legal` repo to GitHub, connect Cloudflare Pages, verify `/privacy` + `/terms` load. Find-replace both placeholder tokens.
+- **Battery optimization onboarding:** First-launch dialog + deep-link to `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (prevents "missed alarm" reviews on MIUI/OneUI).
+- **Localization:** Hardcoded strings → `strings.xml`. Foreground-service notification text in locked `LocationService.kt` still hardcodes "km" — only changes if explicitly approved.
+
+### On-Device Verification (since last device sweep)
+- **Boot restore (Pass 2):** Reboot with armed stations + airplane mode → confirm `BootRestoreWorker` retries without starting the service; re-enable network → restore completes. Reboot 5+ times rapidly while offline → "Restart needed" notification appears.
+- **Reconcile orphans:** `adb shell am force-stop` mid-`addActiveStation` → relaunch → `RECONCILED` log fires, alarm fires correctly on test trip.
+- **Geofence cleanup worker:** Dismiss alarm under airplane mode → re-enable network → check logcat for `GEOFENCE_CLEANUP_OK` from worker.
+- **Audio terminal-failure escalation:** Force the rare double-failure path → confirm vibration starts and "Alarm fired silently" notification appears.
+- **Watchdog tiers:** Long ride with brief signal dips → no notification (Tier 1 self-heal). Sustained loss → Tier 2 notification appears, vanishes on first fix.
+- **High-velocity polling:** Mock at 150–250 km/h → adaptive tracker fires before passing threshold.
+- **Failover chaos drill:** Misconfigure RC URL to force 502 → Photon takes over.
 
 ### Low Priority (noted, not scheduled)
-- `StationConfigBottomSheet` param `initialNotes` → rename to `customReminder`
-- `BootReceiver` resets `ALERTING` state too aggressively on reboot
-- Hardcoded strings → `strings.xml` for localization
-- Foreground-service notification text still shows hardcoded "km" (in locked `LocationService.kt` — only changes if explicitly approved)
+- `StationConfigBottomSheet` param `initialNotes` → rename to `customReminder`.
+- "Remove all alarms" feature.
+- Europe/Australia station data (NAP/GTFS) — Phase 4.
 
 ### Future (Phase 4)
-- Play Store submission
-- Europe station data (NAP/GTFS)
-- "Remove all alarms" feature
-- Battery optimization prompt on first launch (OEM-specific deep-link to battery settings)
-```
+- Play Store submission.
+- Europe station data (NAP/GTFS).

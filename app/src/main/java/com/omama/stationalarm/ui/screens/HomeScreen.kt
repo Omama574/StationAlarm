@@ -1,39 +1,85 @@
-
 package com.omama.stationalarm.ui.screens
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
+import com.omama.stationalarm.ui.theme.proximityFar
+import com.omama.stationalarm.ui.theme.proximityImminent
+import com.omama.stationalarm.ui.theme.proximityNear
+import com.omama.stationalarm.ui.theme.spacing
 import com.omama.stationalarm.ui.viewmodel.StationViewModel
 import com.omama.stationalarm.util.LocalDistanceUnit
 import com.omama.stationalarm.util.formatDistance
@@ -50,6 +96,7 @@ fun HomeScreen(
 ) {
     val activeStations by viewModel.activeStations.observeAsState(emptyList())
     val haptic = LocalHapticFeedback.current
+    val spacing = MaterialTheme.spacing
 
     // Sort: active (MONITORING/ALERTING) above paused
     val sortedStations = remember(activeStations) {
@@ -69,55 +116,46 @@ fun HomeScreen(
         }
     }
 
-    Scaffold { paddingValues ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
         ) {
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Search station to add alarm...") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .shadow(4.dp, RoundedCornerShape(12.dp))
-                    .animateContentSize(),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.onBackground,
-                    unfocusedBorderColor = Color.Gray,
-                    focusedContainerColor = MaterialTheme.colorScheme.background,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.background,
-                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground
-                ),
+                placeholder = { Text("Search station to add alarm…") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
                         IconButton(onClick = { query = "" }) {
-                            Text("✕", fontSize = 16.sp, color = Color.Gray)
+                            Icon(Icons.Default.Close, contentDescription = "Clear")
                         }
                     }
-                }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = spacing.md, vertical = spacing.sm),
+                shape = MaterialTheme.shapes.large,
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                )
             )
 
-            Crossfade(targetState = query.isNotEmpty(), animationSpec = tween(300)) { isSearching ->
+            Crossfade(targetState = query.isNotEmpty(), animationSpec = tween(300), label = "homeCrossfade") { isSearching ->
                 if (isSearching) {
-                    if (query.length < 2) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Type at least 2 characters", color = Color.Gray)
-                        }
-                    } else if (searchResults.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No stations found", color = Color.Gray)
-                        }
-                    } else {
-                        LazyColumn(
+                    when {
+                        query.length < 2 -> HintState("Type at least 2 characters")
+                        searchResults.isEmpty() -> HintState("No stations found")
+                        else -> LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            contentPadding = PaddingValues(horizontal = spacing.md, vertical = spacing.sm),
+                            verticalArrangement = Arrangement.spacedBy(spacing.sm)
                         ) {
                             items(searchResults, key = { it.id }) { station ->
                                 StationSearchItem(
@@ -137,8 +175,8 @@ fun HomeScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                            contentPadding = PaddingValues(horizontal = spacing.md, vertical = spacing.sm),
+                            verticalArrangement = Arrangement.spacedBy(spacing.md)
                         ) {
                             items(sortedStations, key = { it.stationId }) { station ->
                                 StationCard(
@@ -160,31 +198,48 @@ fun HomeScreen(
                 }
             }
         }
-        
-        if (stationToRemove != null) {
+
+        stationToRemove?.let { target ->
             AlertDialog(
                 onDismissRequest = { stationToRemove = null },
-                title = { Text("Remove Alarm?", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
-                text = { Text("Are you sure you want to remove this alarm?", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)) },
+                title = { Text("Remove alarm?", fontWeight = FontWeight.SemiBold) },
+                text = {
+                    Text(
+                        "This will stop monitoring ${target.getStation()?.name ?: target.stationId}.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            viewModel.removeActiveStation(stationToRemove!!.stationId)
+                            viewModel.removeActiveStation(target.stationId)
                             stationToRemove = null
                         }
                     ) {
-                        Text("Delete", color = Color.Red, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Remove",
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { stationToRemove = null }) {
-                        Text("Cancel", color = Color.Gray)
-                    }
+                    TextButton(onClick = { stationToRemove = null }) { Text("Cancel") }
                 },
-                containerColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(16.dp)
+                shape = MaterialTheme.shapes.extraLarge
             )
         }
+    }
+}
+
+@Composable
+private fun HintState(text: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -192,21 +247,65 @@ fun HomeScreen(
 fun StationSearchItem(station: Station, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(targetValue = if (isPressed) 0.98f else 1f, animationSpec = tween(150))
-    val elevation by animateDpAsState(targetValue = if (isPressed) 2.dp else 4.dp, animationSpec = tween(150))
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        animationSpec = tween(150),
+        label = "searchItemScale"
+    )
+    val elevation by animateDpAsState(
+        targetValue = if (isPressed) 1.dp else 3.dp,
+        animationSpec = tween(150),
+        label = "searchItemElevation"
+    )
+    val displayCode = displayableStationCode(station.id)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(elevation, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interactionSource, indication = null) { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = station.name, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-            Text(text = station.id, fontSize = 14.sp, color = Color.Gray)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(MaterialTheme.spacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Place,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(Modifier.width(MaterialTheme.spacing.md))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = station.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (displayCode != null) {
+                    Text(
+                        text = displayCode,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }
@@ -223,34 +322,47 @@ fun StationCard(
     val name = stationData?.name ?: station.stationName.ifEmpty { station.stationId }
 
     val unit = LocalDistanceUnit.current
+    val colors = MaterialTheme.colorScheme
+    val spacing = MaterialTheme.spacing
+
     val isAlerting = station.status == "ALERTING"
     val isPaused = station.status == "PAUSED"
     val isActive = !isPaused
 
     val containerColor = when {
-        isAlerting -> Color(0xFFFFEBEE)
-        else -> MaterialTheme.colorScheme.surface
+        isAlerting -> colors.errorContainer
+        isPaused -> colors.surfaceVariant
+        else -> colors.surface
+    }
+    val contentColor = when {
+        isAlerting -> colors.onErrorContainer
+        isPaused -> colors.onSurfaceVariant
+        else -> colors.onSurface
     }
     val cardBorder = when {
-        isAlerting -> BorderStroke(2.dp, Color.Red)
-        isPaused -> BorderStroke(1.dp, Color.Gray.copy(alpha = 0.4f))
+        isAlerting -> BorderStroke(2.dp, colors.error)
         else -> null
     }
-    val cardAlpha = if (isPaused) 0.65f else 1f
+    val cardAlpha = if (isPaused) 0.78f else 1f
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(cardAlpha)
-            .shadow(if (isPaused) 2.dp else 8.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+            .alpha(cardAlpha),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isPaused) 1.dp else 3.dp
+        ),
         border = cardBorder
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(spacing.md)
         ) {
             // ── Row 1: Name + badges ──
             Row(
@@ -260,222 +372,109 @@ fun StationCard(
             ) {
                 Text(
                     text = name,
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = contentColor,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // Alarm type badge
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = if (station.sound) Color(0xFF4FC3F7) else Color(0xFF81C784)
-                    ) {
-                        Text(
-                            text = if (station.sound) "Alarm" else "Notification",
-                            color = Color.Black,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                    // Status badge (PAUSED or RINGING)
-                    if (isPaused) {
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = Color.Gray
-                        ) {
-                            Text(
-                                text = "PAUSED",
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    if (isAlerting) {
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = Color.Red
-                        ) {
-                            Text(
-                                text = "RINGING",
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
+                Spacer(Modifier.width(spacing.sm))
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
+                    StatusBadge(
+                        text = if (station.sound) "Alarm" else "Notify",
+                        container = colors.tertiaryContainer,
+                        content = colors.onTertiaryContainer
+                    )
+                    when {
+                        isAlerting -> StatusBadge("Ringing", colors.error, colors.onError)
+                        isPaused -> StatusBadge("Paused", colors.outline, colors.surface)
                     }
                 }
             }
 
-            // ── Row 2: Alert radius ──
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(Modifier.height(spacing.xs))
             Text(
-                text = "Alert radius: ${formatDistance(station.alertDistanceKm, unit)}",
-                fontSize = 13.sp,
-                color = Color.Gray
+                text = "Alerts within ${formatDistance(station.alertDistanceKm, unit)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isAlerting) contentColor.copy(alpha = 0.85f) else colors.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(Modifier.height(spacing.sm))
 
-            // ── Row 3: Proximity bar + distance (active only) or "--" ──
             if (isActive) {
-                val distanceKm = station.currentDistanceKm
-                // Anchor the bar to the FIRST observed distance for this card —
-                // progress then fills linearly as the device closes in. Using a
-                // fixed +60 km window made far-away trips look "full" from the
-                // start and never move. The anchor is remembered per stationId
-                // so switching journeys resets it.
-                var startDistanceKm by remember(station.stationId) {
-                    mutableStateOf<Double?>(null)
-                }
-                LaunchedEffect(station.stationId, distanceKm) {
-                    val d = distanceKm ?: return@LaunchedEffect
-                    val current = startDistanceKm
-                    // Grow the anchor if we ever observe a larger distance (e.g.
-                    // GPS fix improves after initial coarse reading). Never shrink.
-                    if (current == null || d > current) startDistanceKm = d
-                }
-
-                val anchor = startDistanceKm ?: station.alertDistanceKm
-                val rawProgress = if (distanceKm != null && anchor > station.alertDistanceKm) {
-                    val span = anchor - station.alertDistanceKm
-                    val covered = (anchor - distanceKm).coerceAtLeast(0.0)
-                    (covered / span).coerceIn(0.0, 1.0).toFloat()
-                } else if (distanceKm != null && distanceKm <= station.alertDistanceKm) {
-                    1f
-                } else 0f
-
-                // Smooth the bar between polls so 10s/30s/5m intervals don't
-                // look like teleport jumps.
-                val progress by animateFloatAsState(
-                    targetValue = rawProgress,
-                    animationSpec = tween(durationMillis = 900, easing = LinearEasing),
-                    label = "proximityProgress"
+                ProximityRow(
+                    distanceKm = station.currentDistanceKm,
+                    alertDistanceKm = station.alertDistanceKm,
+                    stationId = station.stationId,
+                    isAlerting = isAlerting
                 )
-
-                val distanceText = distanceKm?.let { formatDistance(it, unit) } ?: "--"
-
-                val barColor = when {
-                    progress > 0.85f -> Color(0xFF4CAF50) // green — very close
-                    progress > 0.5f -> Color(0xFF4FC3F7)  // accent blue — mid
-                    else -> Color.Gray                      // gray — far
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(6.dp),
-                        color = barColor,
-                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = distanceText,
-                        fontSize = 14.sp,
-                        color = if (isAlerting) Color.Black else MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
             } else {
                 Text(
-                    text = "--",
-                    fontSize = 14.sp,
-                    color = Color.Gray
+                    text = "Paused — toggle the switch to resume",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
                 )
             }
 
-            // ── Row 4: Custom reminder ──
             if (station.sendReminder && !station.customReminder.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "\"${station.customReminder}\"",
-                    fontSize = 13.sp,
-                    color = if (isAlerting) Color.Black else Color.DarkGray,
-                    fontWeight = FontWeight.Medium
-                )
+                Spacer(Modifier.height(spacing.sm))
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = colors.surfaceVariant.copy(alpha = 0.6f),
+                    contentColor = colors.onSurfaceVariant
+                ) {
+                    Text(
+                        text = "\u201C${station.customReminder}\u201D",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(
+                            horizontal = spacing.sm,
+                            vertical = spacing.xs
+                        )
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(Modifier.height(spacing.md))
 
-            // ── Row 5: Action buttons + toggle ──
+            // ── Action row: Edit / Map / Delete + toggle ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Edit button
-                    FilledTonalButton(
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
+                    CardActionButton(
+                        label = "Edit",
+                        icon = Icons.Default.Edit,
                         onClick = onEdit,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Edit",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Edit", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
-                    }
-
-                    // View on Map button
-                    FilledTonalButton(
+                        enabled = isActive
+                    )
+                    CardActionButton(
+                        label = "Map",
+                        icon = Icons.Default.LocationOn,
                         onClick = onViewOnMap,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.LocationOn,
-                            contentDescription = "View on Map",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Map", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
-                    }
-
-                    // Delete button
+                        enabled = true
+                    )
                     IconButton(
                         onClick = onRemove,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
                             Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            modifier = Modifier.size(18.dp),
-                            tint = Color(0xFFEF5350)
+                            contentDescription = "Remove alarm",
+                            tint = colors.error
                         )
                     }
                 }
-
-                // Toggle switch
                 Switch(
                     checked = isActive,
                     onCheckedChange = onToggle,
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.surface,
-                        checkedTrackColor = Color(0xFF4CAF50),
-                        uncheckedThumbColor = Color.Gray,
-                        uncheckedTrackColor = Color.DarkGray
+                        checkedThumbColor = colors.onPrimary,
+                        checkedTrackColor = colors.primary,
+                        uncheckedThumbColor = colors.outline,
+                        uncheckedTrackColor = colors.surfaceVariant
                     )
                 )
             }
@@ -484,48 +483,173 @@ fun StationCard(
 }
 
 @Composable
+private fun ProximityRow(
+    distanceKm: Double?,
+    alertDistanceKm: Double,
+    stationId: String,
+    isAlerting: Boolean
+) {
+    val colors = MaterialTheme.colorScheme
+    val unit = LocalDistanceUnit.current
+
+    // Anchor = the largest distance we've ever seen for this station since the
+    // card entered composition. Held in `remember(stationId)` so swapping
+    // stations resets it; monotonically grows to handle GPS jitter without
+    // shrinking the perceived journey. Until the first GPS fix arrives, the
+    // anchor is null and the bar stays at 0 — that's what prevents the
+    // "partially full at setup" glitch.
+    var anchorKm by remember(stationId) { mutableStateOf<Double?>(null) }
+    LaunchedEffect(stationId, distanceKm) {
+        val d = distanceKm ?: return@LaunchedEffect
+        val current = anchorKm
+        if (current == null || d > current) anchorKm = d
+    }
+
+    val rawProgress: Float = run {
+        val d = distanceKm ?: return@run 0f
+        val a = anchorKm ?: return@run 0f
+        val span = a - alertDistanceKm
+        if (span <= 0.0) return@run 1f
+        val covered = (a - d).coerceIn(0.0, span)
+        (covered / span).toFloat()
+    }
+
+    val progress by animateFloatAsState(
+        targetValue = rawProgress,
+        animationSpec = tween(durationMillis = 900, easing = LinearEasing),
+        label = "proximityProgress"
+    )
+
+    val targetBarColor = when {
+        isAlerting -> colors.proximityImminent
+        progress > 0.85f -> colors.proximityImminent
+        progress > 0.4f -> colors.proximityNear
+        else -> colors.proximityFar
+    }
+    val barColor by animateColorAsState(
+        targetValue = targetBarColor,
+        animationSpec = tween(durationMillis = 500),
+        label = "proximityColor"
+    )
+
+    val distanceText = distanceKm?.let { formatDistance(it, unit) } ?: "Locating…"
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .weight(1f)
+                .height(8.dp),
+            color = barColor,
+            trackColor = colors.surfaceVariant,
+            strokeCap = StrokeCap.Round,
+            drawStopIndicator = {}
+        )
+        Spacer(Modifier.width(MaterialTheme.spacing.md))
+        Text(
+            text = distanceText,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (isAlerting) colors.onErrorContainer else colors.onSurface,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun CardActionButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    enabled: Boolean
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.height(40.dp)
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+private fun StatusBadge(text: String, container: Color, content: Color) {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = container,
+        contentColor = content
+    ) {
+        Text(
+            text = text.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        )
+    }
+}
+
+@Composable
 fun EmptyState(onNavigateToMap: () -> Unit) {
+    val spacing = MaterialTheme.spacing
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.LocationOn,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = Color.Gray.copy(alpha = 0.5f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(spacing.xl)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Notifications,
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            Spacer(Modifier.height(spacing.md))
             Text(
-                text = "No alarms set yet",
-                fontSize = 20.sp,
+                text = "No alarms yet",
+                style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.SemiBold
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(Modifier.height(spacing.xs))
             Text(
-                text = "Search for a station above, or",
-                fontSize = 14.sp,
-                color = Color.Gray,
+                text = "Search for a station above, or drop a pin on the map.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(spacing.lg))
             Button(
                 onClick = onNavigateToMap,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.onSurface,
-                    contentColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
-                shape = RoundedCornerShape(12.dp)
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.height(48.dp)
             ) {
                 Icon(
                     Icons.Default.LocationOn,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Open Map to set alarm", fontSize = 14.sp)
+                Spacer(Modifier.width(spacing.sm))
+                Text("Open the map")
             }
         }
     }
