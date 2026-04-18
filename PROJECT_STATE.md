@@ -99,6 +99,17 @@ Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs
 
 ## Session Log
 
+### Session: Architecture Flaws & Re-arming Logic (2026-04-18)
+Fixed multiple architectural oversights regarding Geofence lifecycle and `LocationService` State, which caused duplicate alerts and immediate re-firing if alarms were re-armed directly at the destination point. `./gradlew compileDebugKotlin` clean.
+
+**Geofence Lifecycle Scope Fixes**:
+- **Atomic Teardown**: `StationRepository.markAlerting` now invokes `GeofenceManager.removeGeofencesForStation(appContext, stationId)` synchronously as part of its block. Outer geofences no longer stay active while an alarm is ringing.
+- **Orphan & Boot Reigstration Strictness**: `StationRepository.reconcileOrphans()` and `reRegisterAllGeofencesNow()` now strictly filter via `status == "MONITORING"` (was `status != "PAUSED"`). Restored boot events and cold-starts will no longer re-register geofences for `ALERTING` stations.
+
+**Wait for Exit Pattern & INITIAL_TRIGGER_ENTER isolation**:
+- **GeofenceManager split**: `addGeofencesForStation` split into two distinct API requests. Layers 1-5 continue with `setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)` to immediately wake standard polling. The `alert` layer runs via a separate intent with `setInitialTrigger(0)` so GMS triggers it solely upon a physical boundary entrance, NOT immediate registration when already inside.
+- **LocationService evaluating re-arms**: Introduced `needsInitialEvaluation` and `waitingForExit` maps. When re-adding a station to `MONITORING`, if the first GPS fix returns a distance smaller than `alertDistanceKm`, the tracker isolates the ID into `waitingForExit`. The tracker gracefully keeps GPS active, drops the false-flag trigger, and waits until `effectiveDistance > alertDistanceKm` to confidently restore normal threat detection logic.
+
 ### Session: UI Redesign & Proximity Bar Fix (2026-04-18)
 Two user-reported UX issues (drawer steals map drags; proximity bar pre-filled at setup; random UUIDs leaking into the UI) fixed alongside a full M3 pass across the two primary screens. `./gradlew compileDebugKotlin` clean.
 

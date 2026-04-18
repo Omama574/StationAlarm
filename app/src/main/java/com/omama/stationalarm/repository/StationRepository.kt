@@ -203,7 +203,7 @@ object StationRepository {
      * besides a small refresh. Cheap to run on every cold start.
      */
     suspend fun reconcileOrphans() {
-        val active = getAllActiveStationsList().filter { it.status != "PAUSED" }
+        val active = getAllActiveStationsList().filter { it.status == "MONITORING" }
         if (active.isEmpty()) return
         var reconciled = 0
         for (station in active) {
@@ -236,6 +236,7 @@ object StationRepository {
     fun markAlerting(stationId: String) {
         repositoryScope.launch {
             database.activeStationDao().markAlertingFromMonitoring(stationId)
+            GeofenceManager.removeGeofencesForStation(appContext, stationId)
             Logger.log("STATUS_CHANGE", stationId, "ALERTING")
         }
     }
@@ -322,7 +323,7 @@ object StationRepository {
      * decides whether to retry).
      */
     suspend fun reRegisterAllGeofencesNow(): Boolean {
-        val activeList = getAllActiveStationsList().filter { it.status != "PAUSED" }
+        val activeList = getAllActiveStationsList().filter { it.status == "MONITORING" }
         var allOk = true
         for (active in activeList) {
             val result = GeofenceManager.addGeofencesForStation(

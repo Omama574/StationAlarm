@@ -94,18 +94,23 @@ object GeofenceManager {
             return Result.failure(GeofenceRegistrationException.MaxStationsReached())
         }
 
-        val geofences = listOf(
+        val geofences1To5 = listOf(
             buildGeofence(stationId, "level5", station.lat, station.lon, radiusLevel5M),
             buildGeofence(stationId, "level4", station.lat, station.lon, radiusLevel4M),
             buildGeofence(stationId, "level3", station.lat, station.lon, radiusLevel3M),
             buildGeofence(stationId, "level2", station.lat, station.lon, radiusLevel2M),
-            buildGeofence(stationId, "level1", station.lat, station.lon, radiusLevel1M),
-            buildGeofence(stationId, "alert", station.lat, station.lon, clampedAlertM)
+            buildGeofence(stationId, "level1", station.lat, station.lon, radiusLevel1M)
         )
+        val alertGeofence = buildGeofence(stationId, "alert", station.lat, station.lon, clampedAlertM)
 
-        val request = GeofencingRequest.Builder()
+        val requestLevel = GeofencingRequest.Builder()
             .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
-            .addGeofences(geofences)
+            .addGeofences(geofences1To5)
+            .build()
+            
+        val requestAlert = GeofencingRequest.Builder()
+            .setInitialTrigger(0)
+            .addGeofences(listOf(alertGeofence))
             .build()
 
         var retryCount = 0
@@ -117,14 +122,23 @@ object GeofenceManager {
             try {
                 suspendCancellableCoroutine<Unit> { cont ->
                     geofencingClient(context)
-                        .addGeofences(request, getGeofencePendingIntent(context))
+                        .addGeofences(requestLevel, getGeofencePendingIntent(context))
                         .addOnSuccessListener {
-                            Log.d(TAG, "Geofences added for $stationId")
-                            Logger.log("GEOFENCE_REGISTERED", stationId, "radii=[..., alert=$clampedAlertM]")
-                            if (cont.isActive) cont.resume(Unit)
+                            geofencingClient(context)
+                                .addGeofences(requestAlert, getGeofencePendingIntent(context))
+                                .addOnSuccessListener {
+                                    Log.d(TAG, "Geofences added for $stationId")
+                                    Logger.log("GEOFENCE_REGISTERED", stationId, "radii=[..., alert=$clampedAlertM]")
+                                    if (cont.isActive) cont.resume(Unit)
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e(TAG, "Failed to add alert geofence for $stationId", e)
+                                    Logger.log("GEOFENCE_REG_FAILED", stationId, e.message)
+                                    if (cont.isActive) cont.resumeWithException(e)
+                                }
                         }
                         .addOnFailureListener { e ->
-                            Log.e(TAG, "Failed to add geofences for $stationId", e)
+                            Log.e(TAG, "Failed to add level geofences for $stationId", e)
                             Logger.log("GEOFENCE_REG_FAILED", stationId, e.message)
                             if (cont.isActive) cont.resumeWithException(e)
                         }

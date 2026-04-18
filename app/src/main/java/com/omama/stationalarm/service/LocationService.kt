@@ -56,6 +56,10 @@ class LocationService : Service() {
     // --- In-memory alerting (only ALERTING stations) ---
     private val alertingStationIds = ConcurrentHashMap.newKeySet<String>()
 
+    // --- Wait for Exit pattern ---
+    private val needsInitialEvaluation = ConcurrentHashMap.newKeySet<String>()
+    private val waitingForExit = ConcurrentHashMap.newKeySet<String>()
+
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationRequest: LocationRequest? = null
     private lateinit var locationCallback: LocationCallback
@@ -263,6 +267,7 @@ class LocationService : Service() {
                 val newMonitoring = dbMonitoring.filter { it.stationId !in currentMonitoringIds }
                 if (newMonitoring.isNotEmpty()) {
                     monitoringStations.addAll(newMonitoring)
+                    needsInitialEvaluation.addAll(newMonitoring.map { it.stationId })
                     Logger.log("SYNC_MONITORING_ADDED", extra = "Added ${newMonitoring.size}")
                 }
 
@@ -362,7 +367,21 @@ class LocationService : Service() {
                 val accuracyKm = location.accuracy / 1000.0
                 val effectiveDistance = distance - accuracyKm
 
-                if (effectiveDistance <= active.alertDistanceKm && !alertingStationIds.contains(active.stationId)) {
+                if (needsInitialEvaluation.contains(active.stationId)) {
+                    needsInitialEvaluation.remove(active.stationId)
+                    if (effectiveDistance <= active.alertDistanceKm) {
+                        waitingForExit.add(active.stationId)
+                        Logger.log("WAITING_FOR_EXIT", active.stationId, "Re-armed while inside radius")
+                    }
+                }
+
+                if (effectiveDistance > active.alertDistanceKm) {
+                    waitingForExit.remove(active.stationId)
+                }
+
+                if (effectiveDistance <= active.alertDistanceKm 
+                    && !alertingStationIds.contains(active.stationId)
+                    && !waitingForExit.contains(active.stationId)) {
                     toAlert.add(active)
                 }
             }

@@ -23,10 +23,12 @@
       "Bash(where claude:*)",
       "Read(//c/Users/omama/.claude/**)",
       "Bash(claude --version)",
-      "Bash(ls ~/.claude/plugins/*/)"
+      "Bash(ls ~/.claude/plugins/*/)",
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
-      "c:\\Users\\omama\\AndroidStudioProjects\\StationAlarm"
+      "c:\\Users\\omama\\AndroidStudioProjects\\StationAlarm",
+      "c:\\Users\\omama\\.claude\\plans"
     ]
   }
 }
