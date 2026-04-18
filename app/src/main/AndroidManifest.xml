@@ -50,6 +50,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- Fires when the user swipes the ongoing monitoring notification away
+             (setDeleteIntent target). Re-starts the service so the trip stays
+             visibly armed until the user explicitly taps "Stop all" or Dismiss. -->
+        <receiver
+            android:name=".receiver.NotificationRestoreReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.omama.stationalarm.ACTION_RESTORE_NOTIFICATION" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".receiver.BootReceiver"
             android:exported="true"

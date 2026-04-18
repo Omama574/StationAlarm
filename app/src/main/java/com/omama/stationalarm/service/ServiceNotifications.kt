@@ -58,11 +58,37 @@ internal class ServiceNotifications(private val context: Context) {
             context, 0, intent,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_IMMUTABLE
         )
+
+        // Fires when the user clears the ongoing notification. On Android 14+
+        // even setOngoing(true) notifications are swipe-dismissible in some
+        // cases, so we catch the clear and repost the notification from a
+        // broadcast receiver — keeping the trip visibly armed.
+        val restoreIntent = Intent("com.omama.stationalarm.ACTION_RESTORE_NOTIFICATION").apply {
+            setPackage(context.packageName)
+        }
+        val restorePendingIntent = PendingIntent.getBroadcast(
+            context, 0, restoreIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Explicit user-cancel path — since swipe is now self-healing, this
+        // action is how users actually end a trip without opening the app or
+        // waiting for the alarm to ring.
+        val stopAllIntent = Intent(context, LocationService::class.java).apply {
+            action = LocationService.ACTION_STOP_ALL_MONITORING
+        }
+        val stopAllPendingIntent = PendingIntent.getService(
+            context, 0, stopAllIntent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Station Alarm")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
+            .setDeleteIntent(restorePendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop all", stopAllPendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

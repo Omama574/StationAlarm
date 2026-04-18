@@ -47,6 +47,8 @@ class LocationService : Service() {
         const val ACTION_ALERT_GEOFENCE_TRIGGERED = "com.omama.stationalarm.ACTION_ALERT_GEOFENCE_TRIGGERED"
         const val ACTION_START_FOR_ACTIVE_STATIONS = "START_FOR_ACTIVE_STATIONS"
         const val ACTION_DISMISS_ALARM = "com.omama.stationalarm.ACTION_DISMISS_ALARM"
+        const val ACTION_RESTORE_NOTIFICATION = "com.omama.stationalarm.ACTION_RESTORE_NOTIFICATION"
+        const val ACTION_STOP_ALL_MONITORING = "com.omama.stationalarm.ACTION_STOP_ALL_MONITORING"
     }
 
     // --- In-memory tracking (only MONITORING stations) ---
@@ -156,6 +158,11 @@ class LocationService : Service() {
             return START_NOT_STICKY
         }
 
+        if (intent?.action == ACTION_STOP_ALL_MONITORING) {
+            handleStopAll()
+            return START_NOT_STICKY
+        }
+
         // For all other intents, ensure we hit Android's foreground service requirement immediately.
         updateForegroundNotification(forceStartForeground = true)
 
@@ -175,6 +182,11 @@ class LocationService : Service() {
             ACTION_START_FOR_ACTIVE_STATIONS -> {
                 // Boot / re-initialization: sync handles everything
                 Logger.log("SERVICE_INIT_REQUESTED")
+            }
+            ACTION_RESTORE_NOTIFICATION -> {
+                // User swiped the ongoing notification away. forceStartForeground
+                // above already re-posted it; syncWithDatabase keeps driving state.
+                Logger.log("SERVICE_NOTIFICATION_RESTORED")
             }
         }
 
@@ -196,6 +208,29 @@ class LocationService : Service() {
         serviceJob.cancel()
         watchdogHandler.removeCallbacks(watchdogRunnable)
         super.onDestroy()
+    }
+
+    /**
+     * Called when the user swipes the app from Recents. Default Android
+     * behaviour is to kill the service process right after this returns, which
+     * also removes the ongoing foreground notification — making the user think
+     * they've cancelled the trip when geofences are still armed at the OS
+     * level. Restart ourselves immediately so monitoring (GPS + notification)
+     * stays continuous, matching Strava's pattern.
+     *
+     * Gated on in-memory state (already synced from DB) so we never respawn
+     * when there's nothing to monitor.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val hasWork = monitoringStations.isNotEmpty() || alertingStationIds.isNotEmpty()
+        Logger.log("SERVICE_TASK_REMOVED", extra = "hasWork=$hasWork")
+        if (hasWork) {
+            val restartIntent = Intent(applicationContext, LocationService::class.java).apply {
+                action = ACTION_START_FOR_ACTIVE_STATIONS
+            }
+            androidx.core.content.ContextCompat.startForegroundService(applicationContext, restartIntent)
+        }
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -435,6 +470,33 @@ class LocationService : Service() {
 
         // 4. Wait natively for DB Sync to handle service teardown
         // As soon as the Flow updates, syncWithDatabase will invoke stopSelf() if empty.
+    }
+
+    /**
+     * Fired by the "Stop all" action on the ongoing foreground notification.
+     * Dismisses every monitoring and alerting station via the existing
+     * [StationRepository.dismissStation] path — which flips each row to PAUSED
+     * and removes its geofences. syncWithDatabase then drives teardown and
+     * calls stopSelf() when the service has nothing left to do.
+     */
+    private fun handleStopAll() {
+        val monitoringIds = monitoringStations.map { it.stationId }
+        val alertingIds = alertingStationIds.toList()
+        val allIds = (monitoringIds + alertingIds).distinct()
+        Logger.log("SERVICE_STOP_ALL_REQUESTED", extra = "count=${allIds.size}")
+
+        // Stop any ringing audio immediately so the user gets instant feedback
+        // even before the Flow-driven teardown completes.
+        if (alertingIds.isNotEmpty()) {
+            audio.stopAll()
+            wakeLocks.releaseAlarm()
+            notifications.cancelAudioFailureNotification()
+            for (id in alertingIds) notifications.cancelAlert(id)
+        }
+
+        for (id in allIds) {
+            StationRepository.dismissStation(id)
+        }
     }
 
     // ============================
