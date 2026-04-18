@@ -454,22 +454,20 @@ class LocationService : Service() {
     private fun handleDismiss(stationId: String) {
         Logger.log("ALERT_DISMISSED", stationId)
 
-        // 1. Stop sound if this was the alerting station
-        alertingStationIds.remove(stationId)
-        if (alertingStationIds.isEmpty()) {
+        // Stop audio immediately for UX — but do NOT remove from alertingStationIds yet.
+        // Race window: DB still shows ALERTING until dismissStation's async write lands.
+        // Clearing alertingStationIds here lets any syncWithDatabase re-emission during
+        // that window see the station as "newly alerting" and call fireAlert again.
+        // The noLongerAlerting path in syncWithDatabase removes it once DB confirms PAUSED.
+        val isLast = alertingStationIds.size == 1 && alertingStationIds.contains(stationId)
+        if (isLast) {
             audio.stopAll()
             wakeLocks.releaseAlarm()
             notifications.cancelAudioFailureNotification()
         }
 
-        // 2. Cancel this station's notification
         notifications.cancelAlert(stationId)
-
-        // 3. Delete from DB (this triggers sync which handles cleanup)
         StationRepository.dismissStation(stationId)
-
-        // 4. Wait natively for DB Sync to handle service teardown
-        // As soon as the Flow updates, syncWithDatabase will invoke stopSelf() if empty.
     }
 
     /**

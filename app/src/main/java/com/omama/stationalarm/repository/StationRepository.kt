@@ -230,10 +230,12 @@ object StationRepository {
         }
     }
 
-    /** Transition a station to ALERTING status. Called when device enters alert radius. */
+    /** Transition a station to ALERTING status. Only valid from MONITORING — guards
+     *  against late geofence events or duplicate markAlerting calls re-firing the
+     *  alarm after the user has already dismissed (PAUSED) or while it is ringing. */
     fun markAlerting(stationId: String) {
         repositoryScope.launch {
-            database.activeStationDao().updateStatus(stationId, "ALERTING")
+            database.activeStationDao().markAlertingFromMonitoring(stationId)
             Logger.log("STATUS_CHANGE", stationId, "ALERTING")
         }
     }
