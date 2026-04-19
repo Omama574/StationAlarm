@@ -52,7 +52,7 @@ class LocationService : Service() {
     }
 
     // --- In-memory tracking (only MONITORING stations) ---
-    private val monitoringStations = ConcurrentHashMap.newKeySet<ActiveStation>()
+    private val monitoringStations = ConcurrentHashMap<String, ActiveStation>()
     // --- In-memory alerting (only ALERTING stations) ---
     private val alertingStationIds = ConcurrentHashMap.newKeySet<String>()
 
@@ -258,15 +258,15 @@ class LocationService : Service() {
                 val dbAlertingIds = dbAlerting.map { it.stationId }.toSet()
 
                 // --- 1. Sync MONITORING list ---
-                val removedFromMonitoring = monitoringStations.filter { it.stationId !in dbMonitoringIds }
+                val removedFromMonitoring = monitoringStations.keys.filter { it !in dbMonitoringIds }
                 if (removedFromMonitoring.isNotEmpty()) {
-                    monitoringStations.removeAll { it.stationId !in dbMonitoringIds }
+                    for (id in removedFromMonitoring) monitoringStations.remove(id)
                     Logger.log("SYNC_MONITORING_PRUNED", extra = "Removed ${removedFromMonitoring.size}")
                 }
-                val currentMonitoringIds = monitoringStations.map { it.stationId }.toSet()
+                val currentMonitoringIds = monitoringStations.keys
                 val newMonitoring = dbMonitoring.filter { it.stationId !in currentMonitoringIds }
                 if (newMonitoring.isNotEmpty()) {
-                    monitoringStations.addAll(newMonitoring)
+                    for (station in newMonitoring) monitoringStations[station.stationId] = station
                     needsInitialEvaluation.addAll(newMonitoring.map { it.stationId })
                     Logger.log("SYNC_MONITORING_ADDED", extra = "Added ${newMonitoring.size}")
                 }
@@ -351,7 +351,7 @@ class LocationService : Service() {
             val toAlert = mutableListOf<ActiveStation>()
             val newDistances = mutableMapOf<String, Double>()
 
-            for (active in monitoringStations.toList()) {
+            for (active in monitoringStations.values.toList()) {
                 val station = active.getStation() ?: continue
                 val distance = calculateDistance(location.latitude, location.longitude, station.lat, station.lon)
                 active.currentDistanceKm = distance
@@ -459,7 +459,7 @@ class LocationService : Service() {
         }
 
         // Remove from monitoring set (sync already did this, but be safe)
-        monitoringStations.removeAll { it.stationId == active.stationId }
+        monitoringStations.remove(active.stationId)
 
         // Replace the foreground "monitoring" notification for this station
         // with a proper alarm notification
@@ -497,7 +497,7 @@ class LocationService : Service() {
      * calls stopSelf() when the service has nothing left to do.
      */
     private fun handleStopAll() {
-        val monitoringIds = monitoringStations.map { it.stationId }
+        val monitoringIds = monitoringStations.keys
         val alertingIds = alertingStationIds.toList()
         val allIds = (monitoringIds + alertingIds).distinct()
         Logger.log("SERVICE_STOP_ALL_REQUESTED", extra = "count=${allIds.size}")
@@ -523,7 +523,7 @@ class LocationService : Service() {
     private fun updateForegroundNotification(forceStartForeground: Boolean = false) {
         val text = when {
             monitoringStations.isNotEmpty() -> {
-                val nearest = monitoringStations.minByOrNull { it.currentDistanceKm ?: Double.MAX_VALUE }
+                val nearest = monitoringStations.values.minByOrNull { it.currentDistanceKm ?: Double.MAX_VALUE }
                 val dist = nearest?.currentDistanceKm
                 if (dist != null) {
                     val distStr = "%.1f".format(dist)
@@ -565,7 +565,7 @@ class LocationService : Service() {
     private fun adjustPollingInterval() {
         if (monitoringStations.isEmpty()) return
 
-        val minDistance = monitoringStations.minOfOrNull { it.currentDistanceKm ?: Double.MAX_VALUE } ?: return
+        val minDistance = monitoringStations.values.minOfOrNull { it.currentDistanceKm ?: Double.MAX_VALUE } ?: return
 
         val newInterval = when {
             minDistance <= 5.0 -> 10_000L       // <= 5 km -> 10s (Fast-track)
