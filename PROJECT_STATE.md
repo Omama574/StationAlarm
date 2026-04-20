@@ -99,6 +99,24 @@ Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs
 
 ## Session Log
 
+### Session: Kotlin data class HashCode Drift & LocationService Leak (2026-04-19)
+Fixed a massive, yet silent, logic flaw in `LocationService.kt` that was causing severe notification stiction, GPS drain, and breaking the "Stop All" feature.
+
+**The Problem:**
+- `LocationService` stored active monitoring stations in a `ConcurrentHashMap.newKeySet<ActiveStation>()`.
+- In Kotlin, a `data class` automatically computes its `hashCode()` using all properties in its primary constructor. `ActiveStation` includes `currentDistanceKm`.
+- As the device moved, the GPS loop iteratively updated `active.currentDistanceKm`. This continuously mutated the base mathematical `hashCode` of the object *while it was actively seated inside the hash map.*
+- When the station transitioned from `MONITORING` to `ALERTING` (or was stopped collectively by "Stop All"), the tracker executed `monitoringStations.removeAll { predicate }`. 
+- Because the `hashCode` had drifted from its initial insertion value, the underlying `ConcurrentHashMap` could no longer reliably locate the node to destroy it. 
+- The station became an **irremovable orphan** within the memory set. 
+- Because `monitoringStations.isNotEmpty()` was permanently artificially inflated to `true` by these orphans, the GPS wake-locks stubbornly refused to shut down, and the foreground notification was permanently plastered with misleading fallback data (e.g., "Nearest station...").
+
+**The Solution:**
+- Refactored `monitoringStations` from a `ConcurrentHashMap` KeySet of `ActiveStation` objects directly into a `ConcurrentHashMap<String, ActiveStation>`, keyed exclusively by the invariant property `stationId`.
+- The architecture now interacts with `monitoringStations.keys` and `monitoringStations.values`.
+- When commanding a removal (`monitoringStations.remove(stationId)`), the lookup is performed against an immutable `String` hash.
+- Orphans are eradicated flawlessly. `monitoringStations` reliably drains to absolute zero on alarm, restoring instantaneous GPS teardown and immediately cancelling the sticky persistent notifications once the service yields its responsibilities to the standalone full-screen alarm overlay.
+
 ### Session: Architecture Flaws & Re-arming Logic (2026-04-18)
 Fixed multiple architectural oversights regarding Geofence lifecycle and `LocationService` State, which caused duplicate alerts and immediate re-firing if alarms were re-armed directly at the destination point. `./gradlew compileDebugKotlin` clean.
 

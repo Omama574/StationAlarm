@@ -18,49 +18,66 @@ object GpsLogger {
 
     private const val TAG = "GpsLogger"
     private const val LOG_DIR = "TrainAlarmLogs"
-    private const val FILE_PREFIX = "GpsThrottle_"
-    private const val FILE_SUFFIX = ".csv"
+    private const val FILE_NAME = "GpsThrottle_TestLog.csv"
 
     private val executor = Executors.newSingleThreadExecutor()
     private var contextRef: Context? = null
-    private var sessionStartTime: String = ""
     private var currentBufferedWriter: java.io.BufferedWriter? = null
     private var currentOutputStream: java.io.OutputStream? = null
 
     fun initialize(context: Context) {
         contextRef = context.applicationContext
-        createNewLogFile()
+        openOrCreateLogFile()
     }
 
-    private fun createNewLogFile() {
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        sessionStartTime = timeStamp
-        val fileName = "$FILE_PREFIX$timeStamp$FILE_SUFFIX"
-
+    private fun openOrCreateLogFile() {
         try {
+            var fileUri: Uri? = null
+            var isNewFile = false
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val resolver = contextRef?.contentResolver ?: return
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + LOG_DIR)
+                
+                val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                val projection = arrayOf(MediaStore.MediaColumns._ID)
+                val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
+                val selectionArgs = arrayOf(FILE_NAME)
+                
+                resolver.query(collection, projection, selection, selectionArgs, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val id = cursor.getLong(0)
+                        fileUri = Uri.withAppendedPath(collection, id.toString())
+                    }
                 }
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                if (uri != null) {
-                    currentOutputStream = resolver.openOutputStream(uri)
+
+                if (fileUri == null) {
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, FILE_NAME)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + LOG_DIR)
+                    }
+                    fileUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                    isNewFile = true
+                }
+                
+                if (fileUri != null) {
+                    currentOutputStream = resolver.openOutputStream(fileUri!!, "wa")
                 }
             } else {
                 @Suppress("DEPRECATION")
                 val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                 val logDir = File(downloadsDir, LOG_DIR)
                 if (!logDir.exists()) logDir.mkdirs()
-                val file = File(logDir, fileName)
-                currentOutputStream = file.outputStream()
+                val file = File(logDir, FILE_NAME)
+                isNewFile = !file.exists()
+                currentOutputStream = java.io.FileOutputStream(file, true)
             }
             currentBufferedWriter = currentOutputStream?.bufferedWriter()
-            writeHeader()
+            if (isNewFile) {
+                writeHeader()
+            }
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to create GPS log file", e)
+            android.util.Log.e(TAG, "Failed to create/open GPS log file", e)
         }
     }
 
@@ -98,18 +115,17 @@ object GpsLogger {
 
     private fun ensureWriter() {
         if (currentBufferedWriter == null) {
-            createNewLogFile()
+            openOrCreateLogFile()
         }
     }
 
     fun getCurrentLogUri(): Uri? {
-        val fileName = "$FILE_PREFIX${sessionStartTime}$FILE_SUFFIX"
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val resolver = contextRef?.contentResolver ?: return null
             val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
             val projection = arrayOf(MediaStore.MediaColumns._ID)
             val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
-            val selectionArgs = arrayOf(fileName)
+            val selectionArgs = arrayOf(FILE_NAME)
             resolver.query(collection, projection, selection, selectionArgs, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val id = cursor.getLong(0)
@@ -121,7 +137,7 @@ object GpsLogger {
             @Suppress("DEPRECATION")
             val file = File(
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "$LOG_DIR/$fileName"
+                "$LOG_DIR/$FILE_NAME"
             )
             if (file.exists()) FileProvider.getUriForFile(contextRef!!, "${contextRef!!.packageName}.fileprovider", file) else null
         }
