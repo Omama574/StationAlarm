@@ -3,6 +3,7 @@ package com.omama.stationalarm.ui.screens
 import android.view.ViewGroup
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.omama.stationalarm.ui.theme.glassBorderColor
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -147,14 +150,16 @@ fun MapSearchScreen(
                 .align(Alignment.TopCenter)
                 .padding(top = 12.dp, start = 12.dp, end = 12.dp)
         ) {
-            // Search bar card
+            // Search bar card — glass style over map
+            val searchBg = if (isSystemInDarkTheme()) Color(0xFF0E1514).copy(alpha = 0.82f)
+                           else Color(0xFFFAFDFB).copy(alpha = 0.88f)
             Surface(
-                modifier  = Modifier
-                    .fillMaxWidth()
-                    .shadow(12.dp, RoundedCornerShape(16.dp)),
+                modifier  = Modifier.fillMaxWidth(),
                 shape     = RoundedCornerShape(16.dp),
-                color     = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
+                color     = searchBg,
+                border    = BorderStroke(0.8.dp, glassBorderColor()),
+                tonalElevation = 0.dp,
+                shadowElevation = 8.dp
             ) {
                 Row(
                     modifier           = Modifier
@@ -227,13 +232,16 @@ fun MapSearchScreen(
                 enter   = fadeIn() + expandVertically(),
                 exit    = fadeOut() + shrinkVertically()
             ) {
+                val dropdownBg = if (isSystemInDarkTheme()) Color(0xFF0E1514).copy(alpha = 0.90f)
+                                else Color(0xFFFAFDFB).copy(alpha = 0.93f)
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp)
-                        .shadow(8.dp, RoundedCornerShape(14.dp)),
+                        .padding(top = 4.dp),
                     shape    = RoundedCornerShape(14.dp),
-                    color    = MaterialTheme.colorScheme.surface
+                    color    = dropdownBg,
+                    border   = BorderStroke(0.8.dp, glassBorderColor()),
+                    shadowElevation = 8.dp
                 ) {
                     LazyColumn(contentPadding = PaddingValues(vertical = 6.dp)) {
                         items(searchResults) { result ->
@@ -418,11 +426,14 @@ private fun BottomControlBar(
     modifier   : Modifier = Modifier
 ) {
     val unit = LocalDistanceUnit.current
+    val dark = isSystemInDarkTheme()
+    val barBg = if (dark) Color(0xFF0E1514).copy(alpha = 0.85f) else Color(0xFFFAFDFB).copy(alpha = 0.90f)
     Surface(
         modifier       = modifier.fillMaxWidth(),
-        color          = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp,
-        shadowElevation = 16.dp
+        color          = barBg,
+        border         = BorderStroke(width = 0.8.dp, color = glassBorderColor()),
+        tonalElevation = 0.dp,
+        shadowElevation = 12.dp
     ) {
         Column(
             modifier = Modifier

@@ -31,6 +31,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omama.stationalarm.ui.theme.LocalAppHazeState
+import com.omama.stationalarm.ui.theme.appGradient
+import com.omama.stationalarm.ui.theme.glassTopBarStyle
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -319,6 +325,10 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     val drawerGesturesEnabled = currentScreen == Screen.Main &&
         (pagerState.currentPage != 1 || drawerState.isOpen)
 
+    val hazeState = rememberHazeState()
+    val gradient = appGradient()
+    val topBarGlassStyle = glassTopBarStyle()
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerGesturesEnabled,
@@ -366,7 +376,13 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
             Screen.Settings -> SettingsScreen(onBack = { currentScreen = Screen.Main })
             Screen.About -> AboutScreen(onBack = { currentScreen = Screen.Main })
             Screen.Main -> {
-                Box(modifier = Modifier.fillMaxSize()) {
+                CompositionLocalProvider(LocalAppHazeState provides hazeState) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(gradient)
+                        .hazeSource(hazeState)
+                ) {
                     Column(modifier = Modifier.fillMaxSize()) {
                         CenterAlignedTopAppBar(
                             title = {
@@ -382,16 +398,18 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                                 }
                             },
                             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.surface,
+                                containerColor = Color.Transparent,
                                 titleContentColor = MaterialTheme.colorScheme.onSurface,
                                 navigationIconContentColor = MaterialTheme.colorScheme.onSurface
-                            )
+                            ),
+                            modifier = Modifier.hazeEffect(hazeState, topBarGlassStyle)
                         )
 
                         TabRow(
                             selectedTabIndex = pagerState.currentPage,
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.onSurface
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.hazeEffect(hazeState, topBarGlassStyle)
                         ) {
                             tabs.forEachIndexed { index, title ->
                                 Tab(
@@ -494,6 +512,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp)
                     )
                 }
+                } // CompositionLocalProvider
             }
         }
     }
@@ -595,8 +614,11 @@ private fun AppDrawerContent(
     onRateUs: () -> Unit,
     onShareApp: () -> Unit
 ) {
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val drawerBg = if (dark) Color(0xFF0E1514).copy(alpha = 0.93f) else Color(0xFFFAFDFB).copy(alpha = 0.95f)
+
     ModalDrawerSheet(
-        drawerContainerColor = MaterialTheme.colorScheme.surface,
+        drawerContainerColor = drawerBg,
         drawerContentColor = MaterialTheme.colorScheme.onSurface
     ) {
         // Header

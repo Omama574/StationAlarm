@@ -6,6 +6,8 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 
 private val LightColors = lightColorScheme(
     primary = BrandPrimaryLight,
@@ -70,6 +72,18 @@ private val DarkColors = darkColorScheme(
     inverseOnSurface = BrandInverseOnSurfaceDark,
     inversePrimary = BrandInversePrimaryDark
 )
+
+// App-wide gradient backgrounds that the glass panels blur.
+val appGradientDark: Brush = Brush.verticalGradient(
+    colors = listOf(Color(0xFF006A60), Color(0xFF003730), Color(0xFF0E1514))
+)
+val appGradientLight: Brush = Brush.verticalGradient(
+    colors = listOf(Color(0xFF9FF2E4), Color(0xFFCCE8E3), Color(0xFFFAFDFB))
+)
+
+@Composable
+fun appGradient(darkTheme: Boolean = isSystemInDarkTheme()): Brush =
+    if (darkTheme) appGradientDark else appGradientLight
 
 @Composable
 fun StationAlarmTheme(

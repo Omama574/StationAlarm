@@ -76,6 +76,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
+import com.omama.stationalarm.ui.theme.LocalAppHazeState
+import com.omama.stationalarm.ui.theme.glassBorderColor
+import com.omama.stationalarm.ui.theme.glassCardStyle
 import com.omama.stationalarm.ui.theme.proximityFar
 import com.omama.stationalarm.ui.theme.proximityImminent
 import com.omama.stationalarm.ui.theme.proximityNear
@@ -83,6 +86,7 @@ import com.omama.stationalarm.ui.theme.spacing
 import com.omama.stationalarm.ui.viewmodel.StationViewModel
 import com.omama.stationalarm.util.LocalDistanceUnit
 import com.omama.stationalarm.util.formatDistance
+import dev.chrisbanes.haze.hazeEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,7 +120,11 @@ fun HomeScreen(
         }
     }
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { paddingValues ->
+    val hazeState = LocalAppHazeState.current
+    val cardGlassStyle = glassCardStyle()
+    val borderColor = glassBorderColor()
+
+    Scaffold(containerColor = Color.Transparent) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -252,21 +260,21 @@ fun StationSearchItem(station: Station, onClick: () -> Unit) {
         animationSpec = tween(150),
         label = "searchItemScale"
     )
-    val elevation by animateDpAsState(
-        targetValue = if (isPressed) 1.dp else 3.dp,
-        animationSpec = tween(150),
-        label = "searchItemElevation"
-    )
     val displayCode = displayableStationCode(station.id)
+    val hazeState = LocalAppHazeState.current
+    val glassStyle = glassCardStyle()
+    val borderColor = glassBorderColor()
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
+            .then(if (hazeState != null) Modifier.hazeEffect(hazeState, glassStyle) else Modifier)
             .clickable(interactionSource = interactionSource, indication = null) { onClick() },
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(0.8.dp, borderColor)
     ) {
         Row(
             modifier = Modifier
@@ -329,11 +337,6 @@ fun StationCard(
     val isPaused = station.status == "PAUSED"
     val isActive = !isPaused
 
-    val containerColor = when {
-        isAlerting -> colors.errorContainer
-        isPaused -> colors.surfaceVariant
-        else -> colors.surface
-    }
     val contentColor = when {
         isAlerting -> colors.onErrorContainer
         isPaused -> colors.onSurfaceVariant
@@ -341,22 +344,23 @@ fun StationCard(
     }
     val cardBorder = when {
         isAlerting -> BorderStroke(2.dp, colors.error)
-        else -> null
+        else -> BorderStroke(0.8.dp, glassBorderColor())
     }
     val cardAlpha = if (isPaused) 0.78f else 1f
+    val hazeState = LocalAppHazeState.current
+    val cardGlassStyle = glassCardStyle()
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(cardAlpha),
+            .alpha(cardAlpha)
+            .then(if (hazeState != null) Modifier.hazeEffect(hazeState, cardGlassStyle) else Modifier),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
-            containerColor = containerColor,
+            containerColor = Color.Transparent,
             contentColor = contentColor
         ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isPaused) 1.dp else 3.dp
-        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = cardBorder
     ) {
         Column(

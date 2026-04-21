@@ -34,8 +34,11 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.Color
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
+import com.omama.stationalarm.ui.theme.glassBorderColor
 import com.omama.stationalarm.ui.theme.spacing
 import com.omama.stationalarm.util.LocalDistanceUnit
 import com.omama.stationalarm.util.formatDistance
@@ -71,12 +74,15 @@ fun StationConfigBottomSheet(
     val displayCode = displayableStationCode(station.id)
     val roundedKm = (alertDistance * 10).roundToInt() / 10.0
 
+    val dark = isSystemInDarkTheme()
+    val sheetBg = if (dark) Color(0xFF0E1514).copy(alpha = 0.92f) else Color(0xFFFAFDFB).copy(alpha = 0.94f)
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraLarge,
-        containerColor = colors.surface,
+        containerColor = sheetBg,
         contentColor = colors.onSurface,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.onSurfaceVariant) }
+        dragHandle = { BottomSheetDefaults.DragHandle(color = glassBorderColor()) }
     ) {
         Column(
             modifier = Modifier

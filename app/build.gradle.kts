@@ -162,4 +162,7 @@ dependencies {
 
     // ── WorkManager (used by BootReceiver retry path) ────────────────────────
     implementation(libs.androidx.work.runtime.ktx)
+
+    // ── Glassmorphism (frosted glass UI) ────────────────────────────────────
+    implementation("dev.chrisbanes.haze:haze-android:1.6.10")
 }
