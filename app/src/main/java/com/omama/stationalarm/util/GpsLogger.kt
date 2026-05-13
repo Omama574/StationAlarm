@@ -82,12 +82,24 @@ object GpsLogger {
     }
 
     private fun writeHeader() {
-        val header = "timestamp,provider,latitude,longitude,accuracy_meters,speed_ms,current_polling_interval_ms,battery_percent\n"
+        val header = "timestamp,provider,latitude,longitude,accuracy_meters,speed_ms,current_polling_interval_ms,battery_percent,gate_decision,priority_used,sats_visible,sats_in_fix,is_mock,flp_failures,flp_client_age_s,coarse_armed,cold_start\n"
         currentBufferedWriter?.write(header)
         currentBufferedWriter?.flush()
     }
 
-    fun logLocation(location: Location, currentIntervalMs: Long) {
+    fun logLocation(
+        location: Location,
+        currentIntervalMs: Long,
+        gateDecision: String = "",
+        priorityUsed: String = "",
+        satsVisible: Int = -1,
+        satsInFix: Int = -1,
+        isMock: Boolean = false,
+        flpFailures: Int = 0,
+        flpClientAgeSec: Long = 0,
+        coarseArmed: Boolean = false,
+        coldStartActive: Boolean = false
+    ) {
         executor.execute {
             ensureWriter()
             val context = contextRef ?: return@execute
@@ -102,7 +114,7 @@ object GpsLogger {
             val scale = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
             val batteryPct = if (level >= 0 && scale > 0) (level * 100f / scale).toInt() else -1
 
-            val line = "$timestamp,${location.provider},${location.latitude},${location.longitude},${location.accuracy},${location.speed},$currentIntervalMs,$batteryPct\n"
+            val line = "$timestamp,${location.provider},${location.latitude},${location.longitude},${location.accuracy},${location.speed},$currentIntervalMs,$batteryPct,$gateDecision,$priorityUsed,$satsVisible,$satsInFix,$isMock,$flpFailures,$flpClientAgeSec,$coarseArmed,$coldStartActive\n"
             
             try {
                 currentBufferedWriter?.write(line)
