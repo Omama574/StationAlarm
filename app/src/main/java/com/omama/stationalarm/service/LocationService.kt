@@ -152,7 +152,11 @@ class LocationService : Service() {
             },
             onColdStartComplete = {
                 Logger.log("COLD_START_SETTLED", extra = "switching to normal gearbox")
-                // Settle into normal gearbox based on actual distance
+                // Settle into normal gearbox based on actual distance.
+                // We MUST force a restart because the cached currentPollingIntervalMs might 
+                // match the distance gear perfectly, causing adjustPollingInterval() to skip 
+                // the rebuild and leaving us stuck on the 5-second cold-start request forever.
+                restartLocationUpdates()
                 adjustPollingInterval()
             }
         )
