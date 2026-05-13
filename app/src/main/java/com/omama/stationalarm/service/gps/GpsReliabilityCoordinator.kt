@@ -176,7 +176,10 @@ class GpsReliabilityCoordinator(
     fun onGoodFlpFix(location: Location) {
         if (!isCoarseArmed) return
 
-        if (location.accuracy < 50f) {
+        // We only care that the FLP IPC pipe is alive and delivering fixes.
+        // A < 50m requirement is too strict for BALANCED power (cell tower) fixes.
+        // As long as the fix isn't comically inaccurate (> 5000m), we count it as a healthy IPC heartbeat.
+        if (location.accuracy <= 5000f) {
             consecutiveGoodFlpFixes++
             if (consecutiveGoodFlpFixes >= COARSE_DISARM_AFTER_GOOD_FIXES) {
                 disarmCoarseFallback()

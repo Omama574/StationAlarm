@@ -688,6 +688,14 @@ class LocationService : Service() {
             currentPollingIntervalMs = newInterval
             currentLocationPriority = newPriority
             val priorityLabel = if (newPriority == Priority.PRIORITY_HIGH_ACCURACY) "HIGH" else "BALANCED"
+            
+            // FIX: If we are entering a long-interval gear (>= 1 minute), the 30s Emergency Coarse 
+            // Fallback is a battery killer. Disarm it. The watchdog will dynamically re-arm it 
+            // later if FLP actually stalls for 3x the long interval.
+            if (newInterval >= 60_000L) {
+                gpsCoordinator.disarmCoarseFallback()
+            }
+            
             Logger.log("MODE_CHANGED", extra = "interval=${newInterval}ms, priority=$priorityLabel, minDistance=$minDistance")
             restartLocationUpdates()
         }
