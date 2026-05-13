@@ -1,7 +1,35 @@
 # StationAlarm — Project State
 
-> **Last updated:** 2026-04-18
+> **Last updated:** 2026-05-13
 > Update this file at the end of every session with what changed and what's next.
+
+---
+
+## Legal Site (`stationalarm-legal`)
+
+**Repo:** `C:\Users\omama\AndroidStudioProjects\stationalarm-legal`  
+**Hosting:** Cloudflare Pages — auto-deploys on every push to `main` (framework preset: None, no build step, output dir: `/`).  
+**Live URL:** `https://stationalarm-legal.pages.dev`
+
+### Files
+| File | Purpose |
+|---|---|
+| `index.html` | Landing page — links to Privacy + Terms |
+| `privacy.html` | Privacy Policy (served at `/privacy`) |
+| `terms.html` | Terms of Use (served at `/terms`) |
+| `style.css` | Shared stylesheet (light/dark via `prefers-color-scheme`) |
+
+### Before First Publish
+Two placeholders must be replaced across all three HTML files before the site is live-ready:
+- `<dedicated-email-placeholder>` → real contact email
+- `<effective-date-placeholder>` → publish date in `YYYY-MM-DD` format
+
+Run a find-replace across `index.html`, `privacy.html`, and `terms.html`.
+
+### Deploy Steps
+1. Replace placeholders above.
+2. `git push` to `main` — Cloudflare Pages picks it up automatically.
+3. (Optional) Add a custom domain in Cloudflare Pages dashboard.
 
 ---
 
@@ -98,6 +126,25 @@ Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs
 ---
 
 ## Session Log
+
+### Session: GPS Reliability Overhaul - Phase 1 & 2 (2026-05-13)
+Resolved critical field failures (50-minute "Stale IPC Pipe" blackout) and optimized battery usage by implementing a robust layered GPS reliability architecture. `./gradlew compileDebugKotlin` clean.
+
+**Phase 1 (Distance-Based Gearbox & Geofence Hardening):**
+- **Distance-Based Priority Switching:** `LocationService.adjustPollingInterval()` switches to `PRIORITY_BALANCED_POWER_ACCURACY` (cell/WiFi) when >100km away to save battery, avoiding GPS antenna activation. It switches back to `PRIORITY_HIGH_ACCURACY` at ≤100km.
+- **FixQualityGate (L0):** Created `FixQualityGate.kt` pure-logic module to safely demote inaccurate GPS fixes to "hints" with inflated accuracy, rather than discarding them. The gearbox and UI stay updated with low-quality data while alert buffer math becomes more conservative.
+- **Extended Geofencing:** Increased geofence tiers from 6 to 9, adding hardware-level wake-up tripwires at 100km, 150km, and 200km (`ActiveStation.kt`, `GeofenceManager.kt`). Survives Doze and app kills.
+- **LocationRequest Builder Hardening:** Added `setWaitForAccurateLocation(false)` and `setMaxUpdateDelayMillis(2x)` for faster first-fixes.
+- **Orphan Cleanup:** Added an unconditional watchdog notification sweep in `onCreate()`.
+- **UX Polish:** Firing a fresh one-shot `getCurrentLocation(HIGH_ACCURACY)` call in `MainActivity.onResume()` for instant fresh data when the user opens the app while actively tracking.
+
+**Phase 2 (FlpClientGuardian, Cold Start & Emergency Fallback):**
+- **Nuclear Reset (`FlpClientGuardian.kt`):** Wraps the `FusedLocationProviderClient`. If silent recovery fails 3 consecutive times or times out after 15s, it performs a nuclear reset (destroys old client, requests a fresh IPC handle from GMS, re-registers callbacks) with a 60s cooldown. Directly fixes the 50-minute IPC stale pipe blackout.
+- **Layer Coordinator (`GpsReliabilityCoordinator.kt`):** Manages the reliability subsystems:
+  - **Cold-Start Hunter (L3):** Forces aggressive 5s polling for the first 90s of a session to guarantee an initial fix.
+  - **Emergency Coarse Fallback (L2):** Uses raw `LocationManager.NETWORK_PROVIDER` (bypasses Google Play Services completely) when the Watchdog detects `FLP` struggling (e.g., 3-minute stall). Immune to GMS IPC stalls. Disarms automatically after 3 good FLP fixes.
+  - **GNSS Status Monitor (L5):** Monitors visible vs. used satellites for telemetry.
+- **Telemetry (`GpsLogger.kt`):** Extended CSV logs with 9 new columns (`gate_decision`, `priority_used`, `sats_visible`, `sats_in_fix`, `is_mock`, `flp_failures`, `flp_client_age_s`, `coarse_armed`, `cold_start`) for rigorous field testing.
 
 ### Session: Kotlin data class HashCode Drift & LocationService Leak (2026-04-19)
 Fixed a massive, yet silent, logic flaw in `LocationService.kt` that was causing severe notification stiction, GPS drain, and breaking the "Stop All" feature.
