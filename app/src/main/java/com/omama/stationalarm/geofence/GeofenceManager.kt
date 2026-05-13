@@ -49,7 +49,7 @@ object GeofenceManager {
     }
 
     /**
-     * Registers the 6-tier geofence stack for [stationId]. Returns a [Result]
+     * Registers the 9-tier geofence stack for [stationId]. Returns a [Result]
      * whose failure carries a typed [GeofenceRegistrationException] so callers
      * can show the right user-facing message (e.g. snackbar). Previously this
      * failed silently, leaving the UI showing a "registered" alarm that would
@@ -58,6 +58,9 @@ object GeofenceManager {
     suspend fun addGeofencesForStation(
         context: Context,
         stationId: String,
+        radiusLevel8M: Float,
+        radiusLevel7M: Float,
+        radiusLevel6M: Float,
         radiusLevel5M: Float,
         radiusLevel4M: Float,
         radiusLevel3M: Float,
@@ -101,11 +104,19 @@ object GeofenceManager {
             buildGeofence(stationId, "level2", station.lat, station.lon, radiusLevel2M),
             buildGeofence(stationId, "level1", station.lat, station.lon, radiusLevel1M)
         )
+        // Extended tiers for long-haul trip coverage (100km, 150km, 200km).
+        // These survive Doze, app kills, and OEM battery managers.
+        val geofences6To8 = listOf(
+            buildGeofence(stationId, "level8", station.lat, station.lon, radiusLevel8M),
+            buildGeofence(stationId, "level7", station.lat, station.lon, radiusLevel7M),
+            buildGeofence(stationId, "level6", station.lat, station.lon, radiusLevel6M)
+        )
         val alertGeofence = buildGeofence(stationId, "alert", station.lat, station.lon, clampedAlertM)
 
         val requestLevel = GeofencingRequest.Builder()
             .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
             .addGeofences(geofences1To5)
+            .addGeofences(geofences6To8)
             .build()
             
         val requestAlert = GeofencingRequest.Builder()
@@ -160,12 +171,12 @@ object GeofenceManager {
     }
 
     /**
-     * Remove all six geofences for a station with bounded retry. On terminal
+     * Remove all nine geofences for a station with bounded retry. On terminal
      * failure, schedules a persistent [GeofenceCleanupWorker] so leaked
      * geofences don't accumulate against GMS's 100/app cap over time.
      *
-     * The previous fire-and-forget implementation could leave 6 dead geofences
-     * per failed teardown; combined with the 10-station cap that's up to 60
+     * The previous fire-and-forget implementation could leave 9 dead geofences
+     * per failed teardown; combined with the 10-station cap that's up to 90
      * leaks before symptoms surface as registration failures.
      */
     suspend fun removeGeofencesForStation(context: Context, stationId: String) {
@@ -187,6 +198,9 @@ object GeofenceManager {
         stationId: String
     ): Result<Unit> {
         val requestIds = listOf(
+            "geofence_${stationId}_level8",
+            "geofence_${stationId}_level7",
+            "geofence_${stationId}_level6",
             "geofence_${stationId}_level5",
             "geofence_${stationId}_level4",
             "geofence_${stationId}_level3",

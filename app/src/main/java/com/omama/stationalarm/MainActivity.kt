@@ -66,7 +66,43 @@ class MainActivity : ComponentActivity() {
                         action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
                     }
                     startForegroundService(intent)
+
+                    // Fire a one-shot HIGH_ACCURACY GPS request to give the user
+                    // instant fresh data instead of a stale polling distance.
+                    // Also serves as a health check — if FLP can't deliver, the
+                    // Watchdog will detect it.
+                    requestFreshLocation()
                 }
+            }
+        }
+    }
+
+    /**
+     * One-shot GPS request on app open. Cheap (single antenna activation) and
+     * gives the user immediate feedback. Only fires if we have permissions and
+     * the last known fix is older than 30 seconds (avoids wasting a poll if
+     * we just got one).
+     */
+    private fun requestFreshLocation() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val fusedClient = com.google.android.gms.location.LocationServices
+            .getFusedLocationProviderClient(this)
+        val token = com.google.android.gms.tasks.CancellationTokenSource()
+
+        fusedClient.getCurrentLocation(
+            com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
+            token.token
+        ).addOnSuccessListener { loc ->
+            if (loc != null) {
+                // Feed into the service via a lightweight intent so the
+                // service's processLocationUpdate pipeline runs.
+                val intent = Intent(this, LocationService::class.java).apply {
+                    action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS
+                }
+                startForegroundService(intent)
             }
         }
     }
