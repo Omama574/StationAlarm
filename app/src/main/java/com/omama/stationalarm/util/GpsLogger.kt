@@ -24,6 +24,7 @@ object GpsLogger {
     private var contextRef: Context? = null
     private var currentBufferedWriter: java.io.BufferedWriter? = null
     private var currentOutputStream: java.io.OutputStream? = null
+    private var currentFileUri: Uri? = null
 
     fun initialize(context: Context) {
         contextRef = context.applicationContext
@@ -61,6 +62,7 @@ object GpsLogger {
                 }
                 
                 if (fileUri != null) {
+                    currentFileUri = fileUri
                     currentOutputStream = resolver.openOutputStream(fileUri!!, "wa")
                 }
             } else {
@@ -70,6 +72,9 @@ object GpsLogger {
                 if (!logDir.exists()) logDir.mkdirs()
                 val file = File(logDir, FILE_NAME)
                 isNewFile = !file.exists()
+                if (file.exists() || isNewFile) {
+                    currentFileUri = FileProvider.getUriForFile(contextRef!!, "${contextRef!!.packageName}.fileprovider", file)
+                }
                 currentOutputStream = java.io.FileOutputStream(file, true)
             }
             currentBufferedWriter = currentOutputStream?.bufferedWriter()
@@ -132,12 +137,16 @@ object GpsLogger {
     }
 
     fun getCurrentLogUri(): Uri? {
+        if (currentFileUri != null) return currentFileUri
+
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val resolver = contextRef?.contentResolver ?: return null
             val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
             val projection = arrayOf(MediaStore.MediaColumns._ID)
-            val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
-            val selectionArgs = arrayOf(FILE_NAME)
+            // Use LIKE instead of exact match because Android might store it as GpsThrottle_TestLog (1).csv
+            // or strip the extension.
+            val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
+            val selectionArgs = arrayOf("%GpsThrottle_TestLog%")
             resolver.query(collection, projection, selection, selectionArgs, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val id = cursor.getLong(0)
