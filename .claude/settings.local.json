@@ -24,7 +24,8 @@
       "Read(//c/Users/omama/.claude/**)",
       "Bash(claude --version)",
       "Bash(ls ~/.claude/plugins/*/)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Read(//c/Users/omama/AndroidStudioProjects/stationalarm-legal//**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\omama\\AndroidStudioProjects\\StationAlarm",

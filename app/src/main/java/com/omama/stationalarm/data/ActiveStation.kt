@@ -22,6 +22,13 @@ data class ActiveStation(
     val radiusLevel2Km: Double get() = alertDistanceKm + 5
     val radiusLevel1Km: Double get() = alertDistanceKm
 
+    // Extended geofence tiers for long-haul trip coverage.
+    // These act as OS-level wake-up tripwires that survive Doze, app kills,
+    // and OEM battery managers — the most reliable component in our architecture.
+    val radiusLevel6Km: Double get() = alertDistanceKm + 100
+    val radiusLevel7Km: Double get() = alertDistanceKm + 150
+    val radiusLevel8Km: Double get() = alertDistanceKm + 200
+
     /**
      * Resolves the Station object for this active station.
      * First checks hardcoded railway stations, then falls back to

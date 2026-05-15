@@ -14,6 +14,9 @@ import android.os.Looper
 import android.os.PowerManager
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.*
+import com.omama.stationalarm.service.gps.FixQualityGate
+import com.omama.stationalarm.service.gps.FlpClientGuardian
+import com.omama.stationalarm.service.gps.GpsReliabilityCoordinator
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.UserPreferences
@@ -60,12 +63,23 @@ class LocationService : Service() {
     private val needsInitialEvaluation = ConcurrentHashMap.newKeySet<String>()
     private val waitingForExit = ConcurrentHashMap.newKeySet<String>()
 
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    // GPS reliability layers (Phase 2). Guardian wraps the FLP client;
+    // Coordinator manages cold-start, coarse fallback, and GNSS monitoring.
+    private lateinit var flpGuardian: FlpClientGuardian
+    private lateinit var gpsCoordinator: GpsReliabilityCoordinator
+
+    // Convenience accessor — always routes through the guardian's current client.
+    private val fusedLocationClient: FusedLocationProviderClient
+        get() = flpGuardian.client
+
     private var locationRequest: LocationRequest? = null
     private lateinit var locationCallback: LocationCallback
 
     private var isPolling = false
     private var currentPollingIntervalMs = 10_000L // Start fast for initial lock
+    // Tracks the current FLP priority. BALANCED at >100km (cell/WiFi, saves GPS
+    // antenna power), HIGH_ACCURACY at <=100km (satellite GPS for precision).
+    private var currentLocationPriority = Priority.PRIORITY_HIGH_ACCURACY
     // Tracks whether the foreground service is running with LOCATION type.
     // Flipped to false when all monitoring stops (alarm-only mode) so the GPS
     // indicator disappears from the status bar while the alarm is ringing.
@@ -110,19 +124,61 @@ class LocationService : Service() {
         wakeLocks = ServiceWakeLocks(this)
         notifications = ServiceNotifications(this)
         notifications.createChannels()
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        // Sweep any orphan watchdog notification left by a previously killed process.
+        // Canceling a non-existent notification is a harmless no-op.
+        notifications.cancelWatchdog()
 
-        locationCallback = object : LocationCallback() {
+        // --- Phase 2: Construct reliability layers ---
+        flpGuardian = FlpClientGuardian(
+            context = this,
+            onClientRecreated = { /* fusedLocationClient getter auto-delegates */ },
+            onRecoveryFix = { loc ->
+                lastLocationTimeMs = System.currentTimeMillis()
+                clearWatchdogState("guardian one-shot fix")
+                processLocationUpdate(loc)
+            },
+            onRecoveryFailed = { reason ->
+                Logger.log("GUARDIAN_RECOVERY_FAILED", extra = reason)
+            }
+        )
+
+        gpsCoordinator = GpsReliabilityCoordinator(
+            context = this,
+            onCoarseFix = { coarseLoc ->
+                // Coarse fixes (cell tower) go through the normal pipeline.
+                // The FixQualityGate will inflate their accuracy conservatively.
+                lastLocationTimeMs = System.currentTimeMillis()
+                processLocationUpdate(coarseLoc)
+            },
+            onColdStartComplete = {
+                Logger.log("COLD_START_SETTLED", extra = "switching to normal gearbox")
+                // Settle into normal gearbox based on actual distance.
+                // We MUST force a restart because the cached currentPollingIntervalMs might 
+                // match the distance gear perfectly, causing adjustPollingInterval() to skip 
+                // the rebuild and leaving us stuck on the 5-second cold-start request forever.
+                restartLocationUpdates()
+                adjustPollingInterval()
+            }
+        )
+
+        locationCallback = createLocationCallback()
+
+        syncWithDatabase()
+        observeAlarmSoundUri()
+    }
+
+    /**
+     * Factory for the FLP LocationCallback. Extracted so the FlpClientGuardian
+     * can create a fresh callback object with the same body during nuclear reset
+     * (the GMS IPC pipe needs a fresh object reference, not the same instance).
+     */
+    private fun createLocationCallback(): LocationCallback {
+        return object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 lastLocationTimeMs = System.currentTimeMillis()
-                if (watchdogRecoveryPending || watchdogNotified) {
-                    Logger.log("WATCHDOG_RECOVERED", extra = "fix arrived, clearing watchdog state")
-                    watchdogRecoveryPending = false
-                    watchdogNotified = false
-                    watchdogRecoveryToken?.cancel()
-                    watchdogRecoveryToken = null
-                    notifications.cancelWatchdog()
-                }
+                flpGuardian.onFixReceived()
+                clearWatchdogState("fix arrived, clearing watchdog state")
+
                 if (ActivityCompat.checkSelfPermission(
                         this@LocationService,
                         android.Manifest.permission.ACCESS_FINE_LOCATION
@@ -133,13 +189,30 @@ class LocationService : Service() {
                     return
                 }
                 locationResult.lastLocation?.let { location ->
+                    // Notify coordinator of good FLP fix (for coarse disarm logic)
+                    gpsCoordinator.onGoodFlpFix(location)
+
+                    // End cold-start on first fix
+                    if (gpsCoordinator.isColdStartActive) {
+                        gpsCoordinator.onFirstFixReceived()
+                    }
+
                     processLocationUpdate(location)
                 }
             }
         }
+    }
 
-        syncWithDatabase()
-        observeAlarmSoundUri()
+    /** Shared helper: clears watchdog recovery state and cancels notifications. */
+    private fun clearWatchdogState(logReason: String) {
+        if (watchdogRecoveryPending || watchdogNotified) {
+            Logger.log("WATCHDOG_RECOVERED", extra = logReason)
+            watchdogRecoveryPending = false
+            watchdogNotified = false
+            watchdogRecoveryToken?.cancel()
+            watchdogRecoveryToken = null
+            notifications.cancelWatchdog()
+        }
     }
 
     /**
@@ -206,6 +279,8 @@ class LocationService : Service() {
 
     override fun onDestroy() {
         stopLocationUpdates()
+        flpGuardian.destroy()
+        gpsCoordinator.destroy()
         audio.stopAll()
         wakeLocks.releaseAlarm()
         wakeLocks.releaseGps()
@@ -284,7 +359,7 @@ class LocationService : Service() {
                 if (noLongerAlerting.isNotEmpty()) {
                     alertingStationIds.removeAll(noLongerAlerting)
                     if (alertingStationIds.isEmpty()) {
-                        audio.stopAll()
+                         audio.stopAll()
                         wakeLocks.releaseAlarm()
                         notifications.cancelAudioFailureNotification()
                     }
@@ -363,8 +438,17 @@ class LocationService : Service() {
                     nearestStationId = active.stationId
                 }
 
-                // Accuracy buffer: if (distance - accuracy) is within alert range, fire
-                val accuracyKm = location.accuracy / 1000.0
+                // Quality gate: inflate accuracy for low-quality fixes based on
+                // distance band. A demoted fix still updates UI and gearbox but
+                // the inflated accuracy makes the alert buffer more conservative.
+                val gateDecision = FixQualityGate.evaluate(location, distance)
+                val accuracyKm = when (gateDecision) {
+                    is FixQualityGate.Decision.Accept -> gateDecision.effectiveAccuracyMeters / 1000.0
+                    is FixQualityGate.Decision.DemoteToHint -> {
+                        Logger.log("GPS_GATE_DEMOTED", extra = gateDecision.reason)
+                        gateDecision.effectiveAccuracyMeters / 1000.0
+                    }
+                }
                 val effectiveDistance = distance - accuracyKm
 
                 if (needsInitialEvaluation.contains(active.stationId)) {
@@ -401,7 +485,25 @@ class LocationService : Service() {
                 distanceKm = distToLog
             )
 
-            com.omama.stationalarm.util.GpsLogger.logLocation(location, currentPollingIntervalMs)
+            val priorityLabel = if (currentLocationPriority == Priority.PRIORITY_HIGH_ACCURACY) "HIGH" else "BALANCED"
+            // Log the gate decision for the nearest station (the one that drives the gearbox)
+            val nearestGateDecision = if (minDistance < Double.MAX_VALUE) {
+                val d = FixQualityGate.evaluate(location, minDistance)
+                if (d is FixQualityGate.Decision.Accept) "accept" else "demote"
+            } else ""
+            com.omama.stationalarm.util.GpsLogger.logLocation(
+                location = location,
+                currentIntervalMs = currentPollingIntervalMs,
+                gateDecision = nearestGateDecision,
+                priorityUsed = priorityLabel,
+                satsVisible = gpsCoordinator.satellitesVisible,
+                satsInFix = gpsCoordinator.satellitesInFix,
+                isMock = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) location.isMock else @Suppress("DEPRECATION") location.isFromMockProvider,
+                flpFailures = flpGuardian.getConsecutiveFailures(),
+                flpClientAgeSec = flpGuardian.getClientAgeSeconds(),
+                coarseArmed = gpsCoordinator.isCoarseArmed,
+                coldStartActive = gpsCoordinator.isColdStartActive
+            )
 
             updateForegroundNotification()
             adjustPollingInterval()
@@ -575,9 +677,30 @@ class LocationService : Service() {
             else -> 600_000L                   // > 60 km -> 10m
         }
 
-        if (newInterval != currentPollingIntervalMs) {
+        // Determine optimal FLP priority based on distance.
+        // At >100km, cell/WiFi triangulation (balanced power) is accurate enough
+        // for gearbox decisions and avoids powering up the GPS antenna entirely.
+        val newPriority = if (minDistance > 100.0)
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        else
+            Priority.PRIORITY_HIGH_ACCURACY
+
+        val intervalChanged = newInterval != currentPollingIntervalMs
+        val priorityChanged = newPriority != currentLocationPriority
+
+        if (intervalChanged || priorityChanged) {
             currentPollingIntervalMs = newInterval
-            Logger.log("MODE_CHANGED", extra = "interval=${newInterval}ms, minDistance=$minDistance")
+            currentLocationPriority = newPriority
+            val priorityLabel = if (newPriority == Priority.PRIORITY_HIGH_ACCURACY) "HIGH" else "BALANCED"
+            
+            // FIX: If we are entering a long-interval gear (>= 1 minute), the 30s Emergency Coarse 
+            // Fallback is a battery killer. Disarm it. The watchdog will dynamically re-arm it 
+            // later if FLP actually stalls for 3x the long interval.
+            if (newInterval >= 60_000L) {
+                gpsCoordinator.disarmCoarseFallback()
+            }
+            
+            Logger.log("MODE_CHANGED", extra = "interval=${newInterval}ms, priority=$priorityLabel, minDistance=$minDistance")
             restartLocationUpdates()
         }
     }
@@ -587,25 +710,59 @@ class LocationService : Service() {
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return
         }
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, currentPollingIntervalMs)
-            .setMinUpdateIntervalMillis(currentPollingIntervalMs / 2)
+
+        // During cold-start, poll aggressively at 5s HIGH_ACCURACY regardless
+        // of distance gear — we need a real position to determine which gear.
+        val effectivePriority = if (gpsCoordinator.isColdStartActive)
+            Priority.PRIORITY_HIGH_ACCURACY
+        else
+            currentLocationPriority
+
+        val effectiveInterval = if (gpsCoordinator.isColdStartActive)
+            5_000L
+        else
+            currentPollingIntervalMs
+
+        val request = LocationRequest.Builder(effectivePriority, effectiveInterval)
+            .setMinUpdateIntervalMillis(effectiveInterval / 2)
+            .setMaxUpdateDelayMillis(effectiveInterval * 2)   // Bounds staleness; lets OS batch at long gears
+            .setWaitForAccurateLocation(false)                // Don't withhold rough fixes — something > nothing
             .build()
         locationRequest = request
-        fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+
+        // Configure the guardian so it can replay request+callback after nuclear reset
+        flpGuardian.configure(
+            request = request,
+            callbackFactory = { createLocationCallback() },
+            callback = locationCallback
+        )
+        flpGuardian.startLocationUpdates()
+
         isPolling = true
         wakeLocks.acquireGps()
-        Logger.log("GPS_STARTED", extra = "interval=$currentPollingIntervalMs")
+        val priorityLabel = if (effectivePriority == Priority.PRIORITY_HIGH_ACCURACY) "HIGH" else "BALANCED"
+        Logger.log("GPS_STARTED", extra = "interval=$effectiveInterval, priority=$priorityLabel, coldStart=${gpsCoordinator.isColdStartActive}")
+
+        // Start GNSS satellite monitoring for telemetry
+        gpsCoordinator.startGnssMonitoring()
+
+        // If this is the very first poll (no fix yet), start cold-start hunt
+        if (lastLocationTimeMs == 0L && !gpsCoordinator.isColdStartActive) {
+            gpsCoordinator.startColdStartHunt()
+        }
     }
 
     private fun restartLocationUpdates() {
         if (!isPolling) return
-        fusedLocationClient.removeLocationUpdates(locationCallback)
+        flpGuardian.stopLocationUpdates()
         startLocationUpdates()
     }
 
     private fun stopLocationUpdates() {
         if (isPolling) {
-            fusedLocationClient.removeLocationUpdates(locationCallback)
+            flpGuardian.stopLocationUpdates()
+            gpsCoordinator.disarmCoarseFallback()
+            gpsCoordinator.stopGnssMonitoring()
             isPolling = false
             watchdogHandler.removeCallbacks(watchdogRunnable)
             wakeLocks.releaseGps()
@@ -673,6 +830,9 @@ class LocationService : Service() {
         val gpsOff = !isGpsProviderEnabled()
         val dozing = isDozingWithScreenOff()
 
+        // Ask the coordinator what escalation action to take
+        val stallAction = gpsCoordinator.classifyStall(stallMs, flpGuardian.getConsecutiveFailures())
+
         // Suppress user-visible escalation while the device is idle with screen
         // off — stalls there are expected behaviour, not a fault. Silent retry
         // only; any arriving fix will clear state via onLocationResult.
@@ -680,6 +840,19 @@ class LocationService : Service() {
             Logger.log("WATCHDOG_SELF_HEAL", extra = "dozing stall=${stallMs / 1000}s (suppressed)")
             kickSilentRecovery()
             return
+        }
+
+        // Act on coordinator's escalation recommendation
+        when (stallAction) {
+            GpsReliabilityCoordinator.StallAction.ARM_COARSE -> {
+                Logger.log("WATCHDOG_ARM_COARSE", extra = "stall=${stallMs / 1000}s")
+                gpsCoordinator.armCoarseFallback()
+            }
+            GpsReliabilityCoordinator.StallAction.NUKE_FLP -> {
+                // Guardian handles nuke internally via attemptRecovery()
+                Logger.log("WATCHDOG_NUKE_RECOMMENDED", extra = "stall=${stallMs / 1000}s, guardian_failures=${flpGuardian.getConsecutiveFailures()}")
+            }
+            GpsReliabilityCoordinator.StallAction.NORMAL_RETRY -> { /* fall through to existing tier logic */ }
         }
 
         if (stallMs >= tier2Threshold || gpsOff) {
@@ -694,49 +867,28 @@ class LocationService : Service() {
             val (title, body) = if (gpsOff) {
                 "Location is off" to "Tap to enable location — alarm is paused until then."
             } else {
-                "Searching for GPS…" to "Still tracking — last fix ${minutes}m ago."
+                "Searching for GPS\u2026" to "Still tracking — last fix ${minutes}m ago."
             }
-            Logger.log("WATCHDOG_TRIGGERED", extra = "tier2 stall=${stallMs / 1000}s gpsOff=$gpsOff")
+            Logger.log("WATCHDOG_TRIGGERED", extra = "tier2 stall=${stallMs / 1000}s gpsOff=$gpsOff stallAction=$stallAction")
             notifications.showWatchdog(title, body)
             restartLocationUpdates()
             kickSilentRecovery()
         } else {
             // Tier 1 — silent recovery.
-            Logger.log("WATCHDOG_SELF_HEAL", extra = "tier1 stall=${stallMs / 1000}s")
+            Logger.log("WATCHDOG_SELF_HEAL", extra = "tier1 stall=${stallMs / 1000}s stallAction=$stallAction")
             watchdogRecoveryPending = true
             restartLocationUpdates()
             kickSilentRecovery()
         }
     }
 
+    /**
+     * Delegates recovery to the FlpClientGuardian. The guardian tracks
+     * consecutive failures internally and performs nuclear reset when
+     * thresholds are breached.
+     */
     private fun kickSilentRecovery() {
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return
-        }
-        watchdogRecoveryToken?.cancel()
-        val token = CancellationTokenSource()
-        watchdogRecoveryToken = token
-        try {
-            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, token.token)
-                .addOnSuccessListener { loc ->
-                    if (loc != null) {
-                        // Feed into the normal pipeline — this also clears
-                        // watchdog state because lastLocationTimeMs is bumped
-                        // by processLocationUpdate's onLocationResult path via
-                        // adjustPollingInterval callers; do it explicitly here.
-                        lastLocationTimeMs = System.currentTimeMillis()
-                        if (watchdogRecoveryPending || watchdogNotified) {
-                            Logger.log("WATCHDOG_RECOVERED", extra = "one-shot fix")
-                            watchdogRecoveryPending = false
-                            watchdogNotified = false
-                            notifications.cancelWatchdog()
-                        }
-                        processLocationUpdate(loc)
-                    }
-                }
-        } catch (e: SecurityException) {
-            Logger.log("WATCHDOG_RECOVERY_FAILED", extra = e.message ?: "security")
-        }
+        flpGuardian.attemptRecovery()
     }
 
     private fun isGpsProviderEnabled(): Boolean {

@@ -171,6 +171,9 @@ object StationRepository {
             val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = entityWithCoords.stationId,
+                radiusLevel8M = (entityWithCoords.radiusLevel8Km * 1000).toFloat(),
+                radiusLevel7M = (entityWithCoords.radiusLevel7Km * 1000).toFloat(),
+                radiusLevel6M = (entityWithCoords.radiusLevel6Km * 1000).toFloat(),
                 radiusLevel5M = (entityWithCoords.radiusLevel5Km * 1000).toFloat(),
                 radiusLevel4M = (entityWithCoords.radiusLevel4Km * 1000).toFloat(),
                 radiusLevel3M = (entityWithCoords.radiusLevel3Km * 1000).toFloat(),
@@ -210,6 +213,9 @@ object StationRepository {
             val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = station.stationId,
+                radiusLevel8M = (station.radiusLevel8Km * 1000).toFloat(),
+                radiusLevel7M = (station.radiusLevel7Km * 1000).toFloat(),
+                radiusLevel6M = (station.radiusLevel6Km * 1000).toFloat(),
                 radiusLevel5M = (station.radiusLevel5Km * 1000).toFloat(),
                 radiusLevel4M = (station.radiusLevel4Km * 1000).toFloat(),
                 radiusLevel3M = (station.radiusLevel3Km * 1000).toFloat(),
@@ -268,6 +274,9 @@ object StationRepository {
             val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = station.stationId,
+                radiusLevel8M = (station.radiusLevel8Km * 1000).toFloat(),
+                radiusLevel7M = (station.radiusLevel7Km * 1000).toFloat(),
+                radiusLevel6M = (station.radiusLevel6Km * 1000).toFloat(),
                 radiusLevel5M = (station.radiusLevel5Km * 1000).toFloat(),
                 radiusLevel4M = (station.radiusLevel4Km * 1000).toFloat(),
                 radiusLevel3M = (station.radiusLevel3Km * 1000).toFloat(),
@@ -329,6 +338,9 @@ object StationRepository {
             val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = active.stationId,
+                radiusLevel8M = (active.radiusLevel8Km * 1000).toFloat(),
+                radiusLevel7M = (active.radiusLevel7Km * 1000).toFloat(),
+                radiusLevel6M = (active.radiusLevel6Km * 1000).toFloat(),
                 radiusLevel5M = (active.radiusLevel5Km * 1000).toFloat(),
                 radiusLevel4M = (active.radiusLevel4Km * 1000).toFloat(),
                 radiusLevel3M = (active.radiusLevel3Km * 1000).toFloat(),
@@ -368,6 +380,9 @@ object StationRepository {
             val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
                 stationId = updated.stationId,
+                radiusLevel8M = (updated.radiusLevel8Km * 1000).toFloat(),
+                radiusLevel7M = (updated.radiusLevel7Km * 1000).toFloat(),
+                radiusLevel6M = (updated.radiusLevel6Km * 1000).toFloat(),
                 radiusLevel5M = (updated.radiusLevel5Km * 1000).toFloat(),
                 radiusLevel4M = (updated.radiusLevel4Km * 1000).toFloat(),
                 radiusLevel3M = (updated.radiusLevel3Km * 1000).toFloat(),
