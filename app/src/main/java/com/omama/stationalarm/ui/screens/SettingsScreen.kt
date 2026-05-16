@@ -37,6 +37,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val themeMode by UserPreferences.themeModeFlow.collectAsState(initial = UserPreferences.THEME_SYSTEM)
     val distanceUnit by UserPreferences.distanceUnitFlow.collectAsState(initial = UserPreferences.UNIT_KM)
     val alarmSoundUri by UserPreferences.alarmSoundUriFlow.collectAsState(initial = "")
+    val ringSpeakerWithHeadphones by UserPreferences.ringSpeakerWithHeadphonesFlow.collectAsState(initial = true)
 
     // Ringtone picker — system ringtones / alarms
     val ringtoneLauncher = rememberLauncherForActivityResult(
@@ -183,6 +184,44 @@ fun SettingsScreen(onBack: () -> Unit) {
                             }
                         }
                     }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+
+            // Audio Routing
+            SectionTitle("Audio Routing")
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Ring speaker with headphones",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Keep the phone speaker loud when wired or Bluetooth audio is connected.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(
+                        checked = ringSpeakerWithHeadphones,
+                        onCheckedChange = { enabled ->
+                            scope.launch { UserPreferences.setRingSpeakerWithHeadphones(enabled) }
+                        }
+                    )
                 }
             }
             Spacer(Modifier.height(24.dp))

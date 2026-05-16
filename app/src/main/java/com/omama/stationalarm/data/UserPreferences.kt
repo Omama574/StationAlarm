@@ -3,6 +3,7 @@ package com.omama.stationalarm.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.map
  *   - distance_unit         : "km" | "miles"
  *   - custom_alarm_sound_uri: content:// URI of a user-picked ringtone or local audio file
  *                             (empty string = use system default alarm)
+ *   - ring_speaker_with_headphones: true keeps the phone speaker active when external audio is connected
  */
 object UserPreferences {
 
@@ -29,6 +31,7 @@ object UserPreferences {
     private val KEY_THEME = stringPreferencesKey("theme_mode")
     private val KEY_DISTANCE_UNIT = stringPreferencesKey("distance_unit")
     private val KEY_ALARM_SOUND_URI = stringPreferencesKey("custom_alarm_sound_uri")
+    private val KEY_RING_SPEAKER_WITH_HEADPHONES = booleanPreferencesKey("ring_speaker_with_headphones")
 
     // ── Defaults ────────────────────────────────────────────────────────────
     const val THEME_SYSTEM = "system"
@@ -53,6 +56,9 @@ object UserPreferences {
     val alarmSoundUriFlow: Flow<String>
         get() = dataStore.data.map { it[KEY_ALARM_SOUND_URI] ?: "" }
 
+    val ringSpeakerWithHeadphonesFlow: Flow<Boolean>
+        get() = dataStore.data.map { it[KEY_RING_SPEAKER_WITH_HEADPHONES] ?: true }
+
     // ── Setters ─────────────────────────────────────────────────────────────
     // DataStore writes can throw IOException on disk-full / corrupted preferences.
     // Callers launch these from rememberCoroutineScope, where an unhandled throw
@@ -68,6 +74,12 @@ object UserPreferences {
 
     suspend fun setAlarmSoundUri(uri: String) {
         runSafely("setAlarmSoundUri") { dataStore.edit { it[KEY_ALARM_SOUND_URI] = uri } }
+    }
+
+    suspend fun setRingSpeakerWithHeadphones(enabled: Boolean) {
+        runSafely("setRingSpeakerWithHeadphones") {
+            dataStore.edit { it[KEY_RING_SPEAKER_WITH_HEADPHONES] = enabled }
+        }
     }
 
     private suspend inline fun runSafely(op: String, crossinline block: suspend () -> Unit) {

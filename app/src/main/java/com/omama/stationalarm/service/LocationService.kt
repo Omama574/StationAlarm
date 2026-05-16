@@ -26,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -95,7 +96,8 @@ class LocationService : Service() {
     // Cached alarm URI string — updated whenever UserPreferences.alarmSoundUriFlow
     // emits. Reading this in fireAlert() avoids blocking the Main dispatcher on
     // DataStore disk I/O (was an ANR risk with runBlocking). Blank = system default.
-    @Volatile private var cachedAlarmSoundUri: String = ""
+    @Volatile private var cachedAlarmSoundUri: String? = null
+    @Volatile private var cachedRingSpeakerWithHeadphones: Boolean? = null
 
     private var lastLocationTimeMs = 0L
     // Self-heal state. Set when silent recovery is in flight; cleared on first
@@ -165,6 +167,7 @@ class LocationService : Service() {
 
         syncWithDatabase()
         observeAlarmSoundUri()
+        observeAudioRoutingPreference()
     }
 
     /**
@@ -224,6 +227,14 @@ class LocationService : Service() {
         serviceScope.launch {
             UserPreferences.alarmSoundUriFlow.collect { uri ->
                 cachedAlarmSoundUri = uri
+            }
+        }
+    }
+
+    private fun observeAudioRoutingPreference() {
+        serviceScope.launch {
+            UserPreferences.ringSpeakerWithHeadphonesFlow.collect { enabled ->
+                cachedRingSpeakerWithHeadphones = enabled
             }
         }
     }
@@ -518,7 +529,7 @@ class LocationService : Service() {
      * Called by syncWithDatabase when a station transitions to ALERTING.
      * Plays sound, shows fullscreen notification. Does NOT delete from DB.
      */
-    private fun fireAlert(active: ActiveStation) {
+    private suspend fun fireAlert(active: ActiveStation) {
         Logger.log("ALERT_FIRED", active.stationId, "distance=${active.currentDistanceKm}")
 
         wakeLocks.acquireAlarm()
@@ -530,9 +541,11 @@ class LocationService : Service() {
             // validates readability — persisted SAF permissions are sometimes
             // revoked by the OS after reboot, so a URI that worked at pick
             // time may no longer resolve. Null → default sound.
-            val customUri: android.net.Uri? = resolveValidatedAlarmUri(cachedAlarmSoundUri)
+            val customUriStr = cachedAlarmSoundUri ?: UserPreferences.alarmSoundUriFlow.first().also { cachedAlarmSoundUri = it }
+            val customUri: android.net.Uri? = resolveValidatedAlarmUri(customUriStr)
             val stationLabel = active.getStation()?.name ?: active.stationId
-            audio.playAlarmSound(customUri) {
+            val ringSpeaker = cachedRingSpeakerWithHeadphones ?: UserPreferences.ringSpeakerWithHeadphonesFlow.first().also { cachedRingSpeakerWithHeadphones = it }
+            audio.playAlarmSound(customUri, ringSpeaker) {
                 // Both custom and default URIs failed — escalate so the user
                 // doesn't think the alarm silently failed. The full-screen
                 // alert still fires; this just adds vibration + a notification.
