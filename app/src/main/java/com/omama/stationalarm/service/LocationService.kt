@@ -98,6 +98,8 @@ class LocationService : Service() {
     // DataStore disk I/O (was an ANR risk with runBlocking). Blank = system default.
     @Volatile private var cachedAlarmSoundUri: String? = null
     @Volatile private var cachedRingSpeakerWithHeadphones: Boolean? = null
+    @Volatile private var cachedEscalatingAlarm: Boolean? = null
+    @Volatile private var cachedRampSecs: Int? = null
 
     private var lastLocationTimeMs = 0L
     // Self-heal state. Set when silent recovery is in flight; cleared on first
@@ -235,6 +237,16 @@ class LocationService : Service() {
         serviceScope.launch {
             UserPreferences.ringSpeakerWithHeadphonesFlow.collect { enabled ->
                 cachedRingSpeakerWithHeadphones = enabled
+            }
+        }
+        serviceScope.launch {
+            UserPreferences.escalatingAlarmFlow.collect { enabled ->
+                cachedEscalatingAlarm = enabled
+            }
+        }
+        serviceScope.launch {
+            UserPreferences.escalatingAlarmRampSecsFlow.collect { secs ->
+                cachedRampSecs = secs
             }
         }
     }
@@ -545,7 +557,9 @@ class LocationService : Service() {
             val customUri: android.net.Uri? = resolveValidatedAlarmUri(customUriStr)
             val stationLabel = active.getStation()?.name ?: active.stationId
             val ringSpeaker = cachedRingSpeakerWithHeadphones ?: UserPreferences.ringSpeakerWithHeadphonesFlow.first().also { cachedRingSpeakerWithHeadphones = it }
-            audio.playAlarmSound(customUri, ringSpeaker) {
+            val escalating = cachedEscalatingAlarm ?: UserPreferences.escalatingAlarmFlow.first().also { cachedEscalatingAlarm = it }
+            val rampSecs = cachedRampSecs ?: UserPreferences.escalatingAlarmRampSecsFlow.first().also { cachedRampSecs = it }
+            audio.playAlarmSound(customUri, ringSpeaker, escalating, rampSecs.takeIf { escalating } ?: 0) {
                 // Both custom and default URIs failed — escalate so the user
                 // doesn't think the alarm silently failed. The full-screen
                 // alert still fires; this just adds vibration + a notification.

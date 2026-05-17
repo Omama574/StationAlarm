@@ -47,6 +47,23 @@ internal class AlarmAudioController(private val context: Context) {
     private var routedAudioAttributes: AudioAttributes? = null
     private var terminalFailureCallback: (() -> Unit)? = null
 
+    // Volume ramp state — fields written on main thread only (playAlarmSound / stopAlarmSound).
+    // currentRampVolume is read from setOnPreparedListener (also main thread via MediaPlayer default).
+    private var isEscalatingAlarm: Boolean = false
+    private var rampDurationSeconds: Int = 0
+    private var currentRampVolume: Float = 1.0f
+
+    private val volumeRampRunnable = object : Runnable {
+        override fun run() {
+            if (!isAlarmRinging || currentRampVolume >= 1.0f) return
+            val step = (1.0f - 0.05f) / rampDurationSeconds.coerceAtLeast(1)
+            currentRampVolume = (currentRampVolume + step).coerceAtMost(1.0f)
+            speakerPlayer?.setVolume(currentRampVolume, currentRampVolume)
+            externalPlayer?.setVolume(currentRampVolume, currentRampVolume)
+            if (currentRampVolume < 1.0f) mainHandler.postDelayed(this, 1000L)
+        }
+    }
+
     var isAlarmRinging: Boolean = false
         private set
     var isVibrating: Boolean = false
@@ -72,10 +89,10 @@ internal class AlarmAudioController(private val context: Context) {
         }
     }
 
-    fun playAlarmSound() = playAlarmSound(null, true, null)
-    fun playAlarmSound(customUri: Uri?) = playAlarmSound(customUri, true, null)
+    fun playAlarmSound() = playAlarmSound(null, true, false, 0, null)
+    fun playAlarmSound(customUri: Uri?) = playAlarmSound(customUri, true, false, 0, null)
     fun playAlarmSound(customUri: Uri?, onAudioTerminalFailure: (() -> Unit)?) =
-        playAlarmSound(customUri, true, onAudioTerminalFailure)
+        playAlarmSound(customUri, true, false, 0, onAudioTerminalFailure)
 
     /**
      * Plays the alarm using [customUri] if provided, otherwise falls back to
@@ -94,6 +111,8 @@ internal class AlarmAudioController(private val context: Context) {
     fun playAlarmSound(
         customUri: Uri?,
         ringSpeakerWithHeadphones: Boolean,
+        escalatingAlarm: Boolean,
+        rampDurationSeconds: Int,
         onAudioTerminalFailure: (() -> Unit)?
     ) {
         if (isAlarmRinging) return
@@ -130,6 +149,14 @@ internal class AlarmAudioController(private val context: Context) {
         terminalFailureCallback = onAudioTerminalFailure
         routedAudioAttributes = audioAttributes
         defaultAlarmUri = defaultUri
+
+        this.isEscalatingAlarm = escalatingAlarm
+        this.rampDurationSeconds = rampDurationSeconds
+        this.currentRampVolume = if (escalatingAlarm) 0.05f else 1.0f
+        if (escalatingAlarm && rampDurationSeconds > 0) {
+            mainHandler.postDelayed(volumeRampRunnable, 1000L)
+        }
+
         registerAudioDeviceCallback(audioManager)
 
         // Start whichever routes are safe for the current device state.
@@ -169,6 +196,8 @@ internal class AlarmAudioController(private val context: Context) {
 
     fun stopAlarmSound() {
         if (isAlarmRinging) {
+            mainHandler.removeCallbacks(volumeRampRunnable)
+            currentRampVolume = 1.0f
             releaseRoutePlayers()
             isAlarmRinging = false
 
@@ -247,7 +276,7 @@ internal class AlarmAudioController(private val context: Context) {
             }
             mp.isLooping = true
             mp.setOnPreparedListener {
-                mp.setVolume(1.0f, 1.0f)
+                mp.setVolume(currentRampVolume, currentRampVolume)
                 val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
                 audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
                 mp.start()
@@ -319,6 +348,8 @@ internal class AlarmAudioController(private val context: Context) {
     private fun finishTerminalFailure(audioManager: AudioManager, reason: String) {
         if (!isAlarmRinging) return
         Log.e(tag, reason)
+        mainHandler.removeCallbacks(volumeRampRunnable)
+        currentRampVolume = 1.0f
         releaseRoutePlayers()
         unregisterAudioDeviceCallback(audioManager)
         abandonAudioFocus(audioManager)

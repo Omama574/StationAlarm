@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omama.stationalarm.data.UserPreferences
+import kotlin.math.roundToInt
+import com.omama.stationalarm.util.BatteryOptimizationHelper
 import com.omama.stationalarm.util.GpsLogger
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.launch
@@ -190,6 +192,114 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             // Audio Routing
             SectionTitle("Audio Routing")
+
+            val escalatingAlarm by UserPreferences.escalatingAlarmFlow.collectAsState(initial = true)
+            val rampSecs by UserPreferences.escalatingAlarmRampSecsFlow
+                .collectAsState(initial = UserPreferences.DEFAULT_RAMP_SECS)
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    // Ring speaker with headphones
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Ring speaker with headphones",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Keep the phone speaker loud when wired or Bluetooth audio is connected.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(
+                            checked = ringSpeakerWithHeadphones,
+                            onCheckedChange = { enabled ->
+                                scope.launch { UserPreferences.setRingSpeakerWithHeadphones(enabled) }
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                    )
+
+                    // Escalating alarm volume
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Start quiet, build to full volume",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Gradually increases over ${rampSecs}s so you wake naturally",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(
+                            checked = escalatingAlarm,
+                            onCheckedChange = { enabled ->
+                                scope.launch { UserPreferences.setEscalatingAlarm(enabled) }
+                            }
+                        )
+                    }
+
+                    if (escalatingAlarm) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Ramp duration: ${rampSecs}s",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Slider(
+                            value = rampSecs.toFloat(),
+                            onValueChange = { raw ->
+                                val snapped = (raw / 5).roundToInt() * 5
+                                scope.launch { UserPreferences.setEscalatingAlarmRampSecs(snapped) }
+                            },
+                            valueRange = 15f..60f,
+                            steps = 8,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("15s", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("60s", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+
+            // ── Background Running ─────────────────────────────────────────
+            SectionTitle("Background Running")
+            val isExempt = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -203,25 +313,28 @@ fun SettingsScreen(onBack: () -> Unit) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Ring speaker with headphones",
+                            text = "Battery exemption",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "Keep the phone speaker loud when wired or Bluetooth audio is connected.",
+                            text = if (isExempt)
+                                "Unrestricted — alarms will fire reliably"
+                            else
+                                "Restricted — alarms may be missed",
                             fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            color = if (isExempt)
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            else
+                                MaterialTheme.colorScheme.error
                         )
                     }
                     Spacer(Modifier.width(12.dp))
-                    Switch(
-                        checked = ringSpeakerWithHeadphones,
-                        onCheckedChange = { enabled ->
-                            scope.launch { UserPreferences.setRingSpeakerWithHeadphones(enabled) }
-                        }
-                    )
+                    OutlinedButton(onClick = { BatteryOptimizationHelper.openBatterySettings(context) }) {
+                        Text("Open")
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))
