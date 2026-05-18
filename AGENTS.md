@@ -1,7 +1,7 @@
 
 Your output would be verified with Codex
 
-# StationAlarm — CLAUDE.md
+# StationAlarm — AGENTS.md
 
 Android app that alerts users approaching a railway station or saved place.
 
