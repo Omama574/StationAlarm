@@ -3,6 +3,7 @@ package com.omama.stationalarm.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.Geofence
@@ -18,22 +19,60 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     private val TAG = "GeofenceBR"
 
+    companion object {
+        // Bridge wake lock: held from the start of onReceive() through
+        // startForegroundService(). Without this, the CPU can suspend in the
+        // window between goAsync()'s finish and LocationService acquiring its
+        // own wake lock — under Doze / MIUI Deep Sleep this drops geofence
+        // events entirely. Timeout-based so it self-releases even if our code
+        // crashes between acquire and release.
+        private const val STARTUP_LOCK_TIMEOUT_MS = 10_000L
+        private var startupWakeLock: PowerManager.WakeLock? = null
+
+        @Synchronized
+        fun acquireStartupLock(context: Context) {
+            val pm = context.applicationContext
+                .getSystemService(Context.POWER_SERVICE) as PowerManager
+            try { startupWakeLock?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
+            startupWakeLock = pm.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "StationAlarm::GeofenceStartup"
+            ).also { it.acquire(STARTUP_LOCK_TIMEOUT_MS) }
+        }
+
+        @Synchronized
+        fun releaseStartupLock() {
+            try {
+                startupWakeLock?.takeIf { it.isHeld }?.release()
+            } catch (_: Exception) {}
+            startupWakeLock = null
+        }
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
+        // Acquire BEFORE any other work so the CPU stays awake through goAsync,
+        // the IO coroutine, and startForegroundService. Auto-released after
+        // 10s by the timeout if our explicit release in the finally fails.
+        acquireStartupLock(context)
+
         val geofencingEvent = GeofencingEvent.fromIntent(intent)
         if (geofencingEvent == null) {
             Log.e(TAG, "No geofencing event in intent")
+            releaseStartupLock()
             return
         }
 
         if (geofencingEvent.hasError()) {
             Log.e(TAG, "Geofence error: ${geofencingEvent.errorCode}")
             Logger.log("GEOFENCE_ERROR", extra = "errorCode=${geofencingEvent.errorCode}")
+            releaseStartupLock()
             return
         }
 
         val triggeringGeofences = geofencingEvent.triggeringGeofences ?: emptyList()
         if (triggeringGeofences.isEmpty()) {
             Log.d(TAG, "No triggering geofences")
+            releaseStartupLock()
             return
         }
 
@@ -80,13 +119,25 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                         putExtra("stationId", stationId)
                         putExtra("layer", layer)
                     }
-                    ContextCompat.startForegroundService(context, serviceIntent)
+                    try {
+                        ContextCompat.startForegroundService(context, serviceIntent)
+                    } catch (e: Exception) {
+                        // BackgroundServiceStartNotAllowed or vendor security
+                        // exceptions can leave DB in ALERTING with no service
+                        // running. Reset so a later trigger can retry cleanly.
+                        Log.e(TAG, "startForegroundService failed for $stationId", e)
+                        Logger.log("SERVICE_START_FAILED", stationId, e.message)
+                        if (layer == "alert") {
+                            try { StationRepository.resetToMonitoring(stationId) } catch (_: Exception) {}
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing geofence", e)
                 Logger.log("ERROR", extra = "Geofence processing: ${e.message}")
             } finally {
                 pendingResult.finish()
+                releaseStartupLock()
             }
         }
     }
