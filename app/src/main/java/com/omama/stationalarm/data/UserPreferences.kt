@@ -37,6 +37,7 @@ object UserPreferences {
     private val KEY_RING_SPEAKER_WITH_HEADPHONES = booleanPreferencesKey("ring_speaker_with_headphones")
     private val KEY_ESCALATING_ALARM = booleanPreferencesKey("escalating_alarm_enabled")
     private val KEY_RAMP_DURATION_SECS = intPreferencesKey("escalating_alarm_ramp_secs")
+    private val KEY_BATTERY_OPT_DISMISSED = booleanPreferencesKey("battery_opt_permanently_dismissed")
 
     // ── Defaults ────────────────────────────────────────────────────────────
     const val THEME_SYSTEM = "system"
@@ -72,6 +73,12 @@ object UserPreferences {
     val escalatingAlarmRampSecsFlow: Flow<Int>
         get() = dataStore.data.map { it[KEY_RAMP_DURATION_SECS] ?: DEFAULT_RAMP_SECS }
 
+    /** True if the user tapped "Don't ask again" on the battery sheet. Once
+     *  set, the post-confirm sheet stays suppressed; the Settings > Background
+     *  Running row remains the user-driven entry point to grant the exemption. */
+    val batteryOptDismissedFlow: Flow<Boolean>
+        get() = dataStore.data.map { it[KEY_BATTERY_OPT_DISMISSED] ?: false }
+
     // ── Setters ─────────────────────────────────────────────────────────────
     // DataStore writes can throw IOException on disk-full / corrupted preferences.
     // Callers launch these from rememberCoroutineScope, where an unhandled throw
@@ -101,6 +108,10 @@ object UserPreferences {
 
     suspend fun setEscalatingAlarmRampSecs(secs: Int) {
         runSafely("setEscalatingAlarmRampSecs") { dataStore.edit { it[KEY_RAMP_DURATION_SECS] = secs } }
+    }
+
+    suspend fun setBatteryOptDismissed(dismissed: Boolean) {
+        runSafely("setBatteryOptDismissed") { dataStore.edit { it[KEY_BATTERY_OPT_DISMISSED] = dismissed } }
     }
 
     private suspend inline fun runSafely(op: String, crossinline block: suspend () -> Unit) {

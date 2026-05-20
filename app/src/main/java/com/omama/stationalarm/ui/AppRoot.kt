@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omama.stationalarm.MainActivity
 import com.omama.stationalarm.data.Station
+import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.service.LocationService
 import com.omama.stationalarm.ui.screens.AboutScreen
 import com.omama.stationalarm.ui.screens.HomeScreen
@@ -309,6 +310,9 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     var showBatteryOptSheet by remember { mutableStateOf(false) }
     var showVolumeWarning by remember { mutableStateOf(false) }
     var checkVolumeAfterBattery by remember { mutableStateOf(false) }
+    // Read once per recomposition; the sheet is gated on this so users who
+    // hit "Don't ask again" never see it again from the post-confirm path.
+    val batteryOptDismissed by UserPreferences.batteryOptDismissedFlow.collectAsState(initial = false)
 
     // Back handling for sub-screens and open drawer
     BackHandler(enabled = currentScreen != Screen.Main) {
@@ -594,7 +598,9 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         snackbarHostState.showSnackbar("Alarm updated for $stationName")
                     }
                     val soundOn = activeStation.sound
-                    if (!BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)) {
+                    val needsBatterySheet = !batteryOptDismissed
+                        && !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                    if (needsBatterySheet) {
                         checkVolumeAfterBattery = soundOn
                         showBatteryOptSheet = true
                     } else if (soundOn && isAlarmVolumeLow(context)) {
@@ -622,7 +628,9 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         snackbarHostState.showSnackbar("Alarm set for $stationName")
                     }
                     val soundOn = activeStation.sound
-                    if (!BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)) {
+                    val needsBatterySheet = !batteryOptDismissed
+                        && !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                    if (needsBatterySheet) {
                         checkVolumeAfterBattery = soundOn
                         showBatteryOptSheet = true
                     } else if (soundOn && isAlarmVolumeLow(context)) {
@@ -634,13 +642,23 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     }
 
     if (showBatteryOptSheet) {
-        BatteryOptimizationSheet(onDismiss = {
-            showBatteryOptSheet = false
-            if (checkVolumeAfterBattery && isAlarmVolumeLow(context)) {
-                showVolumeWarning = true
+        BatteryOptimizationSheet(
+            onDismiss = {
+                showBatteryOptSheet = false
+                if (checkVolumeAfterBattery && isAlarmVolumeLow(context)) {
+                    showVolumeWarning = true
+                }
+                checkVolumeAfterBattery = false
+            },
+            onDontAskAgain = {
+                coroutineScope.launch { UserPreferences.setBatteryOptDismissed(true) }
+                showBatteryOptSheet = false
+                if (checkVolumeAfterBattery && isAlarmVolumeLow(context)) {
+                    showVolumeWarning = true
+                }
+                checkVolumeAfterBattery = false
             }
-            checkVolumeAfterBattery = false
-        })
+        )
     }
 
     if (showVolumeWarning) {

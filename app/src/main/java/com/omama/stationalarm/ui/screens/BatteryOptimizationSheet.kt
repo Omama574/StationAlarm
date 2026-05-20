@@ -17,7 +17,10 @@ import com.omama.stationalarm.util.BatteryOptimizationHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BatteryOptimizationSheet(onDismiss: () -> Unit) {
+fun BatteryOptimizationSheet(
+    onDismiss: () -> Unit,
+    onDontAskAgain: () -> Unit = onDismiss
+) {
     val context = LocalContext.current
 
     ModalBottomSheet(
@@ -87,6 +90,16 @@ fun BatteryOptimizationSheet(onDismiss: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Skip for now", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            }
+
+            TextButton(
+                onClick = onDontAskAgain,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Don't ask again",
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.75f)
+                )
             }
         }
     }
