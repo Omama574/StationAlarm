@@ -75,11 +75,16 @@ class GpsReliabilityCoordinator(
         armCoarseFallback()
 
         // Set a 90s deadline — after this, cold-start is over regardless.
-        coldStartTimeoutRunnable = Runnable {
+        // Capture the runnable in a local val before posting: another thread
+        // calling completeColdStart() (e.g. from onFirstFixReceived) can
+        // null `coldStartTimeoutRunnable` between the assignment and the
+        // `!!` deref on the next line — a real NPE in production crash logs.
+        val runnable = Runnable {
             Logger.log("COLD_START_TIMEOUT", extra = "90s elapsed without a fix")
             completeColdStart()
         }
-        handler.postDelayed(coldStartTimeoutRunnable!!, COLD_START_DURATION_MS)
+        coldStartTimeoutRunnable = runnable
+        handler.postDelayed(runnable, COLD_START_DURATION_MS)
     }
 
     /**

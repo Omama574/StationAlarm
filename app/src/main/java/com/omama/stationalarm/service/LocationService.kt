@@ -363,7 +363,14 @@ class LocationService : Service() {
             try {
                 StationRepository.resetAllAlertingToMonitoring()
             } catch (e: Exception) {
-                Logger.log("ALERTING_RESET_FAILED", extra = e.message)
+                // Hard-fail: if we can't clear ALERTING rows on cold start, the
+                // diff in the first emission below will treat every ALERTING
+                // row as "newly alerting" and re-fire the alarm with no user
+                // intent. Better to stop the service and let WorkManager / the
+                // next user action retry than to wake users with ghost alarms.
+                Logger.log("ALERTING_RESET_FAILED", extra = "stopping service: ${e.message}")
+                stopSelf()
+                return@launch
             }
             StationRepository.activeStationsFlow.collect { allFromDb ->
 

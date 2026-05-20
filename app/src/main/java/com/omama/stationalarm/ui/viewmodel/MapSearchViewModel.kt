@@ -12,14 +12,16 @@ import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.network.GeocodingClient
 import com.omama.stationalarm.network.toSearchResult
 import com.omama.stationalarm.repository.StationRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import retrofit2.HttpException
 import java.io.IOException
+import java.net.SocketTimeoutException
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class MapSearchViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Search state ──────────────────────────────────────────────────────────
@@ -53,13 +55,16 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     // ── Init ──────────────────────────────────────────────────────────────────
 
     init {
-        viewModelScope.launch {
-            _query
-                .debounce(500)          // 500ms — balances UX vs LocationIQ quota
-                .filter { it.length >= 3 }
-                .distinctUntilChanged()
-                .collect { q -> performSearch(q) }
-        }
+        // mapLatest cancels the previous performSearch when a new query
+        // arrives mid-flight — without it, a slow Photon request kicked off
+        // for "Mum" could resolve after the user has typed "Mumbai" and
+        // overwrite the fresh result with stale data.
+        _query
+            .debounce(500)          // 500ms — balances UX vs LocationIQ quota
+            .filter { it.length >= 3 }
+            .distinctUntilChanged()
+            .mapLatest { q -> performSearch(q) }
+            .launchIn(viewModelScope)
         fetchAndEmitUserLocation(emitToCenter = true)
     }
 
@@ -131,8 +136,12 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /** Translates a network-level failure into a short user-facing message so the
-     *  Map snackbar tells the user *why* search failed, not just that it did. */
-    private fun errorMessageFor(e: Throwable): String = when (e) {
+     *  Map snackbar tells the user *why* search failed, not just that it did.
+     *  SocketTimeoutException is treated separately from generic IOException
+     *  because a timeout usually means a flaky network, not a fully-offline one,
+     *  and the user-facing fix is different ("try again" vs "turn wifi on"). */
+    internal fun errorMessageFor(e: Throwable): String = when (e) {
+        is SocketTimeoutException -> "Search timed out — check your connection."
         is IOException -> "No internet connection."
         is HttpException -> when (e.code()) {
             429 -> "Too many requests — try again in a moment."

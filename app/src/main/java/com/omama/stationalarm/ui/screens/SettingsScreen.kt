@@ -23,6 +23,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.omama.stationalarm.data.UserPreferences
 import kotlin.math.roundToInt
 import com.omama.stationalarm.util.BatteryOptimizationHelper
@@ -348,7 +351,22 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             // ── Background Running ─────────────────────────────────────────
             SectionTitle("Background Running")
-            val isExempt = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+            // Re-check on every ON_RESUME so the row updates immediately when
+            // the user returns from the system battery settings — without
+            // this, the screen stays "Restricted" until next recomposition.
+            val lifecycleOwner = LocalLifecycleOwner.current
+            var isExempt by remember {
+                mutableStateOf(BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context))
+            }
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        isExempt = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),

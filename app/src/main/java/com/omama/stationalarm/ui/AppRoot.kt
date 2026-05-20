@@ -562,26 +562,31 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
         )
     }
 
-    if (selectedStation != null) {
-        val isEditing = editingStation != null
-        val isActive = isEditing || activeStations.any { it.stationId == selectedStation!!.id }
+    // Capture selectedStation into a local val so all subsequent reads work
+    // off the same snapshot — without this, a recomposition between the null
+    // check and an `!!` deref could throw NPE.
+    val station = selectedStation
+    val editing = editingStation
+    if (station != null) {
+        val isEditing = editing != null
+        val isActive = isEditing || activeStations.any { it.stationId == station.id }
         // Pre-fill name: edit → existing alarm name; new → station name
         // (railway result or geocoded address). Raw "Dropped Pin" with no
         // reverse-geocode becomes a plain "Alarm" placeholder.
         val initialAlarmName = if (isEditing) {
-            editingStation!!.stationName.ifBlank { "Alarm" }
+            editing!!.stationName.ifBlank { "Alarm" }
         } else {
-            val raw = selectedStation!!.name
+            val raw = station.name
             if (raw.isBlank() || raw == "Dropped Pin") "Alarm" else raw
         }
         StationConfigBottomSheet(
-            station = selectedStation!!,
+            station = station,
             isActive = isActive,
-            initialRadius = if (isEditing) editingStation!!.alertDistanceKm else (selectedRadius ?: 5.0),
-            initialNotify = if (isEditing) editingStation!!.notify else true,
-            initialVibrate = if (isEditing) editingStation!!.vibrate else true,
-            initialSound = if (isEditing) editingStation!!.sound else true,
-            initialNotes = if (isEditing) editingStation!!.customReminder else null,
+            initialRadius = if (isEditing) editing!!.alertDistanceKm else (selectedRadius ?: 5.0),
+            initialNotify = if (isEditing) editing!!.notify else true,
+            initialVibrate = if (isEditing) editing!!.vibrate else true,
+            initialSound = if (isEditing) editing!!.sound else true,
+            initialNotes = if (isEditing) editing!!.customReminder else null,
             initialName = initialAlarmName,
             onDismiss = {
                 selectedStation = null
@@ -602,10 +607,10 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     // updateActiveStationSettings doesn't touch stationName —
                     // persist a rename made inside the bottom sheet here.
                     if (activeStation.stationName.isNotBlank() &&
-                        activeStation.stationName != editingStation!!.stationName) {
+                        activeStation.stationName != editing!!.stationName) {
                         viewModel.updateStationName(activeStation.stationId, activeStation.stationName)
                     }
-                    val stationName = activeStation.stationName.ifBlank { selectedStation!!.name }
+                    val stationName = activeStation.stationName.ifBlank { station.name }
                     selectedStation = null
                     selectedRadius = null
                     editingStation = null
@@ -623,10 +628,10 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         showVolumeWarning = true
                     }
                 } else {
-                    val isRailway = com.omama.stationalarm.data.StationData.getStationById(selectedStation!!.id) != null
-                    viewModel.addActiveStation(activeStation, if (!isRailway) selectedStation else null)
+                    val isRailway = com.omama.stationalarm.data.StationData.getStationById(station.id) != null
+                    viewModel.addActiveStation(activeStation, if (!isRailway) station else null)
 
-                    val stationName = activeStation.stationName.ifBlank { selectedStation!!.name }
+                    val stationName = activeStation.stationName.ifBlank { station.name }
                     val wasFromMap = isFromMap
                     selectedStation = null
                     selectedRadius = null

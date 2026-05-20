@@ -106,7 +106,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     Logger.log("GEOFENCE_TRIGGERED", stationId, layer)
 
                     if (layer == "alert") {
-                        StationRepository.markAlerting(stationId)
+                        // Suspending variant: ensures the DB write + geofence
+                        // removal complete before we move on, so a subsequent
+                        // resetToMonitoring on the failure path can't race the
+                        // markAlerting write and resurrect a stale ALERTING row.
+                        StationRepository.markAlertingSync(stationId)
                     }
 
                     // Start LocationService to ensure it reacts to the DB update

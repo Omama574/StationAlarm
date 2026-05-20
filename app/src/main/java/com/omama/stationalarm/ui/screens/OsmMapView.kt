@@ -2,9 +2,15 @@ package com.omama.stationalarm.ui.screens
 
 import android.view.ViewGroup
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.omama.stationalarm.network.GeoSearchResult
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -39,6 +45,28 @@ internal fun OsmMapView(
     val singleTapCb = rememberUpdatedState(onSingleTap)
     val longPressCb = rememberUpdatedState(onLongPress)
 
+    // Captured for the lifecycle hooks below. osmdroid's MapView leaks its
+    // internal handler and tile worker threads if onPause/onDetach aren't
+    // called — symptoms are leaked Activities and a slow battery drain when
+    // the user backgrounds the app on the Map tab.
+    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> mapViewRef.value?.onResume()
+                Lifecycle.Event.ON_PAUSE  -> mapViewRef.value?.onPause()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            mapViewRef.value?.onDetach()
+            mapViewRef.value = null
+        }
+    }
+
     AndroidView(
         factory = { ctx ->
             MapView(ctx).apply {
@@ -68,6 +96,7 @@ internal fun OsmMapView(
                     }
                 }
                 overlays.add(0, MapEventsOverlay(receiver))
+                mapViewRef.value = this
                 onMapReady(this)
             }
         },
