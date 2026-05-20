@@ -507,14 +507,15 @@ internal class AlarmAudioController(private val context: Context) {
         }
 
     /**
-     * Schedules the 5-minute auto-dismiss timeout. Cancels any previously
-     * scheduled timeout. The caller's [onTimeout] runs after sound + vibration
-     * have already been stopped.
+     * Schedules the auto-dismiss timeout. Cancels any previously scheduled
+     * timeout. The caller's [onTimeout] runs after sound + vibration have
+     * already been stopped. [durationMs] is the configurable alarm duration
+     * (see UserPreferences.alarmDurationSecsFlow).
      */
-    fun startTimeout(scope: CoroutineScope, onTimeout: () -> Unit) {
+    fun startTimeout(scope: CoroutineScope, durationMs: Long, onTimeout: () -> Unit) {
         alarmTimeoutJob?.cancel()
         alarmTimeoutJob = scope.launch {
-            delay(5 * 60 * 1000L) // 5 minutes max duration
+            delay(durationMs)
             stopAlarmSound()
             stopVibrator()
             onTimeout()

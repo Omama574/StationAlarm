@@ -297,6 +297,55 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
             Spacer(Modifier.height(24.dp))
 
+            // ── Alarm Duration ─────────────────────────────────────────────
+            SectionTitle("Alarm Duration")
+            val alarmDurationSecs by UserPreferences.alarmDurationSecsFlow
+                .collectAsState(initial = UserPreferences.DEFAULT_ALARM_DURATION_SECS)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(
+                        text = "How long the alarm rings before auto-stopping.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Rings for: ${alarmDurationSecs / 60} min",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = alarmDurationSecs.toFloat(),
+                        onValueChange = { raw ->
+                            // Snap to whole-minute steps so the label stays clean.
+                            val snapped = (raw / 60f).roundToInt() * 60
+                            scope.launch { UserPreferences.setAlarmDurationSecs(snapped) }
+                        },
+                        valueRange = UserPreferences.MIN_ALARM_DURATION_SECS.toFloat()..
+                                UserPreferences.MAX_ALARM_DURATION_SECS.toFloat(),
+                        steps = 13, // 60..900 in 60s steps → 14 intervals → 13 in-between stops
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("1 min", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("15 min", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+
             // ── Background Running ─────────────────────────────────────────
             SectionTitle("Background Running")
             val isExempt = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)

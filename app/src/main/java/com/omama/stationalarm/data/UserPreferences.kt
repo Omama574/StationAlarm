@@ -38,6 +38,7 @@ object UserPreferences {
     private val KEY_ESCALATING_ALARM = booleanPreferencesKey("escalating_alarm_enabled")
     private val KEY_RAMP_DURATION_SECS = intPreferencesKey("escalating_alarm_ramp_secs")
     private val KEY_BATTERY_OPT_DISMISSED = booleanPreferencesKey("battery_opt_permanently_dismissed")
+    private val KEY_ALARM_DURATION_SECS = intPreferencesKey("alarm_duration_secs")
 
     // ── Defaults ────────────────────────────────────────────────────────────
     const val THEME_SYSTEM = "system"
@@ -48,6 +49,11 @@ object UserPreferences {
     const val UNIT_MILES = "miles"
 
     const val DEFAULT_RAMP_SECS = 30
+
+    /** Alarm rings for this many seconds before auto-stopping. 60..900 (1..15 min). */
+    const val DEFAULT_ALARM_DURATION_SECS = 180
+    const val MIN_ALARM_DURATION_SECS = 60
+    const val MAX_ALARM_DURATION_SECS = 900
 
     fun initialize(context: Context) {
         dataStore = context.applicationContext.prefsDataStore
@@ -72,6 +78,9 @@ object UserPreferences {
 
     val escalatingAlarmRampSecsFlow: Flow<Int>
         get() = dataStore.data.map { it[KEY_RAMP_DURATION_SECS] ?: DEFAULT_RAMP_SECS }
+
+    val alarmDurationSecsFlow: Flow<Int>
+        get() = dataStore.data.map { it[KEY_ALARM_DURATION_SECS] ?: DEFAULT_ALARM_DURATION_SECS }
 
     /** True if the user tapped "Don't ask again" on the battery sheet. Once
      *  set, the post-confirm sheet stays suppressed; the Settings > Background
@@ -108,6 +117,14 @@ object UserPreferences {
 
     suspend fun setEscalatingAlarmRampSecs(secs: Int) {
         runSafely("setEscalatingAlarmRampSecs") { dataStore.edit { it[KEY_RAMP_DURATION_SECS] = secs } }
+    }
+
+    suspend fun setAlarmDurationSecs(secs: Int) {
+        runSafely("setAlarmDurationSecs") {
+            dataStore.edit {
+                it[KEY_ALARM_DURATION_SECS] = secs.coerceIn(MIN_ALARM_DURATION_SECS, MAX_ALARM_DURATION_SECS)
+            }
+        }
     }
 
     suspend fun setBatteryOptDismissed(dismissed: Boolean) {

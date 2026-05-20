@@ -100,6 +100,7 @@ class LocationService : Service() {
     @Volatile private var cachedRingSpeakerWithHeadphones: Boolean? = null
     @Volatile private var cachedEscalatingAlarm: Boolean? = null
     @Volatile private var cachedRampSecs: Int? = null
+    @Volatile private var cachedAlarmDurationSecs: Int? = null
 
     private var lastLocationTimeMs = 0L
     // Self-heal state. Set when silent recovery is in flight; cleared on first
@@ -247,6 +248,11 @@ class LocationService : Service() {
         serviceScope.launch {
             UserPreferences.escalatingAlarmRampSecsFlow.collect { secs ->
                 cachedRampSecs = secs
+            }
+        }
+        serviceScope.launch {
+            UserPreferences.alarmDurationSecsFlow.collect { secs ->
+                cachedAlarmDurationSecs = secs
             }
         }
     }
@@ -611,8 +617,15 @@ class LocationService : Service() {
         }
 
         if (startedNewAlarm) {
-            audio.startTimeout(serviceScope) {
-                Logger.log("ALARM_TIMEOUT", extra = "Auto-dismissing all alerting stations after 5m")
+            val durationSecs = cachedAlarmDurationSecs ?: try {
+                UserPreferences.alarmDurationSecsFlow.first().also { cachedAlarmDurationSecs = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "alarmDurationSecs: ${e.message}")
+                UserPreferences.DEFAULT_ALARM_DURATION_SECS
+            }
+            val durationMs = durationSecs * 1000L
+            audio.startTimeout(serviceScope, durationMs) {
+                Logger.log("ALARM_TIMEOUT", extra = "Auto-dismissing after ${durationSecs}s")
                 // Auto-dismiss all alerting stations to prevent zombie state
                 val ids = alertingStationIds.toList()
                 for (id in ids) {
