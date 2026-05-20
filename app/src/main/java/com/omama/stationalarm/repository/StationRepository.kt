@@ -362,6 +362,21 @@ object StationRepository {
         Logger.log("STATUS_CHANGE", stationId, "MONITORING (reset)")
     }
 
+    /**
+     * Bulk reset every ALERTING row back to MONITORING. Called by
+     * [com.omama.stationalarm.service.LocationService] on cold start to
+     * prevent ghost alarms when the process was killed mid-alarm: without
+     * this, the first sync emission would treat any still-ALERTING DB row
+     * as "newly alerting" and re-fire the alarm without user interaction.
+     * Geofences for those stations were already removed at markAlerting()
+     * time, so the user must enter the radius again for the alarm to fire.
+     */
+    suspend fun resetAllAlertingToMonitoring(): Int {
+        val count = database.activeStationDao().resetAllAlertingToMonitoring()
+        if (count > 0) Logger.log("ALERTING_RESET_BULK", extra = "count=$count")
+        return count
+    }
+
     /** Update settings of an active station in-place (radius, notification prefs, reminder). */
     fun updateActiveStationSettings(
         stationId: String,

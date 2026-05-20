@@ -347,6 +347,18 @@ class LocationService : Service() {
      */
     private fun syncWithDatabase() {
         serviceScope.launch {
+            // Process kill can leave a row stuck in ALERTING (alertingStationIds
+            // is in-memory only). Without this reset, the first flow emission
+            // below would diff dbAlertingIds - alertingStationIds (= dbAlertingIds
+            // on cold start) and re-fire the alarm without user interaction.
+            // Awaited before subscribing so the first emission reflects the
+            // cleared state. Geofences were already removed at markAlerting()
+            // time, so the user must enter the radius again to re-fire.
+            try {
+                StationRepository.resetAllAlertingToMonitoring()
+            } catch (e: Exception) {
+                Logger.log("ALERTING_RESET_FAILED", extra = e.message)
+            }
             StationRepository.activeStationsFlow.collect { allFromDb ->
 
                 // --- Partition by status ---
@@ -553,12 +565,37 @@ class LocationService : Service() {
             // validates readability — persisted SAF permissions are sometimes
             // revoked by the OS after reboot, so a URI that worked at pick
             // time may no longer resolve. Null → default sound.
-            val customUriStr = cachedAlarmSoundUri ?: UserPreferences.alarmSoundUriFlow.first().also { cachedAlarmSoundUri = it }
+            // DataStore .first() can throw on corrupted/unreadable prefs file.
+            // Without these guards, an IOException here cancels fireAlert mid-
+            // execution: wake lock is already held, DB still ALERTING, alarm
+            // never starts — a silent failure. Defaults match DataStore's
+            // fresh-install defaults, so behaviour is identical to a new user.
+            val customUriStr = cachedAlarmSoundUri ?: try {
+                UserPreferences.alarmSoundUriFlow.first().also { cachedAlarmSoundUri = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "alarmSoundUri: ${e.message}")
+                ""
+            }
             val customUri: android.net.Uri? = resolveValidatedAlarmUri(customUriStr)
             val stationLabel = active.getStation()?.name ?: active.stationId
-            val ringSpeaker = cachedRingSpeakerWithHeadphones ?: UserPreferences.ringSpeakerWithHeadphonesFlow.first().also { cachedRingSpeakerWithHeadphones = it }
-            val escalating = cachedEscalatingAlarm ?: UserPreferences.escalatingAlarmFlow.first().also { cachedEscalatingAlarm = it }
-            val rampSecs = cachedRampSecs ?: UserPreferences.escalatingAlarmRampSecsFlow.first().also { cachedRampSecs = it }
+            val ringSpeaker = cachedRingSpeakerWithHeadphones ?: try {
+                UserPreferences.ringSpeakerWithHeadphonesFlow.first().also { cachedRingSpeakerWithHeadphones = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "ringSpeaker: ${e.message}")
+                true
+            }
+            val escalating = cachedEscalatingAlarm ?: try {
+                UserPreferences.escalatingAlarmFlow.first().also { cachedEscalatingAlarm = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "escalating: ${e.message}")
+                true
+            }
+            val rampSecs = cachedRampSecs ?: try {
+                UserPreferences.escalatingAlarmRampSecsFlow.first().also { cachedRampSecs = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "rampSecs: ${e.message}")
+                UserPreferences.DEFAULT_RAMP_SECS
+            }
             audio.playAlarmSound(customUri, ringSpeaker, escalating, rampSecs.takeIf { escalating } ?: 0) {
                 // Both custom and default URIs failed — escalate so the user
                 // doesn't think the alarm silently failed. The full-screen
