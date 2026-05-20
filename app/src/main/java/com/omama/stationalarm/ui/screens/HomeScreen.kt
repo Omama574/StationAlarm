@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -198,6 +199,9 @@ fun HomeScreen(
                                     onToggle = { enabled ->
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         onToggleStation(station, enabled)
+                                    },
+                                    onRename = { newName ->
+                                        viewModel.updateStationName(station.stationId, newName)
                                     }
                                 )
                             }
@@ -324,10 +328,15 @@ fun StationCard(
     onEdit: () -> Unit,
     onViewOnMap: () -> Unit,
     onRemove: () -> Unit,
-    onToggle: (Boolean) -> Unit
+    onToggle: (Boolean) -> Unit,
+    onRename: (String) -> Unit
 ) {
-    val stationData = station.getStation()
-    val name = stationData?.name ?: station.stationName.ifEmpty { station.stationId }
+    // The user-edited alarm name lives in active_stations.stationName and is
+    // the source of truth. station.getStation() is only used for lat/lon
+    // resolution in the action flow — its name is not authoritative here.
+    val name = station.stationName.ifEmpty { station.getStation()?.name ?: station.stationId }
+    var isEditingName by remember(station.stationId) { mutableStateOf(false) }
+    var draftName by remember(station.stationId) { mutableStateOf(name) }
 
     val unit = LocalDistanceUnit.current
     val colors = MaterialTheme.colorScheme
@@ -368,31 +377,88 @@ fun StationCard(
                 .fillMaxWidth()
                 .padding(spacing.md)
         ) {
-            // ── Row 1: Name + badges ──
+            // ── Row 1: Name (or inline editor) + badges ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = contentColor,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                Spacer(Modifier.width(spacing.sm))
-                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                    StatusBadge(
-                        text = if (station.sound) "Alarm" else "Notify",
-                        container = colors.tertiaryContainer,
-                        content = colors.onTertiaryContainer
+                if (isEditingName) {
+                    OutlinedTextField(
+                        value = draftName,
+                        onValueChange = { draftName = it.take(60) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = spacing.xs),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.primary,
+                            unfocusedBorderColor = colors.outline
+                        )
                     )
-                    when {
-                        isAlerting -> StatusBadge("Ringing", colors.error, colors.onError)
-                        isPaused -> StatusBadge("Paused", colors.outline, colors.surface)
+                    IconButton(
+                        onClick = {
+                            val trimmed = draftName.trim().ifBlank { "Alarm" }
+                            if (trimmed != name) onRename(trimmed)
+                            isEditingName = false
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Save name",
+                            tint = colors.primary
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            draftName = name
+                            isEditingName = false
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Cancel rename",
+                            tint = colors.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = contentColor,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    IconButton(
+                        onClick = {
+                            draftName = name
+                            isEditingName = true
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Rename alarm",
+                            tint = colors.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(spacing.sm))
+                    Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
+                        StatusBadge(
+                            text = if (station.sound) "Alarm" else "Notify",
+                            container = colors.tertiaryContainer,
+                            content = colors.onTertiaryContainer
+                        )
+                        when {
+                            isAlerting -> StatusBadge("Ringing", colors.error, colors.onError)
+                            isPaused -> StatusBadge("Paused", colors.outline, colors.surface)
+                        }
                     }
                 }
             }
@@ -403,6 +469,14 @@ fun StationCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = if (isAlerting) contentColor.copy(alpha = 0.85f) else colors.onSurfaceVariant
             )
+
+            station.lastTriggeredAt?.let { ts ->
+                Text(
+                    text = "Last triggered: ${formatLastTriggered(ts)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
+            }
 
             Spacer(Modifier.height(spacing.sm))
 
@@ -595,6 +669,20 @@ private fun StatusBadge(text: String, container: Color, content: Color) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
         )
+    }
+}
+
+private fun formatLastTriggered(epochMs: Long): String {
+    val now = java.time.LocalDateTime.now()
+    val ts = java.time.LocalDateTime.ofInstant(
+        java.time.Instant.ofEpochMilli(epochMs),
+        java.time.ZoneId.systemDefault()
+    )
+    val timePart = ts.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    return when {
+        ts.toLocalDate() == now.toLocalDate() -> "Today $timePart"
+        ts.toLocalDate() == now.toLocalDate().minusDays(1) -> "Yesterday $timePart"
+        else -> ts.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM HH:mm"))
     }
 }
 

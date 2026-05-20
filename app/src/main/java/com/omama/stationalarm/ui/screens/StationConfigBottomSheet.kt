@@ -56,6 +56,7 @@ fun StationConfigBottomSheet(
     initialVibrate: Boolean = true,
     initialSound: Boolean = true,
     initialNotes: String? = null,
+    initialName: String = "",
     onDismiss: () -> Unit,
     onConfirm: (ActiveStation) -> Unit
 ) {
@@ -64,6 +65,7 @@ fun StationConfigBottomSheet(
     val spacing = MaterialTheme.spacing
     val colors = MaterialTheme.colorScheme
 
+    var alarmName by remember { mutableStateOf(initialName.ifBlank { "Alarm" }) }
     var alertDistance by remember { mutableStateOf(initialRadius) }
     var notifyEnabled by remember { mutableStateOf(initialNotify) }
     var vibrateEnabled by remember { mutableStateOf(initialVibrate) }
@@ -91,13 +93,21 @@ fun StationConfigBottomSheet(
                 .padding(bottom = spacing.lg),
             verticalArrangement = Arrangement.spacedBy(spacing.md)
         ) {
-            // ── Header: name + optional railway code chip ────────────────────
+            // ── Header: editable alarm name + optional railway code chip ─────
             Column {
-                Text(
-                    text = station.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.onSurface,
-                    fontWeight = FontWeight.SemiBold
+                OutlinedTextField(
+                    value = alarmName,
+                    onValueChange = { alarmName = it.take(60) },
+                    label = { Text("Alarm name") },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.primary,
+                        unfocusedBorderColor = colors.outline,
+                        focusedLabelColor = colors.primary,
+                        unfocusedLabelColor = colors.onSurfaceVariant
+                    )
                 )
                 if (displayCode != null) {
                     Spacer(Modifier.height(spacing.xs))
@@ -231,7 +241,10 @@ fun StationConfigBottomSheet(
                             vibrate = vibrateEnabled,
                             sound = soundEnabled,
                             customReminder = customReminder.takeIf { it.isNotBlank() },
-                            sendReminder = sendReminder
+                            sendReminder = sendReminder,
+                            stationName = alarmName.trim().ifBlank { "Alarm" },
+                            lat = station.lat,
+                            lon = station.lon
                         )
                     )
                 },

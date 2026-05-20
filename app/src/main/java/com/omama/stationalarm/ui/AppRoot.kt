@@ -565,6 +565,15 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     if (selectedStation != null) {
         val isEditing = editingStation != null
         val isActive = isEditing || activeStations.any { it.stationId == selectedStation!!.id }
+        // Pre-fill name: edit → existing alarm name; new → station name
+        // (railway result or geocoded address). Raw "Dropped Pin" with no
+        // reverse-geocode becomes a plain "Alarm" placeholder.
+        val initialAlarmName = if (isEditing) {
+            editingStation!!.stationName.ifBlank { "Alarm" }
+        } else {
+            val raw = selectedStation!!.name
+            if (raw.isBlank() || raw == "Dropped Pin") "Alarm" else raw
+        }
         StationConfigBottomSheet(
             station = selectedStation!!,
             isActive = isActive,
@@ -573,6 +582,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
             initialVibrate = if (isEditing) editingStation!!.vibrate else true,
             initialSound = if (isEditing) editingStation!!.sound else true,
             initialNotes = if (isEditing) editingStation!!.customReminder else null,
+            initialName = initialAlarmName,
             onDismiss = {
                 selectedStation = null
                 selectedRadius = null
@@ -589,7 +599,13 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         reminder = activeStation.customReminder,
                         sendReminder = activeStation.sendReminder
                     )
-                    val stationName = selectedStation!!.name
+                    // updateActiveStationSettings doesn't touch stationName —
+                    // persist a rename made inside the bottom sheet here.
+                    if (activeStation.stationName.isNotBlank() &&
+                        activeStation.stationName != editingStation!!.stationName) {
+                        viewModel.updateStationName(activeStation.stationId, activeStation.stationName)
+                    }
+                    val stationName = activeStation.stationName.ifBlank { selectedStation!!.name }
                     selectedStation = null
                     selectedRadius = null
                     editingStation = null
@@ -610,7 +626,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     val isRailway = com.omama.stationalarm.data.StationData.getStationById(selectedStation!!.id) != null
                     viewModel.addActiveStation(activeStation, if (!isRailway) selectedStation else null)
 
-                    val stationName = selectedStation!!.name
+                    val stationName = activeStation.stationName.ifBlank { selectedStation!!.name }
                     val wasFromMap = isFromMap
                     selectedStation = null
                     selectedRadius = null

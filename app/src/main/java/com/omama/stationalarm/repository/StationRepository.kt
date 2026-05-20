@@ -115,7 +115,9 @@ object StationRepository {
             val entityWithCoords = activeStation.copy(
                 lat = resolvedStation?.lat ?: activeStation.lat,
                 lon = resolvedStation?.lon ?: activeStation.lon,
-                stationName = resolvedStation?.name ?: activeStation.stationName
+                // Prefer the user-typed name from the bottom sheet; only fall
+                // back to the resolved station name if the user cleared it.
+                stationName = activeStation.stationName.ifBlank { resolvedStation?.name ?: "" }
             )
 
             // Single-table insert: active_stations now persists everything we
@@ -186,12 +188,22 @@ object StationRepository {
 
     /** Transition a station to ALERTING status. Only valid from MONITORING — guards
      *  against late geofence events or duplicate markAlerting calls re-firing the
-     *  alarm after the user has already dismissed (PAUSED) or while it is ringing. */
+     *  alarm after the user has already dismissed (PAUSED) or while it is ringing.
+     *  Also stamps `lastTriggeredAt` so the StationCard can show "Last triggered". */
     fun markAlerting(stationId: String) {
         repositoryScope.launch {
             database.activeStationDao().markAlertingFromMonitoring(stationId)
+            database.activeStationDao().setLastTriggeredAt(stationId, System.currentTimeMillis())
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
             Logger.log("STATUS_CHANGE", stationId, "ALERTING")
+        }
+    }
+
+    /** Rename an active alarm — used by the inline rename in StationCard. */
+    fun updateStationName(stationId: String, name: String) {
+        repositoryScope.launch {
+            database.activeStationDao().updateStationName(stationId, name)
+            Logger.log("STATION_RENAMED", stationId, name)
         }
     }
 

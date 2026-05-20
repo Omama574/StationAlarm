@@ -70,5 +70,9 @@ class StationViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateStationName(stationId: String, name: String) {
+        StationRepository.updateStationName(stationId, name)
+    }
+
     fun getStationById(id: String): Station? = StationRepository.getStationByIdSync(id)
 }
