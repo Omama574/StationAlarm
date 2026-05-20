@@ -27,6 +27,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.omama.stationalarm.data.UserPreferences
+import com.omama.stationalarm.service.LocationService
 import kotlin.math.roundToInt
 import com.omama.stationalarm.util.BatteryOptimizationHelper
 import com.omama.stationalarm.util.GpsLogger
@@ -188,6 +189,21 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 Text("Reset")
                             }
                         }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    // Lets the user hear what the alarm actually sounds like at
+                    // current volume + routing without having to walk into a
+                    // geofence to test it. Plays for 3 seconds via LocationService.
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(context, LocationService::class.java).apply {
+                                action = LocationService.ACTION_TEST_ALARM
+                            }
+                            context.startForegroundService(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Test alarm (3s)")
                     }
                 }
             }
