@@ -1,10 +1,7 @@
 package com.omama.stationalarm.repository
 
 import android.content.Context
-import androidx.lifecycle.asLiveData
-import androidx.room.withTransaction
 import com.omama.stationalarm.data.ActiveStation
-import com.omama.stationalarm.data.SavedPlace
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.data.db.StationDatabase
@@ -35,11 +32,6 @@ object StationRepository {
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     lateinit var activeStationsFlow: Flow<List<ActiveStation>>
-
-    /** Exposes all saved places as a real-time flow for the Map tab UI. */
-    lateinit var savedPlacesFlow: Flow<List<SavedPlace>>
-
-    private var _savedPlacesCache = mapOf<String, SavedPlace>()
 
     private val _distancesFlow = MutableStateFlow<Map<String, Double>>(emptyMap())
     val distancesFlow: StateFlow<Map<String, Double>> = _distancesFlow.asStateFlow()
@@ -72,56 +64,34 @@ object StationRepository {
         activeStationsFlow = database.activeStationDao().getAllActiveStations().map { entities ->
             entities.map { it.toDomainModel() }
         }
-
-        savedPlacesFlow = database.savedPlaceDao().getAllSavedPlaces().map { entities ->
-            entities.map { it.toDomainModel() }
-        }
-
-        // Keep a memory cache for synchronous lookups in LocationService/UI
-        repositoryScope.launch {
-            savedPlacesFlow.collect { list ->
-                _savedPlacesCache = list.associateBy { it.id }
-            }
-        }
     }
 
     /**
      * Resolves a station by ID. First checks the hardcoded railway list,
-     * then falls back to user-saved places (for custom geofence locations).
-     * Called from LocationService background threads — must be suspend.
+     * then falls back to the active_stations table (which persists lat/lon
+     * for custom map-pin alarms). Called from background threads (e.g.
+     * GeofenceManager) — must be suspend.
      */
     suspend fun getStationById(id: String): Station? {
-        return StationData.getStationById(id)
-            ?: database.savedPlaceDao().getById(id)?.toDomainModel()?.toStation()
+        StationData.getStationById(id)?.let { return it }
+        val entity = database.activeStationDao().getStationById(id) ?: return null
+        return if (entity.lat != 0.0 || entity.lon != 0.0) {
+            Station(
+                id = entity.stationId,
+                name = entity.stationName.ifEmpty { "Custom Location" },
+                lat = entity.lat,
+                lon = entity.lon
+            )
+        } else null
     }
 
-    /** Synchronous variant for non-suspend callers that already know the type. */
-    fun getStationByIdSync(id: String): Station? {
-        return StationData.getStationById(id) ?: _savedPlacesCache[id]?.toStation()
-    }
+    /** Synchronous variant for non-suspend callers. Custom-station fallback is
+     *  handled by [ActiveStation.getStation], which reads lat/lon off the
+     *  ActiveStation itself — no in-memory cache needed. */
+    fun getStationByIdSync(id: String): Station? = StationData.getStationById(id)
 
     fun searchStations(query: String): List<Station> = StationData.searchStations(query)
     fun getAllStations(): List<Station> = StationData.getAllStations()
-
-    // ── Saved Places CRUD ──────────────────────────────────────────────────
-
-    fun saveFavoritePlace(place: SavedPlace) {
-        repositoryScope.launch {
-            database.savedPlaceDao().insert(place.toEntity())
-            Logger.log("SAVED_PLACE_ADDED", extra = "id=${place.id} name=${place.name}")
-        }
-    }
-
-    fun deleteFavoritePlace(placeId: String) {
-        repositoryScope.launch {
-            database.savedPlaceDao().delete(placeId)
-            Logger.log("SAVED_PLACE_DELETED", extra = "id=$placeId")
-        }
-    }
-
-    suspend fun getAllSavedPlacesList(): List<SavedPlace> {
-        return database.savedPlaceDao().getAllSavedPlacesList().map { it.toDomainModel() }
-    }
 
     fun addActiveStation(activeStation: ActiveStation, customStation: Station? = null) {
         repositoryScope.launch {
@@ -148,25 +118,9 @@ object StationRepository {
                 stationName = resolvedStation?.name ?: activeStation.stationName
             )
 
-            // Atomic DB insert: if the process dies between the two inserts, Room
-            // rolls back so we never end up with a saved_place but no active_station
-            // (or vice versa). Geofence registration stays outside the transaction
-            // because it's GMS, not Room — its rollback is handled below.
-            database.withTransaction {
-                if (customStation != null) {
-                    val place = SavedPlace(
-                        id = customStation.id,
-                        name = customStation.name,
-                        lat = customStation.lat,
-                        lon = customStation.lon,
-                        radiusKm = activeStation.alertDistanceKm,
-                        notes = "Custom alarmed location",
-                        createdAt = System.currentTimeMillis()
-                    )
-                    database.savedPlaceDao().insert(place.toEntity())
-                }
-                database.activeStationDao().insert(entityWithCoords.toEntity())
-            }
+            // Single-table insert: active_stations now persists everything we
+            // need for both railway and custom map-pin alarms (lat/lon/name).
+            database.activeStationDao().insert(entityWithCoords.toEntity())
 
             val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
@@ -182,15 +136,9 @@ object StationRepository {
                 alertDistanceM = (entityWithCoords.alertDistanceKm * 1000).toFloat()
             )
             result.onFailure { e ->
-                // Registration failed — roll back both rows in a single transaction
-                // so the UI doesn't show a ghost alarm and the saved_place doesn't
-                // leak as a phantom favourite.
-                database.withTransaction {
-                    database.activeStationDao().delete(entityWithCoords.stationId)
-                    if (customStation != null) {
-                        database.savedPlaceDao().delete(customStation.id)
-                    }
-                }
+                // Registration failed — roll back the active_stations row so
+                // the UI doesn't show a ghost alarm that will never fire.
+                database.activeStationDao().delete(entityWithCoords.stationId)
                 val msg = e.message ?: "Failed to register alarm."
                 _errorEvents.emit(msg)
                 Logger.log("STATION_ADD_ROLLED_BACK", entityWithCoords.stationId, msg)

@@ -8,13 +8,12 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ActiveStationEntity::class, SavedPlaceEntity::class],
-    version = 5,
+    entities = [ActiveStationEntity::class],
+    version = 6,
     exportSchema = true
 )
 abstract class StationDatabase : RoomDatabase() {
     abstract fun activeStationDao(): ActiveStationDao
-    abstract fun savedPlaceDao(): SavedPlaceDao
 
     companion object {
         @Volatile
@@ -58,6 +57,16 @@ abstract class StationDatabase : RoomDatabase() {
             }
         }
 
+        /** Drops the now-unused saved_places table; the active_stations row is
+         *  the single source of truth for both railway and custom alarms.
+         *  Adds lastTriggeredAt so the UI can show "Last triggered" timestamps. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS saved_places")
+                database.execSQL("ALTER TABLE active_stations ADD COLUMN lastTriggeredAt INTEGER")
+            }
+        }
+
         fun getDatabase(context: Context): StationDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -65,7 +74,7 @@ abstract class StationDatabase : RoomDatabase() {
                     StationDatabase::class.java,
                     "station_database"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     // Version 1 was only ever a dev/emulator schema and has no written
                     // 1→2 migration. Wipe those legacy DBs instead of crashing on upgrade.
                     .fallbackToDestructiveMigrationFrom(1)

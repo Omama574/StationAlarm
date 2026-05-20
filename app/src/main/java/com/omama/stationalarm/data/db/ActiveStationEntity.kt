@@ -16,7 +16,8 @@ data class ActiveStationEntity(
     val status: String = "MONITORING",
     val lat: Double = 0.0,
     val lon: Double = 0.0,
-    val stationName: String = ""
+    val stationName: String = "",
+    val lastTriggeredAt: Long? = null
 )
 
 fun ActiveStationEntity.toDomainModel(): ActiveStation {
@@ -32,7 +33,8 @@ fun ActiveStationEntity.toDomainModel(): ActiveStation {
         status = status,
         lat = lat,
         lon = lon,
-        stationName = stationName
+        stationName = stationName,
+        lastTriggeredAt = lastTriggeredAt
     )
 }
 
@@ -48,6 +50,7 @@ fun ActiveStation.toEntity(): ActiveStationEntity {
         status = status,
         lat = lat,
         lon = lon,
-        stationName = stationName
+        stationName = stationName,
+        lastTriggeredAt = lastTriggeredAt
     )
 }

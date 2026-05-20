@@ -7,7 +7,6 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.location.LocationServices
-import com.omama.stationalarm.data.SavedPlace
 import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.network.GeocodingClient
@@ -19,7 +18,6 @@ import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import retrofit2.HttpException
 import java.io.IOException
-import java.util.UUID
 
 @OptIn(FlowPreview::class)
 class MapSearchViewModel(application: Application) : AndroidViewModel(application) {
@@ -51,11 +49,6 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _initialCenter = MutableStateFlow<GeoPoint?>(null)
     val initialCenter: StateFlow<GeoPoint?> = _initialCenter.asStateFlow()
-
-    // ── Saved places ──────────────────────────────────────────────────────────
-
-    val savedPlaces: StateFlow<List<SavedPlace>> = StationRepository.savedPlacesFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -157,18 +150,6 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         _query.value = ""
     }
 
-    fun selectSavedPlace(place: SavedPlace) {
-        _selectedResult.value = GeoSearchResult(
-            id         = place.id,
-            name       = place.name,
-            subtitle   = "Saved · ${String.format("%.4f", place.lat)}, ${String.format("%.4f", place.lon)}",
-            lat        = place.lat,
-            lon        = place.lon,
-            confidence = "exact"
-        )
-        _radiusKm.value = place.radiusKm
-    }
-
     /**
      * Called when user taps anywhere on the map.
      * Immediately drops a pin with coordinates, then reverse geocodes in background.
@@ -260,24 +241,5 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                     _searchError.value = "Couldn't read your location."
                 }
             }
-    }
-
-    // ── Favorites CRUD ────────────────────────────────────────────────────────
-
-    fun savePlace(name: String, notes: String?) {
-        val result = _selectedResult.value ?: return
-        val place = SavedPlace(
-            id      = "custom-${UUID.randomUUID()}",
-            name    = name.ifBlank { result.name },
-            lat     = result.lat,
-            lon     = result.lon,
-            radiusKm = _radiusKm.value,
-            notes   = notes?.ifBlank { null }
-        )
-        StationRepository.saveFavoritePlace(place)
-    }
-
-    fun deletePlace(placeId: String) {
-        StationRepository.deleteFavoritePlace(placeId)
     }
 }
