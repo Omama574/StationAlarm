@@ -23,6 +23,7 @@ import com.omama.stationalarm.BuildConfig
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.repository.StationRepository
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.BatteryOptimizationHelper
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
@@ -111,6 +112,9 @@ class LocationService : Service() {
     // Last reported accuracy in metres; used as a Crashlytics custom key when
     // an alarm fires so a Doze/MIUI sleep-induced bad fix can be diagnosed.
     @Volatile private var lastKnownAccuracyM: Float = -1f
+    // Wall-clock of the most recent fireAlert; used to compute
+    // time-to-dismiss for the `alarm_dismissed` Analytics event.
+    @Volatile private var lastAlertFiredAtMs: Long = 0L
     // Self-heal state. Set when silent recovery is in flight; cleared on first
     // fix arrival (→ cancels any visible watchdog notification). Also drives
     // whether we've already escalated to the user-visible Tier 2 state.
@@ -151,7 +155,7 @@ class LocationService : Service() {
                 processLocationUpdate(loc)
             },
             onRecoveryFailed = { reason ->
-                Logger.log("GUARDIAN_RECOVERY_FAILED", extra = reason)
+                Logger.breadcrumb("GUARDIAN_RECOVERY_FAILED", extra = reason)
             }
         )
 
@@ -198,7 +202,10 @@ class LocationService : Service() {
                         android.Manifest.permission.ACCESS_FINE_LOCATION
                     ) != PackageManager.PERMISSION_GRANTED
                 ) {
-                    Logger.log("ERROR", extra = "Location permission lost, stopping service")
+                    Logger.breadcrumb("LOCATION_PERMISSION_LOST", extra = "stopping service")
+                Analytics.event("permission_lost_runtime") {
+                    putString("permission", "ACCESS_FINE_LOCATION")
+                }
                     stopSelf()
                     return
                 }
@@ -220,7 +227,7 @@ class LocationService : Service() {
     /** Shared helper: clears watchdog recovery state and cancels notifications. */
     private fun clearWatchdogState(logReason: String) {
         if (watchdogRecoveryPending || watchdogNotified) {
-            Logger.log("WATCHDOG_RECOVERED", extra = logReason)
+            Logger.breadcrumb("WATCHDOG_RECOVERED", extra = logReason)
             watchdogRecoveryPending = false
             watchdogNotified = false
             watchdogRecoveryToken?.cancel()
@@ -299,7 +306,7 @@ class LocationService : Service() {
             }
             ACTION_ALERT_GEOFENCE_TRIGGERED -> {
                 val stationId = intent.getStringExtra("stationId") ?: return START_STICKY
-                Logger.log("SERVICE_ALERT_GEOFENCE_RECEIVED", stationId)
+                Logger.breadcrumb("SERVICE_ALERT_GEOFENCE_RECEIVED", stationId)
                 StationRepository.markAlerting(stationId)
             }
             ACTION_START_FOR_ACTIVE_STATIONS -> {
@@ -309,7 +316,7 @@ class LocationService : Service() {
             ACTION_RESTORE_NOTIFICATION -> {
                 // User swiped the ongoing notification away. forceStartForeground
                 // above already re-posted it; syncWithDatabase keeps driving state.
-                Logger.log("SERVICE_NOTIFICATION_RESTORED")
+                Logger.breadcrumb("SERVICE_NOTIFICATION_RESTORED")
             }
         }
 
@@ -348,7 +355,7 @@ class LocationService : Service() {
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
         val hasWork = monitoringStations.isNotEmpty() || alertingStationIds.isNotEmpty()
-        Logger.log("SERVICE_TASK_REMOVED", extra = "hasWork=$hasWork")
+        Logger.breadcrumb("SERVICE_TASK_REMOVED", extra = "hasWork=$hasWork")
         if (hasWork) {
             val restartIntent = Intent(applicationContext, LocationService::class.java).apply {
                 action = ACTION_START_FOR_ACTIVE_STATIONS
@@ -385,7 +392,7 @@ class LocationService : Service() {
                 // row as "newly alerting" and re-fire the alarm with no user
                 // intent. Better to stop the service and let WorkManager / the
                 // next user action retry than to wake users with ghost alarms.
-                Logger.log("ALERTING_RESET_FAILED", extra = "stopping service: ${e.message}")
+                Logger.error("ALERTING_RESET_FAILED", e, extra = "stopping service")
                 stopSelf()
                 return@launch
             }
@@ -464,7 +471,7 @@ class LocationService : Service() {
                     // REMOVE can race with a prior notifyForeground and leave a
                     // stale "Monitoring stations..." visible), and stop the
                     // service so the OS frees it instead of keeping it alive.
-                    Logger.log("SERVICE_STOPPING", extra = "No monitoring, no alerting stations")
+                    Logger.breadcrumb("SERVICE_STOPPING", extra = "No monitoring, no alerting stations")
                     stopLocationUpdates()
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     notifications.cancelForeground()
@@ -585,7 +592,20 @@ class LocationService : Service() {
      * Plays sound, shows fullscreen notification. Does NOT delete from DB.
      */
     private suspend fun fireAlert(active: ActiveStation) {
-        Logger.log("ALERT_FIRED", active.stationId, "distance=${active.currentDistanceKm}")
+        Logger.breadcrumb("ALERT_FIRED", active.stationId, "distance=${active.currentDistanceKm}")
+        // Used by the dismiss handler to compute time-to-dismiss for Analytics.
+        lastAlertFiredAtMs = System.currentTimeMillis()
+        // Top-level reliability KPI. Banded fields so dashboards/Audiences
+        // bucket cleanly; raw values would explode the cardinality.
+        val ageSec = if (lastLocationTimeMs > 0L)
+            ((System.currentTimeMillis() - lastLocationTimeMs) / 1000L).coerceAtMost(86_400L)
+        else -1L
+        Analytics.event("alarm_fired") {
+            putString("accuracy_band", accuracyBand(lastKnownAccuracyM))
+            putString("fix_age_band", fixAgeBand(ageSec))
+            putBoolean("battery_exempt",
+                BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this@LocationService))
+        }
 
         wakeLocks.acquireAlarm()
 
@@ -633,7 +653,7 @@ class LocationService : Service() {
             val customUriStr = cachedAlarmSoundUri ?: try {
                 UserPreferences.alarmSoundUriFlow.first().also { cachedAlarmSoundUri = it }
             } catch (e: Exception) {
-                Logger.log("PREF_READ_FAILED", extra = "alarmSoundUri: ${e.message}")
+                Logger.error("PREF_READ_FAILED", e, extra = "alarmSoundUri")
                 ""
             }
             val customUri: android.net.Uri? = resolveValidatedAlarmUri(customUriStr)
@@ -641,19 +661,19 @@ class LocationService : Service() {
             val ringSpeaker = cachedRingSpeakerWithHeadphones ?: try {
                 UserPreferences.ringSpeakerWithHeadphonesFlow.first().also { cachedRingSpeakerWithHeadphones = it }
             } catch (e: Exception) {
-                Logger.log("PREF_READ_FAILED", extra = "ringSpeaker: ${e.message}")
+                Logger.error("PREF_READ_FAILED", e, extra = "ringSpeaker")
                 true
             }
             val escalating = cachedEscalatingAlarm ?: try {
                 UserPreferences.escalatingAlarmFlow.first().also { cachedEscalatingAlarm = it }
             } catch (e: Exception) {
-                Logger.log("PREF_READ_FAILED", extra = "escalating: ${e.message}")
+                Logger.error("PREF_READ_FAILED", e, extra = "escalating")
                 true
             }
             val rampSecs = cachedRampSecs ?: try {
                 UserPreferences.escalatingAlarmRampSecsFlow.first().also { cachedRampSecs = it }
             } catch (e: Exception) {
-                Logger.log("PREF_READ_FAILED", extra = "rampSecs: ${e.message}")
+                Logger.error("PREF_READ_FAILED", e, extra = "rampSecs")
                 UserPreferences.DEFAULT_RAMP_SECS
             }
             audio.playAlarmSound(customUri, ringSpeaker, escalating, rampSecs.takeIf { escalating } ?: 0) {
@@ -662,7 +682,10 @@ class LocationService : Service() {
                 // alert still fires; this just adds vibration + a notification.
                 if (!audio.isVibrating) audio.startVibrator()
                 notifications.showAudioFailureNotification(stationLabel)
-                Logger.log("AUDIO_TERMINAL_FAILURE", active.stationId, "fell back to vibration only")
+                Logger.breadcrumb("AUDIO_TERMINAL_FAILURE", active.stationId, "fell back to vibration only")
+                Analytics.event("alarm_audio_failed") {
+                    putString("had_custom_uri", (customUri != null).toString())
+                }
             }
         }
 
@@ -674,12 +697,17 @@ class LocationService : Service() {
             val durationSecs = cachedAlarmDurationSecs ?: try {
                 UserPreferences.alarmDurationSecsFlow.first().also { cachedAlarmDurationSecs = it }
             } catch (e: Exception) {
-                Logger.log("PREF_READ_FAILED", extra = "alarmDurationSecs: ${e.message}")
+                Logger.error("PREF_READ_FAILED", e, extra = "alarmDurationSecs")
                 UserPreferences.DEFAULT_ALARM_DURATION_SECS
             }
             val durationMs = durationSecs * 1000L
             audio.startTimeout(serviceScope, durationMs) {
-                Logger.log("ALARM_TIMEOUT", extra = "Auto-dismissing after ${durationSecs}s")
+                Logger.breadcrumb("ALARM_TIMEOUT", extra = "Auto-dismissing after ${durationSecs}s")
+                // "User didn't hear / didn't react" — the most important
+                // failure-mode signal we can collect.
+                Analytics.event("alarm_auto_stopped") {
+                    putInt("configured_duration_sec", durationSecs)
+                }
                 // Auto-dismiss all alerting stations to prevent zombie state
                 val ids = alertingStationIds.toList()
                 for (id in ids) {
@@ -704,7 +732,15 @@ class LocationService : Service() {
      * This is the ONLY code path that ends an alarm.
      */
     private fun handleDismiss(stationId: String) {
-        Logger.log("ALERT_DISMISSED", stationId)
+        Logger.breadcrumb("ALERT_DISMISSED", stationId)
+        // Successful user dismissal — paired with `alarm_fired` this is the
+        // success metric. The duration band tells us how quickly users react.
+        val secondsToDismiss = if (lastAlertFiredAtMs > 0L) {
+            ((System.currentTimeMillis() - lastAlertFiredAtMs) / 1000L).coerceAtMost(86_400L)
+        } else -1L
+        Analytics.event("alarm_dismissed_user") {
+            putString("seconds_to_dismiss_band", dismissBand(secondsToDismiss))
+        }
 
         // Stop audio immediately for UX — but do NOT remove from alertingStationIds yet.
         // Race window: DB still shows ALERTING until dismissStation's async write lands.
@@ -745,7 +781,8 @@ class LocationService : Service() {
                 UserPreferences.ringSpeakerWithHeadphonesFlow.first()
             } catch (_: Exception) { true }
             val customUri = resolveValidatedAlarmUri(uriStr)
-            Logger.log("TEST_ALARM_STARTED")
+            Logger.breadcrumb("TEST_ALARM_STARTED")
+            Analytics.event("test_alarm_played")
             audio.playAlarmSound(customUri, ringSpeaker, false, 0, null)
             delay(3_000L)
             audio.stopAll()
@@ -767,7 +804,8 @@ class LocationService : Service() {
         val monitoringIds = monitoringStations.keys
         val alertingIds = alertingStationIds.toList()
         val allIds = (monitoringIds + alertingIds).distinct()
-        Logger.log("SERVICE_STOP_ALL_REQUESTED", extra = "count=${allIds.size}")
+        Logger.breadcrumb("SERVICE_STOP_ALL_REQUESTED", extra = "count=${allIds.size}")
+        Analytics.event("stop_all_alarms") { putInt("count", allIds.size) }
 
         // Stop any ringing audio immediately so the user gets instant feedback
         // even before the Flow-driven teardown completes.
@@ -965,12 +1003,14 @@ class LocationService : Service() {
             // URI is unreadable, this throws and we fall back to default.
             contentResolver.openInputStream(uri)?.use { /* probe only */ }
                 ?: run {
-                    Logger.log("ALARM_URI_UNREADABLE", extra = "null stream for $uri")
+                    Logger.error("ALARM_URI_UNREADABLE",
+                        java.io.IOException("null stream for $uri"),
+                        extra = uri.toString())
                     return null
                 }
             uri
         } catch (e: Exception) {
-            Logger.log("ALARM_URI_INVALID", extra = e.message ?: "parse/read failed")
+            Logger.error("ALARM_URI_INVALID", e, extra = "parse/read failed")
             null
         }
     }
@@ -1010,12 +1050,12 @@ class LocationService : Service() {
         // Act on coordinator's escalation recommendation
         when (stallAction) {
             GpsReliabilityCoordinator.StallAction.ARM_COARSE -> {
-                Logger.log("WATCHDOG_ARM_COARSE", extra = "stall=${stallMs / 1000}s")
+                Logger.breadcrumb("WATCHDOG_ARM_COARSE", extra = "stall=${stallMs / 1000}s")
                 gpsCoordinator.armCoarseFallback()
             }
             GpsReliabilityCoordinator.StallAction.NUKE_FLP -> {
                 // Guardian handles nuke internally via attemptRecovery()
-                Logger.log("WATCHDOG_NUKE_RECOMMENDED", extra = "stall=${stallMs / 1000}s, guardian_failures=${flpGuardian.getConsecutiveFailures()}")
+                Logger.breadcrumb("WATCHDOG_NUKE_RECOMMENDED", extra = "stall=${stallMs / 1000}s, guardian_failures=${flpGuardian.getConsecutiveFailures()}")
             }
             GpsReliabilityCoordinator.StallAction.NORMAL_RETRY -> { /* fall through to existing tier logic */ }
         }
@@ -1034,7 +1074,13 @@ class LocationService : Service() {
             } else {
                 "Searching for GPS\u2026" to "Still tracking — last fix ${minutes}m ago."
             }
-            Logger.log("WATCHDOG_TRIGGERED", extra = "tier2 stall=${stallMs / 1000}s gpsOff=$gpsOff stallAction=$stallAction")
+            Logger.breadcrumb("WATCHDOG_TRIGGERED", extra = "tier2 stall=${stallMs / 1000}s gpsOff=$gpsOff stallAction=$stallAction")
+            // Visible escalation — counts how often the user actually sees the
+            // "Searching for GPS" warning, by OEM and Android version.
+            Analytics.event("gps_watchdog_visible") {
+                putString("stall_min_band", stallBand(stallMs / 1000L))
+                putBoolean("gps_off", gpsOff)
+            }
             notifications.showWatchdog(title, body)
             restartLocationUpdates()
             kickSilentRecovery()
@@ -1067,5 +1113,45 @@ class LocationService : Service() {
         // alone is common on a train ride, so we do NOT suppress on that.
         val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && pm.isDeviceIdleMode
+    }
+
+    // ── Analytics banding helpers ─────────────────────────────────────────
+    // Banded values keep Analytics Audience cardinality manageable — raw
+    // numeric params can still be queried in BigQuery, but the in-product
+    // Audience builder treats every distinct integer as its own bucket.
+
+    private fun accuracyBand(m: Float): String = when {
+        m < 0f -> "unknown"
+        m < 20f -> "<20m"
+        m < 50f -> "20-50m"
+        m < 100f -> "50-100m"
+        m < 500f -> "100-500m"
+        else -> ">500m"
+    }
+
+    private fun fixAgeBand(sec: Long): String = when {
+        sec < 0L -> "unknown"
+        sec < 10L -> "<10s"
+        sec < 60L -> "10-60s"
+        sec < 300L -> "1-5min"
+        sec < 1800L -> "5-30min"
+        else -> ">30min"
+    }
+
+    private fun dismissBand(sec: Long): String = when {
+        sec < 0L -> "unknown"
+        sec < 5L -> "<5s"
+        sec < 15L -> "5-15s"
+        sec < 60L -> "15-60s"
+        sec < 180L -> "1-3min"
+        else -> ">3min"
+    }
+
+    private fun stallBand(sec: Long): String = when {
+        sec < 60L -> "<1min"
+        sec < 180L -> "1-3min"
+        sec < 600L -> "3-10min"
+        sec < 1800L -> "10-30min"
+        else -> ">30min"
     }
 }

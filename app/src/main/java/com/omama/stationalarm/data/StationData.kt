@@ -22,14 +22,16 @@ object StationData {
             reader.close()
             stations = parsed ?: emptyList()
             if (parsed.isNullOrEmpty()) {
-                Logger.log("STATION_DATA_EMPTY", extra = "stations.json parsed to empty list")
+                // Empty parse is silent corruption — surface as non-fatal so we know.
+                Logger.error("STATION_DATA_EMPTY",
+                    IllegalStateException("stations.json parsed to empty list"))
             }
         } catch (e: Exception) {
             // Previously this was e.printStackTrace() then silent emptyList — the
             // only signal was "No stations found" in search, indistinguishable from
-            // a query miss. Now it's in the shareable log.
+            // a query miss. Now it's in the shareable log AND Crashlytics.
             Log.e("StationData", "Failed to load $STATIONS_FILE", e)
-            Logger.log("STATION_DATA_LOAD_FAILED", extra = e.message ?: "unknown")
+            Logger.error("STATION_DATA_LOAD_FAILED", e)
             stations = emptyList()
         }
     }

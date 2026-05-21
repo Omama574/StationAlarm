@@ -32,7 +32,7 @@ class GeofenceCleanupWorker(
             Result.success()
         } else {
             if (runAttemptCount >= MAX_ATTEMPTS) {
-                Logger.log("GEOFENCE_CLEANUP_GIVE_UP", stationId, "after $runAttemptCount attempts")
+                Logger.breadcrumb("GEOFENCE_CLEANUP_GIVE_UP", stationId, "after $runAttemptCount attempts")
                 Result.failure()
             } else {
                 Logger.log("GEOFENCE_CLEANUP_RETRY", stationId, "attempt=$runAttemptCount")

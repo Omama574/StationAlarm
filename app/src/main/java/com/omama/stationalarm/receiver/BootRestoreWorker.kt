@@ -12,6 +12,7 @@ import com.omama.stationalarm.MainActivity
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.service.LocationService
 import com.omama.stationalarm.service.ServiceNotifications
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.Logger
 
 /**
@@ -48,13 +49,16 @@ class BootRestoreWorker(
             val allOk = StationRepository.reRegisterAllGeofencesNow()
 
             if (!allOk) {
-                Logger.log(
+                Logger.breadcrumb(
                     "BOOT_RESTORE",
                     extra = "Partial fail; service NOT started this attempt (runAttempt=$runAttemptCount)"
                 )
                 if (runAttemptCount >= MAX_ATTEMPTS_BEFORE_USER_NOTICE) {
                     showRestartNeededNotification()
-                    Logger.log("BOOT_RESTORE_GIVE_UP", extra = "Notified user after $runAttemptCount attempts")
+                    Logger.breadcrumb("BOOT_RESTORE_GIVE_UP", extra = "Notified user after $runAttemptCount attempts")
+                    Analytics.event("boot_restore_gave_up") {
+                        putInt("attempts", runAttemptCount)
+                    }
                     return Result.failure()
                 }
                 return Result.retry()
@@ -67,11 +71,15 @@ class BootRestoreWorker(
             }
             ContextCompat.startForegroundService(applicationContext, serviceIntent)
 
-            Logger.log("BOOT_RESTORE", extra = "Restored ${activeStations.size} stations OK")
+            Logger.breadcrumb("BOOT_RESTORE", extra = "Restored ${activeStations.size} stations OK")
+            Analytics.event("boot_restore_ok") {
+                putInt("restored_count", activeStations.size)
+                putInt("attempts", runAttemptCount)
+            }
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Error restoring alarms on boot", e)
-            Logger.log("BOOT_RESTORE_ERROR", extra = e.message ?: "unknown")
+            Logger.error("BOOT_RESTORE_ERROR", e)
             Result.retry()
         }
     }

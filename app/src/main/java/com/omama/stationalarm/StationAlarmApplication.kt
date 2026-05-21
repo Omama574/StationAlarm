@@ -1,12 +1,15 @@
 package com.omama.stationalarm
 
 import android.app.Application
+import android.os.Build
 import com.google.firebase.FirebaseApp
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
 import com.omama.stationalarm.network.GeocodingClient
 import com.omama.stationalarm.repository.StationRepository
+import com.omama.stationalarm.util.Analytics
+import com.omama.stationalarm.util.BatteryOptimizationHelper
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +55,18 @@ class StationAlarmApplication : Application() {
             // Crashlytics: disable in debug so stack traces go to Logcat, not the dashboard
             FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG)
 
+            // Analytics: separate util so call sites don't import Firebase types directly
+            Analytics.initialize(this)
+
+            // Always-on Crashlytics context. Set once at process start so EVERY
+            // crash report includes device + permission state — the slice
+            // dashboards typically need ("crashes on MIUI without battery
+            // exemption", etc.). Cheap; runs off the main thread implicitly
+            // since Crashlytics persists keys async.
+            setBaselineCrashlyticsKeys()
+            Analytics.setUserProperty("manufacturer", Build.MANUFACTURER)
+            Analytics.setUserProperty("android_sdk", Build.VERSION.SDK_INT.toString())
+
             // Remote Config: fetch geocoding_backend_url so we can swap backends without an update
             val remoteConfig = FirebaseRemoteConfig.getInstance()
             remoteConfig.setConfigSettingsAsync(remoteConfigSettings {
@@ -86,6 +101,32 @@ class StationAlarmApplication : Application() {
             } catch (e: Exception) {
                 android.util.Log.w("Reconcile", "reconcileOrphans failed", e)
             }
+            // Once the DB is reachable, publish the current alarm count to the
+            // crash context (banded so it stays useful as an Audience filter).
+            try {
+                val count = StationRepository.getAllActiveStationsList().size
+                FirebaseCrashlytics.getInstance().setCustomKey("alarms_count", count)
+                Analytics.setUserProperty("alarms_count_band", bandAlarms(count))
+            } catch (_: Exception) { /* Firebase may not be initialized */ }
         }
+    }
+
+    private fun setBaselineCrashlyticsKeys() {
+        try {
+            FirebaseCrashlytics.getInstance().apply {
+                setCustomKey("manufacturer", Build.MANUFACTURER ?: "unknown")
+                setCustomKey("device_model", Build.MODEL ?: "unknown")
+                setCustomKey("android_sdk", Build.VERSION.SDK_INT)
+                setCustomKey("battery_exempt", BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this@StationAlarmApplication))
+            }
+        } catch (_: Exception) { /* Firebase may not be initialized */ }
+    }
+
+    private fun bandAlarms(count: Int): String = when {
+        count <= 0 -> "0"
+        count == 1 -> "1"
+        count <= 5 -> "2-5"
+        count <= 9 -> "6-9"
+        else -> "10+"
     }
 }

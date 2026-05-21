@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.core.app.ActivityCompat
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.Logger
 
 /**
@@ -68,7 +69,7 @@ class GpsReliabilityCoordinator(
     fun startColdStartHunt() {
         if (isColdStartActive) return
         isColdStartActive = true
-        Logger.log("COLD_START_BEGUN", extra = "arming coarse fallback + 90s timer")
+        Logger.breadcrumb("COLD_START_BEGUN", extra = "arming coarse fallback + 90s timer")
 
         // Arm the coarse fallback immediately so we get a cell-tower fix
         // while the GPS chip is still cold-searching for satellites.
@@ -80,7 +81,10 @@ class GpsReliabilityCoordinator(
         // null `coldStartTimeoutRunnable` between the assignment and the
         // `!!` deref on the next line — a real NPE in production crash logs.
         val runnable = Runnable {
-            Logger.log("COLD_START_TIMEOUT", extra = "90s elapsed without a fix")
+            Logger.breadcrumb("COLD_START_TIMEOUT", extra = "90s elapsed without a fix")
+            // 90s with no fix is a real reliability event — many users will
+            // see this on the first session after install on cold devices.
+            Analytics.event("gps_cold_start_timeout")
             completeColdStart()
         }
         coldStartTimeoutRunnable = runnable
@@ -132,7 +136,7 @@ class GpsReliabilityCoordinator(
 
         // Check if NETWORK_PROVIDER is available
         if (!lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-            Logger.log("COARSE_FALLBACK_UNAVAILABLE", extra = "NETWORK_PROVIDER disabled")
+            Logger.breadcrumb("COARSE_FALLBACK_UNAVAILABLE", extra = "NETWORK_PROVIDER disabled")
             return
         }
 
@@ -169,7 +173,7 @@ class GpsReliabilityCoordinator(
             isCoarseArmed = true
             Logger.log("COARSE_FALLBACK_ARMED", extra = "interval=${COARSE_INTERVAL_MS}ms")
         } catch (e: Exception) {
-            Logger.log("COARSE_FALLBACK_FAILED", extra = e.message ?: "unknown")
+            Logger.error("COARSE_FALLBACK_FAILED", e)
         }
     }
 
@@ -254,7 +258,7 @@ class GpsReliabilityCoordinator(
             lm.registerGnssStatusCallback(callback, handler)
             Logger.log("GNSS_MONITOR_STARTED")
         } catch (e: Exception) {
-            Logger.log("GNSS_MONITOR_FAILED", extra = e.message ?: "unknown")
+            Logger.error("GNSS_MONITOR_FAILED", e)
         }
     }
 
