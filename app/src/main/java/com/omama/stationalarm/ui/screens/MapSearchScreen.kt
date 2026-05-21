@@ -31,6 +31,7 @@ import com.omama.stationalarm.R
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +77,7 @@ fun MapSearchScreen(
     val initialCenter   by viewModel.initialCenter.collectAsState()
 
     val haptic = LocalHapticFeedback.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
 
     // Shared MapView reference so the FAB can trigger animateToCenter
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
@@ -84,14 +86,17 @@ fun MapSearchScreen(
     LaunchedEffect(focusStation) {
         val station = focusStation ?: return@LaunchedEffect
         if (station.lat != 0.0 || station.lon != 0.0) {
+            val radiusLabel = ctx.getString(
+                R.string.map_view_focus_radius_format,
+                station.alertDistanceKm.toString()
+            )
             viewModel.selectResult(
                 com.omama.stationalarm.network.GeoSearchResult(
-                    id = station.stationId,
-                    name = station.stationName.ifEmpty { station.stationId },
-                    subtitle = "Alert radius: ${station.alertDistanceKm} km",
-                    lat = station.lat,
-                    lon = station.lon,
-                    confidence = "exact"
+                    id               = station.stationId,
+                    name             = station.stationName.ifEmpty { station.stationId },
+                    formattedAddress = radiusLabel,
+                    lat              = station.lat,
+                    lon              = station.lon,
                 )
             )
             viewModel.onRadiusChanged(station.alertDistanceKm)
@@ -176,7 +181,7 @@ fun MapSearchScreen(
                         onValueChange    = viewModel::onQueryChanged,
                         placeholder      = {
                             Text(
-                                "Search a place, landmark, address…",
+                                stringResource(R.string.map_search_placeholder),
                                 color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
                                 fontSize = 14.sp
                             )
@@ -195,7 +200,7 @@ fun MapSearchScreen(
                         IconButton(onClick = { viewModel.onQueryChanged("") }) {
                             Icon(
                                 Icons.Default.Close,
-                                contentDescription = "Clear",
+                                contentDescription = stringResource(R.string.map_search_clear),
                                 tint   = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                 modifier = Modifier.size(18.dp)
                             )
@@ -254,7 +259,7 @@ fun MapSearchScreen(
                     }
                     // LocationIQ TOS: attribution required when showing live search results
                     Text(
-                        "Search by LocationIQ.com",
+                        stringResource(R.string.map_search_attribution),
                         fontSize = 10.sp,
                         color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                         modifier = Modifier
@@ -285,7 +290,7 @@ fun MapSearchScreen(
             ) {
                 Icon(
                     ImageVector.vectorResource(R.drawable.ic_gps_fixed),
-                    contentDescription = "My location",
+                    contentDescription = stringResource(R.string.map_my_location),
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -321,7 +326,7 @@ fun MapSearchScreen(
             onRadius    = viewModel::onRadiusChanged,
             hasPin      = selectedResult != null,
             pinName     = selectedResult?.name ?: "",
-            pinSubtitle = selectedResult?.subtitle ?: "",
+            pinSubtitle = selectedResult?.formattedAddress ?: "",
             onSetAlarm  = {
                 val pin = selectedResult ?: return@BottomControlBar
                 onStartTrip(
@@ -339,12 +344,6 @@ fun MapSearchScreen(
 
 @Composable
 private fun SearchResultRow(result: GeoSearchResult, onClick: () -> Unit) {
-    val (chipColor, chipText) = when (result.confidence) {
-        "exact"  -> Pair(Color(0xFF00C853), "Exact")
-        "high"   -> Pair(Color(0xFF00BCD4), "High")
-        "medium" -> Pair(Color(0xFFFFA726), "Medium")
-        else     -> Pair(Color(0xFFEF5350), "Low")
-    }
     Row(
         modifier           = Modifier
             .fillMaxWidth()
@@ -378,28 +377,17 @@ private fun SearchResultRow(result: GeoSearchResult, onClick: () -> Unit) {
                 overflow     = TextOverflow.Ellipsis,
                 color        = MaterialTheme.colorScheme.onSurface
             )
-            if (result.subtitle.isNotBlank()) {
+            if (result.formattedAddress.isNotBlank()) {
                 Text(
-                    result.subtitle,
+                    result.formattedAddress,
                     fontSize = 12.sp,
                     color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                    maxLines = 1,
+                    // 2 lines = enough for "Locality, City, Region, Country" while
+                    // bounded so a wildly verbose provider can't blow up the row.
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = chipColor.copy(alpha = 0.13f)
-        ) {
-            Text(
-                chipText,
-                color      = chipColor,
-                fontSize   = 10.sp,
-                fontWeight = FontWeight.Bold,
-                modifier   = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-            )
         }
     }
     HorizontalDivider(
@@ -446,11 +434,15 @@ private fun BottomControlBar(
                     overflow   = TextOverflow.Ellipsis,
                     color      = MaterialTheme.colorScheme.onSurface
                 )
-                if (pinSubtitle.isNotBlank() && pinSubtitle != "Loading address...") {
+                val loadingLabel = stringResource(R.string.map_pin_loading_address)
+                if (pinSubtitle.isNotBlank() && pinSubtitle != loadingLabel) {
                     Text(
                         pinSubtitle,
                         fontSize = 12.sp,
-                        maxLines = 1,
+                        // 2 lines so the full "Locality, City, Region, Country"
+                        // from the geocoder is readable; bounded so a noisy
+                        // provider can't push the Set Alarm button off-screen.
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
                     )
@@ -465,7 +457,7 @@ private fun BottomControlBar(
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 Text(
-                    "Perimeter",
+                    stringResource(R.string.map_perimeter),
                     fontWeight = FontWeight.Medium,
                     fontSize   = 14.sp,
                     color      = MaterialTheme.colorScheme.onSurface
@@ -523,7 +515,7 @@ private fun BottomControlBar(
                 ),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
             ) {
-                Text("Set Alarm", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.map_set_alarm), fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

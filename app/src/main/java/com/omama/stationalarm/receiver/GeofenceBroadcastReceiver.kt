@@ -10,6 +10,7 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.service.LocationService
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,7 +65,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         if (geofencingEvent.hasError()) {
             Log.e(TAG, "Geofence error: ${geofencingEvent.errorCode}")
-            Logger.log("GEOFENCE_ERROR", extra = "errorCode=${geofencingEvent.errorCode}")
+            Logger.breadcrumb("GEOFENCE_ERROR", extra = "errorCode=${geofencingEvent.errorCode}")
+            Analytics.event("geofence_event_error") {
+                putInt("error_code", geofencingEvent.errorCode)
+            }
             releaseStartupLock()
             return
         }
@@ -103,7 +107,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     }
 
                     Log.d(TAG, "Geofence triggered: $stationId, layer=$layer")
-                    Logger.log("GEOFENCE_TRIGGERED", stationId, layer)
+                    Logger.breadcrumb("GEOFENCE_TRIGGERED", stationId, layer)
+                    Analytics.event("geofence_triggered") {
+                        putString("layer", layer)
+                    }
 
                     if (layer == "alert") {
                         // Suspending variant: ensures the DB write + geofence
@@ -130,7 +137,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                         // exceptions can leave DB in ALERTING with no service
                         // running. Reset so a later trigger can retry cleanly.
                         Log.e(TAG, "startForegroundService failed for $stationId", e)
-                        Logger.log("SERVICE_START_FAILED", stationId, e.message)
+                        Logger.error("SERVICE_START_FAILED", e, stationId)
+                        Analytics.event("service_start_failed") {
+                            putString("reason", e.javaClass.simpleName)
+                        }
                         if (layer == "alert") {
                             try { StationRepository.resetToMonitoring(stationId) } catch (_: Exception) {}
                         }
@@ -138,7 +148,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing geofence", e)
-                Logger.log("ERROR", extra = "Geofence processing: ${e.message}")
+                Logger.error("GEOFENCE_PROCESSING_ERROR", e)
             } finally {
                 pendingResult.finish()
                 releaseStartupLock()

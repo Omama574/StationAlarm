@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.omama.stationalarm.MainActivity
+import com.omama.stationalarm.R
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.ui.screens.AlarmActivity
 
@@ -28,8 +29,6 @@ internal class ServiceNotifications(private val context: Context) {
         const val EXTRA_STATION_NAME = "stationName"
         const val CHANNEL_ID = "location_channel"
         const val ALARM_CHANNEL_ID = "alarm_channel"
-        private const val CHANNEL_NAME = "Station Alarm Service"
-        private const val ALARM_CHANNEL_NAME = "Station Alarm Alerts"
     }
 
     private val manager: NotificationManager
@@ -39,15 +38,15 @@ internal class ServiceNotifications(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                CHANNEL_NAME,
+                context.getString(R.string.notif_channel_service),
                 NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "Shows tracking status" }
+            ).apply { description = context.getString(R.string.notif_channel_service_desc) }
             val alarmChannel = NotificationChannel(
                 ALARM_CHANNEL_ID,
-                ALARM_CHANNEL_NAME,
+                context.getString(R.string.notif_channel_alerts),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "High priority alarm alerts"
+                description = context.getString(R.string.notif_channel_alerts_desc)
                 // Without this, Do Not Disturb suppresses the full-screen alert
                 // intent that's the only way the user sees the alarm screen on
                 // a locked device. CATEGORY_ALARM alone isn't enough on stock
@@ -90,12 +89,12 @@ internal class ServiceNotifications(private val context: Context) {
         )
 
         return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("Station Alarm")
+            .setContentTitle(context.getString(R.string.notif_foreground_title))
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setDeleteIntent(restorePendingIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop all", stopAllPendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, context.getString(R.string.notif_foreground_stop_all), stopAllPendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -131,17 +130,20 @@ internal class ServiceNotifications(private val context: Context) {
         )
 
         val customText = active.customReminder?.takeIf { active.sendReminder }
-        val bodyText = if (customText.isNullOrBlank()) "You have arrived at your destination." else "Reminder: $customText"
+        val bodyText = if (customText.isNullOrBlank())
+            context.getString(R.string.notif_alert_body_default)
+        else
+            context.getString(R.string.notif_alert_body_reminder_format, customText)
 
         val builder = NotificationCompat.Builder(context, ALARM_CHANNEL_ID)
-            .setContentTitle("Station Reached: ${active.getStation()?.name ?: active.stationId}")
+            .setContentTitle(context.getString(R.string.notif_alert_title_format, active.getStation()?.name ?: active.stationId))
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setFullScreenIntent(pendingIntent, true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setOngoing(true)
             .setAutoCancel(false)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss", dismissPendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, context.getString(R.string.notif_alert_dismiss), dismissPendingIntent)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
 
         manager.notify(active.stationId.hashCode(), builder.build())
@@ -159,8 +161,8 @@ internal class ServiceNotifications(private val context: Context) {
     }
 
     fun showWatchdog(
-        title: String = "Searching for GPS…",
-        body: String = "Still tracking — will resume when a fix returns."
+        title: String = context.getString(R.string.notif_watchdog_title),
+        body: String = context.getString(R.string.notif_watchdog_default_body),
     ) {
         val intent = Intent(context, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -196,8 +198,8 @@ internal class ServiceNotifications(private val context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_IMMUTABLE
         )
         val builder = NotificationCompat.Builder(context, ALARM_CHANNEL_ID)
-            .setContentTitle("Alarm fired silently")
-            .setContentText("Audio system error at $stationName — vibration only.")
+            .setContentTitle(context.getString(R.string.notif_audio_failure_title))
+            .setContentText(context.getString(R.string.notif_audio_failure_body_format, stationName))
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

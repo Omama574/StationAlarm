@@ -10,9 +10,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omama.stationalarm.R
 import com.omama.stationalarm.util.BatteryOptimizationHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,7 +55,7 @@ fun BatteryOptimizationSheet(
             Spacer(Modifier.height(16.dp))
 
             Text(
-                text = "Keep alarms reliable",
+                text = stringResource(R.string.battery_sheet_title),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -62,9 +64,7 @@ fun BatteryOptimizationSheet(
             Spacer(Modifier.height(10.dp))
 
             Text(
-                text = "You just set an alarm — let's make sure it actually wakes you. " +
-                        "Without a battery exemption, Android can put StationAlarm to sleep " +
-                        "and your alarm may fire late or not at all.",
+                text = stringResource(R.string.battery_sheet_body),
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                 lineHeight = 20.sp
@@ -80,7 +80,7 @@ fun BatteryOptimizationSheet(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Open settings", fontSize = 15.sp)
+                Text(stringResource(R.string.battery_sheet_open), fontSize = 15.sp)
             }
 
             Spacer(Modifier.height(8.dp))
@@ -89,7 +89,7 @@ fun BatteryOptimizationSheet(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Skip for now", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Text(stringResource(R.string.battery_sheet_skip), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             }
 
             TextButton(
@@ -97,7 +97,7 @@ fun BatteryOptimizationSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "Don't ask again",
+                    stringResource(R.string.battery_sheet_dont_ask_again),
                     color = MaterialTheme.colorScheme.error.copy(alpha = 0.75f)
                 )
             }

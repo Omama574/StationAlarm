@@ -12,6 +12,7 @@ import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 import com.omama.stationalarm.receiver.GeofenceBroadcastReceiver
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -74,7 +75,8 @@ object GeofenceManager {
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             Log.e(TAG, "Missing location permission")
-            Logger.log("GEOFENCE_REG_FAILED", stationId, "Missing permission")
+            Logger.breadcrumb("GEOFENCE_REG_FAILED", stationId, "Missing permission")
+            Analytics.event("geofence_registration_failed") { putString("reason", "permission") }
             return Result.failure(GeofenceRegistrationException.MissingPermission())
         }
 
@@ -82,7 +84,8 @@ object GeofenceManager {
         val station = com.omama.stationalarm.repository.StationRepository.getStationById(stationId)
         if (station == null) {
             Log.e(TAG, "Station not found: $stationId")
-            Logger.log("GEOFENCE_REG_FAILED", stationId, "Station not found")
+            Logger.breadcrumb("GEOFENCE_REG_FAILED", stationId, "Station not found")
+            Analytics.event("geofence_registration_failed") { putString("reason", "station_not_found") }
             return Result.failure(GeofenceRegistrationException.StationNotFound(stationId))
         }
 
@@ -93,7 +96,8 @@ object GeofenceManager {
         val activeStations = com.omama.stationalarm.repository.StationRepository.getAllActiveStationsList()
         if (activeStations.size >= MAX_ACTIVE_STATIONS && !activeStations.any { it.stationId == stationId }) {
             Log.e(TAG, "Maximum $MAX_ACTIVE_STATIONS destinations allowed")
-            Logger.log("GEOFENCE_REG_FAILED", stationId, "Max $MAX_ACTIVE_STATIONS destinations reached")
+            Logger.breadcrumb("GEOFENCE_REG_FAILED", stationId, "Max $MAX_ACTIVE_STATIONS destinations reached")
+            Analytics.event("geofence_registration_failed") { putString("reason", "max_stations_reached") }
             return Result.failure(GeofenceRegistrationException.MaxStationsReached())
         }
 
@@ -144,13 +148,13 @@ object GeofenceManager {
                                 }
                                 .addOnFailureListener { e ->
                                     Log.e(TAG, "Failed to add alert geofence for $stationId", e)
-                                    Logger.log("GEOFENCE_REG_FAILED", stationId, e.message)
+                                    Logger.error("GEOFENCE_REG_FAILED", e, stationId, "alert layer")
                                     if (cont.isActive) cont.resumeWithException(e)
                                 }
                         }
                         .addOnFailureListener { e ->
                             Log.e(TAG, "Failed to add level geofences for $stationId", e)
-                            Logger.log("GEOFENCE_REG_FAILED", stationId, e.message)
+                            Logger.error("GEOFENCE_REG_FAILED", e, stationId, "level layers")
                             if (cont.isActive) cont.resumeWithException(e)
                         }
                 }
@@ -163,7 +167,11 @@ object GeofenceManager {
                     delayMs *= 2
                 } else {
                     Log.e(TAG, "Geofence registration permanently failed for $stationId after $maxRetries attempts")
-                    Logger.log("GEOFENCE_REG_FAILED_PERMANENT", stationId, e.message)
+                    Logger.error("GEOFENCE_REG_FAILED_PERMANENT", e, stationId)
+                    Analytics.event("geofence_registration_failed") {
+                        putString("reason", "retry_exhausted")
+                        putInt("attempts", maxRetries)
+                    }
                 }
             }
         }
@@ -182,7 +190,7 @@ object GeofenceManager {
     suspend fun removeGeofencesForStation(context: Context, stationId: String) {
         val result = attemptRemoveGeofencesForStation(context, stationId)
         if (result.isFailure) {
-            Logger.log("GEOFENCE_REMOVE_FALLBACK", stationId, "enqueueing cleanup worker")
+            Logger.breadcrumb("GEOFENCE_REMOVE_FALLBACK", stationId, "enqueueing cleanup worker")
             GeofenceCleanupWorker.enqueue(context, stationId)
         }
     }
@@ -240,8 +248,9 @@ object GeofenceManager {
             }
         }
 
-        Logger.log("GEOFENCE_REMOVE_FAILED", stationId, lastError?.message)
-        return Result.failure(lastError ?: Exception("Unknown geofence removal failure"))
+        val err = lastError ?: Exception("Unknown geofence removal failure")
+        Logger.error("GEOFENCE_REMOVE_FAILED", err, stationId)
+        return Result.failure(err)
     }
 
     private fun buildGeofence(

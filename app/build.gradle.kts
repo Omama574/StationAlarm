@@ -104,6 +104,15 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            // Lets Robolectric tests resolve resources (strings.xml, etc.)
+            // via the merged AAR resources. Without this, getString() inside
+            // ViewModels under test throws Resources$NotFoundException.
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -142,7 +151,7 @@ dependencies {
     // OSM tiles (unlimited, free)
     implementation("org.osmdroid:osmdroid-android:6.1.20")
 
-    // Retrofit + Gson for geocoding (LocationIQ + Photon)
+    // Retrofit + Gson for geocoding (LocationIQ via Cloudflare Worker)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")

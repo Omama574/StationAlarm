@@ -27,7 +27,7 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
         Log.d(TAG, "Device booted, scheduling alarm restoration worker...")
-        Logger.log("SYSTEM_BOOTED", extra = "Enqueueing BootRestoreWorker")
+        Logger.breadcrumb("SYSTEM_BOOTED", extra = "Enqueueing BootRestoreWorker")
 
         val request = OneTimeWorkRequestBuilder<BootRestoreWorker>()
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)

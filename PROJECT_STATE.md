@@ -1,6 +1,6 @@
 # StationAlarm — Project State
 
-> **Last updated:** 2026-05-16
+> **Last updated:** 2026-05-21
 > Update this file at the end of every session with what changed and what's next.
 
 ---
@@ -46,31 +46,28 @@ Android app that alerts the user when approaching a railway station or any custo
 | Language | Kotlin |
 | UI | Jetpack Compose + AndroidView (for osmdroid) |
 | Map | osmdroid 6.1.20 + OpenStreetMap (MAPNIK tiles) |
-| Geocoding primary | LocationIQ via Cloudflare Worker proxy |
-| Geocoding fallback | Photon by Komoot (direct from device) |
-| Database | Room SQLite v5 |
-| Backend config | Firebase Remote Config (backend URL), Crashlytics |
-| Preferences | DataStore Preferences (theme, distance unit, alarm sound URI, ring_speaker_with_headphones) |
+| Geocoding | Provider-neutral contract over Cloudflare Worker (LocationIQ behind the Worker today) |
+| Database | Room SQLite v6 |
+| Backend config | Firebase Remote Config — `geocoding_backend_url`, `min_supported_app_version`, `maintenance_mode`, `maintenance_message`, `feature_flags`. Crashlytics + Analytics for failure visibility. |
+| Preferences | DataStore — theme, distance unit, alarm sound URI, ring_speaker_with_headphones, escalating alarm + ramp secs, alarm duration, battery-opt-dismissed, app_locale |
+| Localization | `strings.xml` for every UI string + per-app locale picker via `AppCompatDelegate.setApplicationLocales` (Android 13+ also surfaces in system per-app language menu) |
 | Core alarm engine | LocationService + GeofenceManager (foreground service) |
 
 ---
 
 ## Architecture
 
-### Search Flow (3-tier)
+### Search Flow (2-tier)
 ```
 User types in MapSearchScreen
     │
     ├─ Tier 1: StationData (offline JSON) — Indian railway stations
     │          Instant, zero API calls. Returns if any match found.
     │
-    ├─ Tier 2: LocationIQ via Cloudflare Worker
-    │          Primary live geocoding. 500ms debounce.
-    │          Worker URL controlled by Firebase Remote Config.
-    │
-    └─ Tier 3: Photon by Komoot (direct from device)
-               Fallback. Called DIRECTLY (not via Worker) to keep
-               per-user IP quota instead of pooled server quota.
+    └─ Tier 2: LocationIQ via Cloudflare Worker
+               Live geocoding for everything else. 500ms debounce,
+               mapLatest cancellation. Worker URL is overridable via
+               Firebase Remote Config (geocoding_backend_url).
 ```
 
 ### Alarm Flow
@@ -89,23 +86,54 @@ Station selected → StationConfigBottomSheet → radius/sound/vibrate config
 ## Cloudflare Worker
 
 - **URL:** `https://stationalarm-geo.mohammedomama2005.workers.dev/`
-- **Endpoints:** `/autocomplete`, `/reverse`, `/search` → LocationIQ v1/* equivalents
-- **Caching:** Autocomplete 24h, reverse 1h (Cloudflare edge cache)
-- **Auth:** API key injected server-side via `env.LOCATIONIQ_KEY` — never in APK
+- **Endpoints (provider-neutral contract — see `network/GeocodingService.kt`):**
+  - `GET /search?q=...&limit=...&bias_lat=...&bias_lon=...&lang=...`
+  - `GET /reverse?lat=...&lon=...&lang=...`
+- **Response shape (5 fields per result):** `{ results: [{ id, name, formattedAddress, lat, lon }] }`. Reverse-with-no-address returns `{ results: [] }` and the app falls back to raw coords.
+- **Caching:** Search 24h, reverse 1h (Cloudflare edge cache).
+- **Auth:** API key injected server-side via `env.LOCATIONIQ_KEY` — never in the APK.
 - **URL is dynamic:** Firebase Remote Config key `geocoding_backend_url` overrides at runtime. The compiled-in default in `RetrofitClient.kt` matches the live Worker, so a missed RC fetch is not a stale-URL hazard.
+- **Provider swap = Worker-only change:** the app speaks the neutral shape above. To swap to e.g. self-hosted Photon, write a new translator function in the Worker — zero APK update. `bias_lat`/`bias_lon`/`lang` ride in the request today even though LocationIQ ignores them, so the contract is ready when we switch.
 
 ---
 
-## Database Schema (Room v5)
+## Localization
 
-### `saved_places` table (`SavedPlaceEntity`)
-`id, name, lat, lon, radiusKm, notify, vibrate, sound, notes, createdAt`
+- **Strings:** every user-facing literal lives in `res/values/strings.xml` (~180 entries grouped by screen).
+- **Per-app locale:** `data/UserPreferences.appLocaleFlow` stores `"system"` (default) or a BCP 47 tag. `StationAlarmApplication.applyPersistedLocale()` reads it at process start and calls `AppCompatDelegate.setApplicationLocales(...)` BEFORE any Activity is created.
+- **Picker:** Settings → Language section. Currently lists `System default` + `English` (the only `values-*/` we ship). Drop in `values-hi/strings.xml` + add `<locale android:name="hi"/>` to `res/xml/locales_config.xml` to add Hindi.
+- **System integration:** Android 13+ shows the per-app picker in system Settings → Apps → StationAlarm → Language (enabled via `android:localeConfig` and `AppLocalesMetadataHolderService`).
+- **Geocoding language hint:** `MapSearchViewModel.currentLang()` reads `Locale.getDefault().language` (post-override) and ships it as `lang=` on every `/search` and `/reverse` call. Worker translates per-provider (LocationIQ uses `Accept-Language` header).
 
-### `active_stations` table (`ActiveStationEntity`)
+---
+
+## Remote Config — emergency knobs
+
+All read via `util/AppRemoteConfig` flows. Refreshed twice per launch: from defaults right after `setDefaultsAsync` (first composition has values), then again after `fetchAndActivate()` (server values applied).
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `geocoding_backend_url` | string | hardcoded Worker URL | Override Retrofit base URL without an APK update. Already in production use. |
+| `min_supported_app_version` | long | 0 | If `BuildConfig.VERSION_CODE` is below this, AppRoot shows a blocking `ForceUpdateDialog`. Debug builds are immune. |
+| `maintenance_mode` | boolean | false | Renders a non-dismissable amber `MaintenanceBanner` at the top of the main screen. Rest of the app stays usable. |
+| `maintenance_message` | string | "" | Body text for the banner. Falls back to a generic line when empty. |
+| `feature_flags` | string JSON | "{}" | `Map<String, Boolean>` for future feature gates. Malformed JSON parses to empty map (never crashes). Read via `AppRemoteConfig.featureFlagsFlow`. |
+
+---
+
+## Database Schema (Room v6)
+
+### `active_stations` table (`ActiveStationEntity`) — the only table
 Tracks currently active alarms. Status enum: `MONITORING`, `ALERTING`, `PAUSED`.
-`stationId, alertDistanceKm, notify, vibrate, sound, customReminder, sendReminder, status, lat, lon, stationName`
+`stationId, alertDistanceKm, notify, vibrate, sound, customReminder, sendReminder, status, lat, lon, stationName, lastTriggeredAt`
 
-Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs wipe instead of crashing. Bump version + write migration for any schema change going forward. Current version: 5 (Migration 4->5 adds `lat`, `lon`, `stationName` to `active_stations`).
+`saved_places` was dropped in v6 — the PAUSED state on `active_stations` covers the UX that table was added for, and a single source of truth is simpler.
+
+Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs wipe instead of crashing. Bump version + write migration for any schema change going forward.
+
+Migrations:
+- `MIGRATION_4_5` — adds `lat`, `lon`, `stationName` to `active_stations` (custom map-pin alarms survive reboot).
+- `MIGRATION_5_6` — drops `saved_places`, adds nullable `lastTriggeredAt` to `active_stations`.
 
 ---
 
@@ -118,14 +146,46 @@ Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs
 | NaPTAN / EU GTFS / AU feeds | Static station data for Europe/Australia | Scope too large, deferred to Phase 4 |
 | Nominatim direct | As primary geocoder | Rate limits too tight for production |
 | GADM offline boundaries | Point-in-polygon city tagging | Overkill for current scope |
-| Photon via Worker | Routing Photon through Cloudflare | Destroys per-user IP quota, becomes pooled server quota |
-| `layers` filter on geocoders | Allowlist of OSM layers in LocationIQ/Photon | Excluded `amenity`/POI results (bus stands, stations, airports) |
+| Photon by Komoot fallback | Was a second geocoder for when LocationIQ failed | Removed 2026-05; single LocationIQ source + Worker-side cache + queue is enough |
+| `layers` filter on the LocationIQ call | Allowlist of OSM layers | Excluded `amenity`/POI results (bus stands, stations, airports) |
 | Watchdog as terminal alert | Single 60s stall → loud user-visible notification | Misfired on every transient dip; no self-heal attempted |
 | Delete-on-dismiss | Removing the active_stations row when alarm fires | Lost user config; replaced with `PAUSED` state |
 
 ---
 
 ## Session Log
+
+### Session: Provider-Neutral Geocoding + Full i18n + Remote Config (2026-05-21)
+
+End-to-end refactor in three layers so the app no longer cares which geocoder is behind the Worker, every UI string is localizable, and we have remote kill-switches for production. 4 commits on `feature/glass-ui`.
+
+**Phase 1 — Provider-neutral geocoding contract (commit `dcad785`):**
+- App wire format reduced to 5 fields per result: `id`, `name`, `formattedAddress`, `lat`, `lon`. Dropped `confidence` (UI didn't show it), `subtitle` (replaced by `formattedAddress` — full address shown below name), structured `address` block (YAGNI pre-launch), `provider` tag (one provider at a time).
+- New `network/GeocodingService.kt` (replaces `LocationIqService.kt`). New params: `q`, `limit`, `bias_lat`, `bias_lon`, `lang`. All LocationIQ-specific knobs (`dedupe`, `normalizecity`, `normalizeaddress`) gone — Worker adds them server-side.
+- `bias_lat`/`bias_lon`/`lang` ride in the request even though LocationIQ ignores bias and consumes `lang` as `Accept-Language` — contract is forward-compatible with Photon/Mapbox.
+- `GeoSearchResult` data class kept its name (renaming would be churn-only; documented in the file header).
+- UI truncation fix: `SearchResultRow` + `BottomControlBar` subtitle line bumped from `maxLines=1` to `maxLines=2` so the full geocoded address is readable.
+- 8 new pure-Gson tests in `GeocodingResponseParseTest` cover empty results, blank address, NaN/zero/out-of-range coordinate filtering.
+
+**Phase 2 + 3 — Localization (commit `88cc1d9`):**
+- ~180 user-facing strings extracted from 12 Kotlin files into `res/values/strings.xml`. Logger event tags, Crashlytics keys, Analytics event names deliberately stay as inline strings — they're machine identifiers, not user copy.
+- `UserPreferences.KEY_APP_LOCALE` + `appLocaleFlow` + `setAppLocale(localeTag)`. Sentinel `"system"` means "follow device locale"; any other value is a BCP 47 tag.
+- `StationAlarmApplication.applyPersistedLocale()` runs in `onCreate()` BEFORE any Activity is created. Reads the locale via `runBlocking { ... .first() }` (one-time disk read, ~10ms) and hands it to `AppCompatDelegate.setApplicationLocales(...)`.
+- `res/xml/locales_config.xml` lists supported locales (just `en` today). `AndroidManifest.xml` declares `android:localeConfig` + `AppLocalesMetadataHolderService` so the in-app picker shows up in system Settings → Apps → StationAlarm → Language on Android 13+.
+- Settings → Language section lists `System default` + `English`. Selecting a non-default option persists + immediately applies via `AppCompatDelegate` — Activities recreate with the new locale.
+- Added `testOptions { unitTests { isIncludeAndroidResources = true } }` to `build.gradle.kts` so Robolectric tests can resolve string resources at runtime. Without this every `getString()` in a tested ViewModel throws `Resources$NotFoundException`.
+- 4 new tests in `UserPreferencesLocaleTest` cover default-is-system, round-trip writes, sentinel-clears-override, BCP 47 region tag preservation.
+
+**Phase 4 — Remote Config emergency knobs (commit `76b753d`):**
+- New `util/AppRemoteConfig.kt` owns 4 RC keys (see Remote Config section above).
+- `StationAlarmApplication` registers defaults for all 4 keys alongside the existing `geocoding_backend_url`, and calls `AppRemoteConfig.refresh(rc)` twice — once from defaults right after `setDefaultsAsync` (first composition has values), once again after `fetchAndActivate()` (server values applied).
+- `AppRoot` collects the three user-facing flows. If `forceUpdate` is true → renders blocking `ForceUpdateDialog` and early-returns (no map, no alarms, no settings reachable). Else → renders sticky amber `MaintenanceBanner` above `AppNavigation` when `maintenance_mode` is on.
+- `feature_flags` parsed via Gson `JsonParser` rather than `org.json.JSONObject` because the latter is a stub on the pure-JVM unit-test classpath that silently returns empty.
+- 8 new tests in `AppRemoteConfigTest` cover every parse edge case (empty, blank, single boolean, multiple booleans, non-boolean values dropped silently, malformed JSON, arrays) + the debug-suppresses-force-update contract.
+
+**Aggregate test status:** 39/39 unit tests pass across 6 suites (DAO, UserPreferences, UserPreferencesLocale, GeocodingResponseParse, MapSearchViewModelError, AppRemoteConfig).
+
+**Pending deployment:** the Worker code at `https://stationalarm-geo.mohammedomama2005.workers.dev/` still speaks the OLD wire format. App search/reverse will fail at runtime until the Worker is updated in the Cloudflare dashboard. New `worker.js` was delivered in the chat — paste into the in-browser editor and click Deploy.
 
 ### Session: Bluetooth/Headphone Audio Routing (2026-05-16)
 Implemented safety-first dual-route audio routing to ensure alarms ring through both the device speaker and external audio devices (Bluetooth/Wired) by default.
@@ -304,7 +364,7 @@ Implemented all "TO-DO IMMEDIATELY" items from `plans/production-readiness.md`. 
 - **Audio terminal-failure escalation:** Force the rare double-failure path → confirm vibration starts and "Alarm fired silently" notification appears.
 - **Watchdog tiers:** Long ride with brief signal dips → no notification (Tier 1 self-heal). Sustained loss → Tier 2 notification appears, vanishes on first fix.
 - **High-velocity polling:** Mock at 150–250 km/h → adaptive tracker fires before passing threshold.
-- **Failover chaos drill:** Misconfigure RC URL to force 502 → Photon takes over.
+- **Failover chaos drill:** Misconfigure RC URL to force 502 → search surfaces the right error copy (not a silent fail) and the user can still drop a map pin manually.
 
 ### Low Priority (noted, not scheduled)
 - `StationConfigBottomSheet` param `initialNotes` → rename to `customReminder`.

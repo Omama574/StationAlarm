@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Declares which locales this app supports. Used by Android 13+ for the
+  system-level per-app language picker (Settings > Apps > StationAlarm > Language).
+  Add more <locale android:name="xx"/> entries here as you ship translated
+  values-xx/ resource folders.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en"/>
+</locale-config>

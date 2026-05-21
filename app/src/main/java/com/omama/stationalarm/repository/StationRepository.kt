@@ -8,6 +8,7 @@ import com.omama.stationalarm.data.db.StationDatabase
 import com.omama.stationalarm.data.db.toDomainModel
 import com.omama.stationalarm.data.db.toEntity
 import com.omama.stationalarm.geofence.GeofenceManager
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -152,7 +153,16 @@ object StationRepository {
                 database.activeStationDao().delete(entityWithCoords.stationId)
                 val msg = e.message ?: "Failed to register alarm."
                 _errorEvents.emit(msg)
-                Logger.log("STATION_ADD_ROLLED_BACK", entityWithCoords.stationId, msg)
+                Logger.error("STATION_ADD_ROLLED_BACK", e, entityWithCoords.stationId, msg)
+                Analytics.event("alarm_set_failed") {
+                    putString("reason", e.javaClass.simpleName)
+                }
+            }
+            if (result.isSuccess) {
+                Analytics.event("alarm_set") {
+                    putString("source", if (customStation != null) "map_pin" else "railway")
+                    putDouble("radius_km", entityWithCoords.alertDistanceKm)
+                }
             }
         }
     }
@@ -191,7 +201,8 @@ object StationRepository {
         repositoryScope.launch {
             database.activeStationDao().delete(stationId)
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
-            Logger.log("STATION_REMOVED", stationId)
+            Logger.breadcrumb("STATION_REMOVED", stationId)
+            Analytics.event("alarm_removed")
         }
     }
 
@@ -208,7 +219,7 @@ object StationRepository {
                 database.activeStationDao().markAlertingFromMonitoring(stationId)
                 database.activeStationDao().setLastTriggeredAt(stationId, System.currentTimeMillis())
                 GeofenceManager.removeGeofencesForStation(appContext, stationId)
-                Logger.log("STATUS_CHANGE", stationId, "ALERTING")
+                Logger.breadcrumb("STATUS_CHANGE", stationId, "ALERTING")
             }
         }
     }
@@ -223,7 +234,7 @@ object StationRepository {
             database.activeStationDao().markAlertingFromMonitoring(stationId)
             database.activeStationDao().setLastTriggeredAt(stationId, System.currentTimeMillis())
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
-            Logger.log("STATUS_CHANGE", stationId, "ALERTING")
+            Logger.breadcrumb("STATUS_CHANGE", stationId, "ALERTING")
         }
     }
 
@@ -241,7 +252,8 @@ object StationRepository {
         repositoryScope.launch {
             database.activeStationDao().updateStatus(stationId, "PAUSED")
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
-            Logger.log("STATION_DISMISSED_TO_PAUSED", stationId)
+            Logger.breadcrumb("STATION_DISMISSED_TO_PAUSED", stationId)
+            Analytics.event("alarm_dismissed")
         }
     }
 
@@ -250,7 +262,8 @@ object StationRepository {
         repositoryScope.launch {
             database.activeStationDao().updateStatus(stationId, "PAUSED")
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
-            Logger.log("STATION_PAUSED", stationId)
+            Logger.breadcrumb("STATION_PAUSED", stationId)
+            Analytics.event("alarm_paused")
         }
     }
 
@@ -275,14 +288,18 @@ object StationRepository {
                     alertDistanceM = (station.alertDistanceKm * 1000).toFloat()
                 )
                 result.onSuccess {
-                    Logger.log("STATION_REARMED", stationId)
+                    Logger.breadcrumb("STATION_REARMED", stationId)
+                    Analytics.event("alarm_rearmed")
                 }.onFailure { e ->
                     // Re-registration failed — flip back to PAUSED so the toggle
                     // doesn't lie about the alarm being armed.
                     database.activeStationDao().updateStatus(stationId, "PAUSED")
                     val msg = e.message ?: "Failed to re-arm alarm."
                     _errorEvents.emit(msg)
-                    Logger.log("STATION_REARM_FAILED", stationId, msg)
+                    Logger.error("STATION_REARM_FAILED", e, stationId, msg)
+                    Analytics.event("alarm_rearm_failed") {
+                        putString("reason", e.javaClass.simpleName)
+                    }
                 }
             }
         }
@@ -341,7 +358,12 @@ object StationRepository {
             )
             if (result.isFailure) {
                 allOk = false
-                Logger.log("GEOFENCE_RE_REGISTER_FAILED", active.stationId, result.exceptionOrNull()?.message)
+                val ex = result.exceptionOrNull()
+                if (ex != null) {
+                    Logger.error("GEOFENCE_RE_REGISTER_FAILED", ex, active.stationId)
+                } else {
+                    Logger.log("GEOFENCE_RE_REGISTER_FAILED", active.stationId, "unknown")
+                }
             }
         }
         return allOk
@@ -364,7 +386,14 @@ object StationRepository {
      */
     suspend fun resetAllAlertingToMonitoring(): Int {
         val count = database.activeStationDao().resetAllAlertingToMonitoring()
-        if (count > 0) Logger.log("ALERTING_RESET_BULK", extra = "count=$count")
+        if (count > 0) {
+            Logger.breadcrumb("ALERTING_RESET_BULK", extra = "count=$count")
+            // Track because a non-zero reset means we recovered from a process
+            // kill during an alarm — a reliability event worth measuring per OEM.
+            Analytics.event("ghost_alarm_recovered") {
+                putInt("count", count)
+            }
+        }
         return count
     }
 
@@ -400,7 +429,10 @@ object StationRepository {
                 )
                 result.onFailure { e ->
                     _errorEvents.emit(e.message ?: "Failed to update alarm.")
-                    Logger.log("STATION_UPDATE_GEOFENCE_FAILED", stationId, e.message)
+                    Logger.error("STATION_UPDATE_GEOFENCE_FAILED", e, stationId)
+                    Analytics.event("alarm_update_failed") {
+                        putString("reason", e.javaClass.simpleName)
+                    }
                 }
                 Logger.log("STATION_SETTINGS_UPDATED", stationId, "radius=$radius notify=$notify vibrate=$vibrate sound=$sound")
             }

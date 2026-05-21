@@ -98,6 +98,53 @@ object Logger {
         }
     }
 
+    /**
+     * Writes to the CSV log AND adds a breadcrumb to Crashlytics. The breadcrumb
+     * appears in the timeline of the next crash report — useful for state-change
+     * events that aren't failures themselves but explain *what the user was doing*
+     * just before a crash (e.g. "alarm_fired", "service_started", "permission_revoked").
+     *
+     * The Crashlytics call is swallow-on-throw; a Firebase init failure cannot
+     * break the CSV write or the calling code path.
+     */
+    fun breadcrumb(eventType: String, stationId: String? = null, extra: String? = null) {
+        log(eventType, stationId, extra)
+        try {
+            val sb = StringBuilder(eventType)
+            if (stationId != null) sb.append(" station=").append(stationId)
+            if (extra != null) sb.append(" extra=").append(extra)
+            com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance().log(sb.toString())
+        } catch (_: Exception) {
+            // Firebase may have failed to initialize at process start — see
+            // [com.omama.stationalarm.StationAlarmApplication]. Logging is best-effort.
+        }
+    }
+
+    /**
+     * Writes to the CSV log AND reports a non-fatal exception to Crashlytics
+     * with the event type + station context as a breadcrumb. Use for caught
+     * exceptions in failure paths (geofence registration failure, MediaPlayer
+     * error, DataStore IO error, etc.) so they show up in the Crashlytics
+     * dashboard as "non-fatals" — same grouping/filtering UI as crashes but
+     * without counting against crash-free-users.
+     *
+     * In debug builds, Crashlytics collection is disabled
+     * ([com.omama.stationalarm.StationAlarmApplication]) so [recordException]
+     * becomes a no-op — exceptions surface in Logcat as usual.
+     */
+    fun error(eventType: String, throwable: Throwable, stationId: String? = null, extra: String? = null) {
+        log(eventType, stationId, extra ?: throwable.message)
+        try {
+            val crashlytics = com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance()
+            val sb = StringBuilder(eventType)
+            if (stationId != null) sb.append(" station=").append(stationId)
+            if (extra != null) sb.append(" extra=").append(extra)
+            crashlytics.log(sb.toString())
+            crashlytics.recordException(throwable)
+        } catch (_: Exception) {
+        }
+    }
+
     private fun ensureWriter() {
         if (currentBufferedWriter == null) {
             createNewLogFile()

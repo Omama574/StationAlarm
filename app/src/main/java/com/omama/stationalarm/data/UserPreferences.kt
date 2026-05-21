@@ -39,6 +39,7 @@ object UserPreferences {
     private val KEY_RAMP_DURATION_SECS = intPreferencesKey("escalating_alarm_ramp_secs")
     private val KEY_BATTERY_OPT_DISMISSED = booleanPreferencesKey("battery_opt_permanently_dismissed")
     private val KEY_ALARM_DURATION_SECS = intPreferencesKey("alarm_duration_secs")
+    private val KEY_APP_LOCALE = stringPreferencesKey("app_locale")
 
     // ── Defaults ────────────────────────────────────────────────────────────
     const val THEME_SYSTEM = "system"
@@ -54,6 +55,10 @@ object UserPreferences {
     const val DEFAULT_ALARM_DURATION_SECS = 180
     const val MIN_ALARM_DURATION_SECS = 60
     const val MAX_ALARM_DURATION_SECS = 900
+
+    /** Sentinel for "follow device locale" in [appLocaleFlow]. Any other value
+     *  is a BCP 47 language tag (ISO 639-1 + optional region), e.g. "en", "hi", "fr". */
+    const val LOCALE_SYSTEM = "system"
 
     fun initialize(context: Context) {
         dataStore = context.applicationContext.prefsDataStore
@@ -81,6 +86,11 @@ object UserPreferences {
 
     val alarmDurationSecsFlow: Flow<Int>
         get() = dataStore.data.map { it[KEY_ALARM_DURATION_SECS] ?: DEFAULT_ALARM_DURATION_SECS }
+
+    /** Per-app locale override. Returns [LOCALE_SYSTEM] when the user wants the
+     *  app to follow the device locale (default). Otherwise a BCP 47 tag. */
+    val appLocaleFlow: Flow<String>
+        get() = dataStore.data.map { it[KEY_APP_LOCALE] ?: LOCALE_SYSTEM }
 
     /** True if the user tapped "Don't ask again" on the battery sheet. Once
      *  set, the post-confirm sheet stays suppressed; the Settings > Background
@@ -125,6 +135,12 @@ object UserPreferences {
                 it[KEY_ALARM_DURATION_SECS] = secs.coerceIn(MIN_ALARM_DURATION_SECS, MAX_ALARM_DURATION_SECS)
             }
         }
+    }
+
+    /** Persist the per-app locale. Pass [LOCALE_SYSTEM] to clear the override
+     *  and follow device locale; otherwise a BCP 47 tag like "en" / "hi". */
+    suspend fun setAppLocale(localeTag: String) {
+        runSafely("setAppLocale") { dataStore.edit { it[KEY_APP_LOCALE] = localeTag } }
     }
 
     suspend fun setBatteryOptDismissed(dismissed: Boolean) {

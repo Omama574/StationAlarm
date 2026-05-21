@@ -1,3 +1,229 @@
 <resources>
+    <!-- ════════════════════════════════════════════════════════════════════
+         StationAlarm — Localizable user-facing strings.
+         Add new strings here, never inline in Kotlin code. Format args use
+         %s (positional, single arg) or %1$s, %2$s, etc. (numbered, multi-arg).
+         New language: drop a values-xx/strings.xml + add <locale> to
+         res/xml/locales_config.xml.
+         ════════════════════════════════════════════════════════════════════ -->
+
     <string name="app_name">StationAlarm</string>
+
+    <!-- ── Common ─────────────────────────────────────────────────────── -->
+    <string name="common_cancel">Cancel</string>
+    <string name="common_remove">Remove</string>
+    <string name="common_back">Back</string>
+    <string name="common_open_settings">Open Settings</string>
+    <string name="common_not_now">Not Now</string>
+
+    <!-- ── Tabs / navigation ──────────────────────────────────────────── -->
+    <string name="tab_alarms">Alarms</string>
+    <string name="tab_map">Map</string>
+    <string name="nav_menu">Menu</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_about">About</string>
+    <string name="nav_rate_us">Rate Us</string>
+    <string name="nav_share_app">Share App</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <!-- ── Permission dialogs ─────────────────────────────────────────── -->
+    <string name="permission_location_title">Location Access Required</string>
+    <string name="permission_location_body">StationAlarm requires \'Allow all the time\' location access to wake up and sound the alarm when you arrive near your destination while the app is closed or your phone is locked.</string>
+    <string name="permission_location_steps">• Tap \'Settings\' below\n• Tap \'Permissions\'\n• Select \'Location\'\n• Choose \'Allow all the time\'</string>
+    <string name="permission_notifications_title">Enable Notifications</string>
+    <string name="permission_notifications_body">StationAlarm needs notification permission to show alarms while your phone is locked. Without it, the alarm may ring silently in the background and you\'ll miss your stop.</string>
+
+    <!-- ── GPS dialog ─────────────────────────────────────────────────── -->
+    <string name="gps_disabled_title">GPS Disabled</string>
+    <string name="gps_disabled_body">Please allow StationAlarm to turn on location services for accurate tracking.</string>
+    <string name="gps_disabled_turn_on">Turn On GPS</string>
+
+    <!-- ── Volume warning ─────────────────────────────────────────────── -->
+    <string name="volume_low_title">Alarm volume is low</string>
+    <string name="volume_low_body">Your alarm volume is below 50%. Increase it now so the alarm wakes you reliably.</string>
+    <string name="volume_low_increase">Increase to max</string>
+    <string name="volume_low_keep">Keep current</string>
+
+    <!-- ── Battery optimization sheet ─────────────────────────────────── -->
+    <string name="battery_sheet_title">Keep alarms reliable</string>
+    <string name="battery_sheet_body">You just set an alarm — let\'s make sure it actually wakes you. Without a battery exemption, Android can put StationAlarm to sleep and your alarm may fire late or not at all.</string>
+    <string name="battery_sheet_open">Open settings</string>
+    <string name="battery_sheet_skip">Skip for now</string>
+    <string name="battery_sheet_dont_ask_again">Don\'t ask again</string>
+
+    <!-- ── Share app ──────────────────────────────────────────────────── -->
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">Check out StationAlarm — a location-based train/place alarm app.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">Share StationAlarm</string>
+
+    <!-- ── Home / Alarms tab ──────────────────────────────────────────── -->
+    <string name="home_search_placeholder">Search station to add alarm…</string>
+    <string name="home_clear">Clear</string>
+    <string name="home_hint_type_more">Type at least 2 characters</string>
+    <string name="home_hint_no_stations">No stations found</string>
+    <string name="home_empty_title">No alarms yet</string>
+    <string name="home_empty_body">Search for a station above, or drop a pin on the map.</string>
+    <string name="home_empty_open_map">Open the map</string>
+    <string name="home_remove_title">Remove alarm?</string>
+    <string name="home_remove_body_format">This will stop monitoring %s.</string>
+
+    <!-- ── Station card ───────────────────────────────────────────────── -->
+    <string name="card_badge_alarm">Alarm</string>
+    <string name="card_badge_notify">Notify</string>
+    <string name="card_badge_ringing">Ringing</string>
+    <string name="card_badge_paused">Paused</string>
+    <string name="card_alerts_within_format">Alerts within %s</string>
+    <string name="card_last_triggered_format">Last triggered: %s</string>
+    <string name="card_paused_body">Paused — toggle the switch to resume</string>
+    <string name="card_locating">Locating…</string>
+    <string name="card_reminder_format">“%s”</string>
+    <string name="card_action_edit">Edit</string>
+    <string name="card_action_map">Map</string>
+    <string name="card_action_remove">Remove alarm</string>
+    <string name="card_action_rename">Rename alarm</string>
+    <string name="card_action_save_name">Save name</string>
+    <string name="card_action_cancel_rename">Cancel rename</string>
+
+    <!-- "Today HH:mm" / "Yesterday HH:mm" labels used by formatLastTriggered. -->
+    <string name="time_today_format">Today %s</string>
+    <string name="time_yesterday_format">Yesterday %s</string>
+
+    <!-- ── Alarm config bottom sheet ──────────────────────────────────── -->
+    <string name="alarm_config_name_label">Alarm name</string>
+    <string name="alarm_config_default_name">Alarm</string>
+    <string name="alarm_config_section_distance">Alert distance</string>
+    <string name="alarm_config_ring_when_within">Ring when within</string>
+    <string name="alarm_config_reminder_label">Reminder note (optional)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">Show reminder when alarm fires</string>
+    <string name="alarm_config_reminder_toggle_subtitle">Displayed on the alarm screen and notification.</string>
+    <string name="alarm_config_section_alert_by">Alert by</string>
+    <string name="alarm_config_channel_notify">Notify</string>
+    <string name="alarm_config_channel_vibrate">Vibrate</string>
+    <string name="alarm_config_channel_sound">Sound</string>
+    <string name="alarm_config_set">Set alarm</string>
+    <string name="alarm_config_update">Update alarm</string>
+
+    <!-- ── Map search ─────────────────────────────────────────────────── -->
+    <string name="map_search_placeholder">Search a place, landmark, address…</string>
+    <string name="map_search_clear">Clear</string>
+    <string name="map_search_attribution">Search by LocationIQ.com</string>
+    <string name="map_my_location">My location</string>
+    <string name="map_pin_dropped_default">Dropped Pin</string>
+    <string name="map_pin_loading_address">Loading address...</string>
+    <string name="map_perimeter">Perimeter</string>
+    <string name="map_set_alarm">Set Alarm</string>
+    <string name="map_view_focus_radius_format">Alert radius: %s km</string>
+    <string name="map_hint_railway_station">India · Railway Station</string>
+
+    <!-- ── Alarm screen ───────────────────────────────────────────────── -->
+    <string name="alarm_screen_wake_up">Wake Up!</string>
+    <string name="alarm_screen_arrived_at">Arrived at</string>
+    <string name="alarm_screen_dismiss">Dismiss</string>
+    <string name="alarm_screen_press_button_hint">Press any physical button to dismiss</string>
+    <string name="alarm_screen_default_destination">Destination</string>
+
+    <!-- ── Settings ───────────────────────────────────────────────────── -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_distance_unit">Distance Unit</string>
+    <string name="settings_distance_km">Kilometres</string>
+    <string name="settings_distance_miles">Miles</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System default</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_system">System default</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_more_coming">More languages coming soon.</string>
+    <string name="settings_alarm_sound">Alarm Sound</string>
+    <string name="settings_alarm_sound_current_format">Current: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ Sound unavailable — re-select to fix.</string>
+    <string name="settings_alarm_sound_change">Change</string>
+    <string name="settings_alarm_sound_reselect">Re-select</string>
+    <string name="settings_alarm_sound_reset">Reset</string>
+    <string name="settings_alarm_sound_test">Test alarm (3s)</string>
+    <string name="settings_alarm_sound_default_name">Default alarm</string>
+    <string name="settings_alarm_sound_custom_name">Custom sound</string>
+    <string name="settings_sound_picker_title">Choose Alarm Sound</string>
+    <string name="settings_sound_picker_body">Pick a source for your alarm sound.</string>
+    <string name="settings_sound_picker_system">System ringtones</string>
+    <string name="settings_sound_picker_file">Local file</string>
+    <string name="settings_sound_picker_select_title">Select alarm sound</string>
+    <string name="settings_audio_routing">Audio Routing</string>
+    <string name="settings_ring_speaker_title">Ring speaker with headphones</string>
+    <string name="settings_ring_speaker_subtitle">Keep the phone speaker loud when wired or Bluetooth audio is connected.</string>
+    <string name="settings_escalating_title">Start quiet, build to full volume</string>
+    <string name="settings_escalating_subtitle_format">Gradually increases over %ds so you wake naturally</string>
+    <string name="settings_ramp_duration_format">Ramp duration: %ds</string>
+    <string name="settings_ramp_15s">15s</string>
+    <string name="settings_ramp_60s">60s</string>
+    <string name="settings_alarm_duration">Alarm Duration</string>
+    <string name="settings_alarm_duration_subtitle">How long the alarm rings before auto-stopping.</string>
+    <string name="settings_alarm_duration_format">Rings for: %d min</string>
+    <string name="settings_alarm_duration_min">1 min</string>
+    <string name="settings_alarm_duration_max">15 min</string>
+    <string name="settings_background_running">Background Running</string>
+    <string name="settings_battery_exemption">Battery exemption</string>
+    <string name="settings_battery_exempt_yes">Unrestricted — alarms will fire reliably</string>
+    <string name="settings_battery_exempt_no">Restricted — alarms may be missed</string>
+    <string name="settings_battery_open">Open</string>
+    <string name="settings_debug_logs">Debug Logs</string>
+    <string name="settings_debug_logs_subtitle">Share logs for diagnosing alarm issues.</string>
+    <string name="settings_debug_logs_app">App Logs</string>
+    <string name="settings_debug_logs_gps">GPS Logs</string>
+
+    <!-- ── About screen ───────────────────────────────────────────────── -->
+    <string name="about_title">About</string>
+    <string name="about_version_format">Version %s</string>
+    <string name="about_privacy">Privacy Policy</string>
+    <string name="about_terms">Terms of Use</string>
+    <string name="about_licenses">Open Source Licenses</string>
+    <string name="about_made_with_love">Made with ♥ for travellers.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <!-- ── Snackbars ──────────────────────────────────────────────────── -->
+    <string name="snackbar_alarm_set_format">Alarm set for %s</string>
+    <string name="snackbar_alarm_updated_format">Alarm updated for %s</string>
+    <string name="snackbar_no_recent_fix">No recent location fix — try moving to an open area.</string>
+    <string name="snackbar_couldnt_read_location">Couldn\'t read your location.</string>
+
+    <!-- ── Network error copy (errorMessageFor) ───────────────────────── -->
+    <string name="error_search_timed_out">Search timed out — check your connection.</string>
+    <string name="error_no_internet">No internet connection.</string>
+    <string name="error_too_many_requests">Too many requests — try again in a moment.</string>
+    <string name="error_search_down">Search service is down — try again shortly.</string>
+    <string name="error_search_unavailable_format">Search unavailable (%d).</string>
+    <string name="error_search_unavailable">Search unavailable.</string>
+
+    <!-- ── Notifications ──────────────────────────────────────────────── -->
+    <string name="notif_channel_service">Station Alarm Service</string>
+    <string name="notif_channel_service_desc">Shows tracking status</string>
+    <string name="notif_channel_alerts">Station Alarm Alerts</string>
+    <string name="notif_channel_alerts_desc">High priority alarm alerts</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">Stop all</string>
+    <string name="notif_alert_title_format">Station Reached: %s</string>
+    <string name="notif_alert_body_default">You have arrived at your destination.</string>
+    <string name="notif_alert_body_reminder_format">Reminder: %s</string>
+    <string name="notif_alert_dismiss">Dismiss</string>
+    <string name="notif_watchdog_title">Searching for GPS…</string>
+    <string name="notif_watchdog_body_format">Still tracking — last fix %dm ago.</string>
+    <string name="notif_watchdog_default_body">Still tracking — will resume when a fix returns.</string>
+    <string name="notif_watchdog_location_off_title">Location is off</string>
+    <string name="notif_watchdog_location_off_body">Tap to enable location — alarm is paused until then.</string>
+    <string name="notif_audio_failure_title">Alarm fired silently</string>
+    <string name="notif_audio_failure_body_format">Audio system error at %s — vibration only.</string>
+    <string name="notif_boot_restart_title">Restart needed</string>
+    <string name="notif_boot_restart_body">Open StationAlarm to re-arm your alarms.</string>
+    <string name="notif_nearest_format">Nearest station: %1$s — %2$s km</string>
+    <string name="notif_monitoring_count_format">Monitoring %d station(s)...</string>
+    <string name="notif_monitoring_default">Monitoring stations...</string>
+    <string name="notif_alarm_ringing_count_format">Alarm ringing — %d station(s) reached</string>
+
+    <!-- ── Remote-config-driven banners / dialogs ────────────────────── -->
+    <string name="force_update_title">Update required</string>
+    <string name="force_update_body">A newer version of StationAlarm is required to keep alarms working reliably. Please update to continue.</string>
+    <string name="force_update_button">Update now</string>
+    <string name="maintenance_default_body">Service temporarily unavailable. We\'re working on it.</string>
 </resources>

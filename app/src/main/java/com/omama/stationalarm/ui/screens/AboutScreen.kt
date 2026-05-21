@@ -18,12 +18,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 import com.omama.stationalarm.BuildConfig
+import com.omama.stationalarm.R
 
 private const val PRIVACY_POLICY_URL = "https://stationalarm-legal.pages.dev/privacy"
 private const val TERMS_OF_USE_URL = "https://stationalarm-legal.pages.dev/terms"
@@ -36,10 +38,10 @@ fun AboutScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("About", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.about_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -78,13 +80,13 @@ fun AboutScreen(onBack: () -> Unit) {
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                "StationAlarm",
+                stringResource(R.string.app_name),
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                "Version ${BuildConfig.VERSION_NAME}",
+                stringResource(R.string.about_version_format, BuildConfig.VERSION_NAME),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             )
@@ -97,16 +99,17 @@ fun AboutScreen(onBack: () -> Unit) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column {
-                    AboutRow(label = "Privacy Policy") {
+                    AboutRow(label = stringResource(R.string.about_privacy)) {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL)))
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                    AboutRow(label = "Terms of Use") {
+                    AboutRow(label = stringResource(R.string.about_terms)) {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS_OF_USE_URL)))
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                    AboutRow(label = "Open Source Licenses") {
-                        OssLicensesMenuActivity.setActivityTitle("Open Source Licenses")
+                    val licensesLabel = stringResource(R.string.about_licenses)
+                    AboutRow(label = licensesLabel) {
+                        OssLicensesMenuActivity.setActivityTitle(licensesLabel)
                         context.startActivity(Intent(context, OssLicensesMenuActivity::class.java))
                     }
                 }
@@ -114,14 +117,17 @@ fun AboutScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(32.dp))
             Text(
-                "Made with ♥ for travellers.",
+                stringResource(R.string.about_made_with_love),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "© ${java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)} StationAlarm",
+                stringResource(
+                    R.string.about_copyright_format,
+                    java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                ),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
                 textAlign = TextAlign.Center

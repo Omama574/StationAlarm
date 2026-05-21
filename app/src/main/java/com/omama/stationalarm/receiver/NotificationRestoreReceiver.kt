@@ -33,13 +33,13 @@ class NotificationRestoreReceiver : BroadcastReceiver() {
                     return@launch
                 }
 
-                Logger.log("NOTIFICATION_CLEARED_RESTORING")
+                Logger.breadcrumb("NOTIFICATION_CLEARED_RESTORING")
                 val restartIntent = Intent(context, LocationService::class.java).apply {
                     action = LocationService.ACTION_RESTORE_NOTIFICATION
                 }
                 ContextCompat.startForegroundService(context, restartIntent)
             } catch (e: Exception) {
-                Logger.log("ERROR", extra = "Notification restore failed: ${e.message}")
+                Logger.error("NOTIFICATION_RESTORE_FAILED", e)
             } finally {
                 pendingResult.finish()
             }

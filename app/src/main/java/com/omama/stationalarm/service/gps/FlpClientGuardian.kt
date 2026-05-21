@@ -7,6 +7,7 @@ import android.os.Looper
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.*
 import com.google.android.gms.tasks.CancellationTokenSource
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.Logger
 
 /**
@@ -125,7 +126,7 @@ class FlpClientGuardian(
         val timeoutRunnable = Runnable {
             // No response at all from GMS within 15s — IPC pipe is very likely dead.
             consecutiveFailures++
-            Logger.log("FLP_GUARDIAN_TIMEOUT", extra = "15s timeout, consecutive=$consecutiveFailures")
+            Logger.breadcrumb("FLP_GUARDIAN_TIMEOUT", extra = "15s timeout, consecutive=$consecutiveFailures")
             onRecoveryFailed("15s timeout")
             // A single 15s timeout is strong enough evidence to nuke immediately
             performNuclearResetIfNeeded(forceNuke = true)
@@ -151,13 +152,13 @@ class FlpClientGuardian(
                 .addOnFailureListener { e ->
                     cancelPendingTimeout()
                     consecutiveFailures++
-                    Logger.log("FLP_GUARDIAN_RECOVERY_FAILED", extra = "reason=${e.message}, consecutive=$consecutiveFailures")
+                    Logger.error("FLP_GUARDIAN_RECOVERY_FAILED", e, extra = "consecutive=$consecutiveFailures")
                     onRecoveryFailed("GMS failure: ${e.message}")
                     performNuclearResetIfNeeded(forceNuke = false)
                 }
         } catch (e: SecurityException) {
             cancelPendingTimeout()
-            Logger.log("FLP_GUARDIAN_SECURITY_ERROR", extra = e.message ?: "security")
+            Logger.error("FLP_GUARDIAN_SECURITY_ERROR", e)
         }
     }
 
@@ -189,7 +190,13 @@ class FlpClientGuardian(
         }
 
         // === NUCLEAR RESET ===
-        Logger.log("FLP_NUCLEAR_RESET", extra = "consecutive_failures=$consecutiveFailures, forced=$forceNuke")
+        Logger.breadcrumb("FLP_NUCLEAR_RESET", extra = "consecutive_failures=$consecutiveFailures, forced=$forceNuke")
+        // Tracked because a high nuke rate per OEM is the smoking gun for GMS
+        // IPC pipe death — the original 50-min blackout bug.
+        Analytics.event("flp_nuclear_reset") {
+            putInt("consecutive_failures", consecutiveFailures)
+            putBoolean("forced", forceNuke)
+        }
 
         // 1. Tear down old client
         currentCallback?.let { client.removeLocationUpdates(it) }

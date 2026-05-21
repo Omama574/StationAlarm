@@ -20,12 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.omama.stationalarm.R
 import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.service.LocationService
 import kotlin.math.roundToInt
@@ -82,10 +84,10 @@ fun SettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -105,9 +107,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             // ── Distance Unit ──────────────────────────────────────────────
-            SectionTitle("Distance Unit")
+            SectionTitle(stringResource(R.string.settings_distance_unit))
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                val opts = listOf(UserPreferences.UNIT_KM to "Kilometres", UserPreferences.UNIT_MILES to "Miles")
+                val opts = listOf(
+                    UserPreferences.UNIT_KM to stringResource(R.string.settings_distance_km),
+                    UserPreferences.UNIT_MILES to stringResource(R.string.settings_distance_miles),
+                )
                 opts.forEachIndexed { idx, (value, label) ->
                     SegmentedButton(
                         selected = distanceUnit == value,
@@ -121,28 +126,65 @@ fun SettingsScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(24.dp))
 
             // ── Theme ──────────────────────────────────────────────────────
-            SectionTitle("Theme")
+            SectionTitle(stringResource(R.string.settings_theme))
             Column(modifier = Modifier.fillMaxWidth()) {
                 ThemeOption(
-                    label = "System default",
+                    label = stringResource(R.string.settings_theme_system),
                     selected = themeMode == UserPreferences.THEME_SYSTEM,
                     onClick = { scope.launch { UserPreferences.setThemeMode(UserPreferences.THEME_SYSTEM) } }
                 )
                 ThemeOption(
-                    label = "Light",
+                    label = stringResource(R.string.settings_theme_light),
                     selected = themeMode == UserPreferences.THEME_LIGHT,
                     onClick = { scope.launch { UserPreferences.setThemeMode(UserPreferences.THEME_LIGHT) } }
                 )
                 ThemeOption(
-                    label = "Dark",
+                    label = stringResource(R.string.settings_theme_dark),
                     selected = themeMode == UserPreferences.THEME_DARK,
                     onClick = { scope.launch { UserPreferences.setThemeMode(UserPreferences.THEME_DARK) } }
                 )
             }
             Spacer(Modifier.height(24.dp))
 
+            // ── Language ───────────────────────────────────────────────────
+            // The picker writes the selected tag to DataStore AND immediately
+            // hands it to AppCompatDelegate so all open Activities recreate
+            // with the new locale. On Android 13+ this is also reflected in
+            // the system per-app language picker.
+            SectionTitle(stringResource(R.string.settings_language))
+            val appLocale by UserPreferences.appLocaleFlow.collectAsState(initial = UserPreferences.LOCALE_SYSTEM)
+            val languageOptions = listOf(
+                UserPreferences.LOCALE_SYSTEM to stringResource(R.string.settings_language_system),
+                "en" to stringResource(R.string.settings_language_english),
+            )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                languageOptions.forEach { (tag, label) ->
+                    ThemeOption(
+                        label = label,
+                        selected = appLocale == tag,
+                        onClick = {
+                            scope.launch { UserPreferences.setAppLocale(tag) }
+                            val locales = if (tag == UserPreferences.LOCALE_SYSTEM) {
+                                androidx.core.os.LocaleListCompat.getEmptyLocaleList()
+                            } else {
+                                androidx.core.os.LocaleListCompat.forLanguageTags(tag)
+                            }
+                            androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(locales)
+                        }
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.settings_language_more_coming),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+
             // ── Alarm Sound ────────────────────────────────────────────────
-            SectionTitle("Alarm Sound")
+            SectionTitle(stringResource(R.string.settings_alarm_sound))
             val currentSoundName = remember(alarmSoundUri) {
                 resolveSoundName(context, alarmSoundUri)
             }
@@ -159,14 +201,14 @@ fun SettingsScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Current: $currentSoundName",
+                        text = stringResource(R.string.settings_alarm_sound_current_format, currentSoundName),
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     if (!soundReachable) {
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "⚠ Sound unavailable — re-select to fix.",
+                            text = stringResource(R.string.settings_alarm_sound_unavailable),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.error
                         )
@@ -177,7 +219,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                             onClick = { showSoundPicker = true },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text(if (!soundReachable) "Re-select" else "Change")
+                            Text(stringResource(
+                                if (!soundReachable) R.string.settings_alarm_sound_reselect
+                                else R.string.settings_alarm_sound_change
+                            ))
                         }
                         if (alarmSoundUri.isNotBlank()) {
                             OutlinedButton(
@@ -186,7 +231,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("Reset")
+                                Text(stringResource(R.string.settings_alarm_sound_reset))
                             }
                         }
                     }
@@ -203,14 +248,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Test alarm (3s)")
+                        Text(stringResource(R.string.settings_alarm_sound_test))
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
 
             // Audio Routing
-            SectionTitle("Audio Routing")
+            SectionTitle(stringResource(R.string.settings_audio_routing))
 
             val escalatingAlarm by UserPreferences.escalatingAlarmFlow.collectAsState(initial = true)
             val rampSecs by UserPreferences.escalatingAlarmRampSecsFlow
@@ -229,14 +274,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Ring speaker with headphones",
+                                text = stringResource(R.string.settings_ring_speaker_title),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Keep the phone speaker loud when wired or Bluetooth audio is connected.",
+                                text = stringResource(R.string.settings_ring_speaker_subtitle),
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
@@ -262,14 +307,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Start quiet, build to full volume",
+                                text = stringResource(R.string.settings_escalating_title),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Gradually increases over ${rampSecs}s so you wake naturally",
+                                text = stringResource(R.string.settings_escalating_subtitle_format, rampSecs),
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
@@ -286,7 +331,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     if (escalatingAlarm) {
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "Ramp duration: ${rampSecs}s",
+                            text = stringResource(R.string.settings_ramp_duration_format, rampSecs),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
@@ -308,8 +353,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("15s", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("60s", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.settings_ramp_15s), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.settings_ramp_60s), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -317,7 +362,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(24.dp))
 
             // ── Alarm Duration ─────────────────────────────────────────────
-            SectionTitle("Alarm Duration")
+            SectionTitle(stringResource(R.string.settings_alarm_duration))
             val alarmDurationSecs by UserPreferences.alarmDurationSecsFlow
                 .collectAsState(initial = UserPreferences.DEFAULT_ALARM_DURATION_SECS)
             Card(
@@ -327,13 +372,13 @@ fun SettingsScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        text = "How long the alarm rings before auto-stopping.",
+                        text = stringResource(R.string.settings_alarm_duration_subtitle),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Rings for: ${alarmDurationSecs / 60} min",
+                        text = stringResource(R.string.settings_alarm_duration_format, alarmDurationSecs / 60),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface
@@ -358,15 +403,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("1 min", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("15 min", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.settings_alarm_duration_min), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.settings_alarm_duration_max), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
 
             // ── Background Running ─────────────────────────────────────────
-            SectionTitle("Background Running")
+            SectionTitle(stringResource(R.string.settings_background_running))
             // Re-check on every ON_RESUME so the row updates immediately when
             // the user returns from the system battery settings — without
             // this, the screen stays "Restricted" until next recomposition.
@@ -396,17 +441,17 @@ fun SettingsScreen(onBack: () -> Unit) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Battery exemption",
+                            text = stringResource(R.string.settings_battery_exemption),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = if (isExempt)
-                                "Unrestricted — alarms will fire reliably"
-                            else
-                                "Restricted — alarms may be missed",
+                            text = stringResource(
+                                if (isExempt) R.string.settings_battery_exempt_yes
+                                else R.string.settings_battery_exempt_no
+                            ),
                             fontSize = 13.sp,
                             color = if (isExempt)
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -416,14 +461,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                     Spacer(Modifier.width(12.dp))
                     OutlinedButton(onClick = { BatteryOptimizationHelper.openBatterySettings(context) }) {
-                        Text("Open")
+                        Text(stringResource(R.string.settings_battery_open))
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
 
             // ── Debug Logs ─────────────────────────────────────────────────
-            SectionTitle("Debug Logs")
+            SectionTitle(stringResource(R.string.settings_debug_logs))
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -431,7 +476,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Share logs for diagnosing alarm issues.",
+                        text = stringResource(R.string.settings_debug_logs_subtitle),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
@@ -444,7 +489,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("App Logs")
+                            Text(stringResource(R.string.settings_debug_logs_app))
                         }
                         OutlinedButton(
                             onClick = {
@@ -453,7 +498,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("GPS Logs")
+                            Text(stringResource(R.string.settings_debug_logs_gps))
                         }
                     }
                 }
@@ -464,12 +509,13 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     // Sound-picker chooser dialog
     if (showSoundPicker) {
+        val pickerTitle = stringResource(R.string.settings_sound_picker_select_title)
         AlertDialog(
             onDismissRequest = { showSoundPicker = false },
-            title = { Text("Choose Alarm Sound", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.settings_sound_picker_title), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text("Pick a source for your alarm sound.", fontSize = 14.sp)
+                    Text(stringResource(R.string.settings_sound_picker_body), fontSize = 14.sp)
                 }
             },
             confirmButton = {
@@ -477,20 +523,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                     showSoundPicker = false
                     val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
                         putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM or RingtoneManager.TYPE_NOTIFICATION or RingtoneManager.TYPE_RINGTONE)
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select alarm sound")
+                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, pickerTitle)
                         putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
                         putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
                         val current = alarmSoundUri.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
                         if (current != null) putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, current)
                     }
                     ringtoneLauncher.launch(intent)
-                }) { Text("System ringtones") }
+                }) { Text(stringResource(R.string.settings_sound_picker_system)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showSoundPicker = false
                     fileLauncher.launch(arrayOf("audio/*"))
-                }) { Text("Local file") }
+                }) { Text(stringResource(R.string.settings_sound_picker_file)) }
             },
             containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(16.dp)
@@ -551,8 +597,9 @@ private fun probeAlarmUri(context: android.content.Context, uriStr: String): Boo
 
 /** Resolve a human-readable name for the saved URI (or "Default" if blank). */
 private fun resolveSoundName(context: android.content.Context, uriStr: String): String {
-    if (uriStr.isBlank()) return "Default alarm"
-    val uri = try { Uri.parse(uriStr) } catch (_: Exception) { return "Default alarm" }
+    val defaultName = context.getString(R.string.settings_alarm_sound_default_name)
+    if (uriStr.isBlank()) return defaultName
+    val uri = try { Uri.parse(uriStr) } catch (_: Exception) { return defaultName }
 
     // Ringtone lookup first (system ringtones have friendly titles)
     try {
@@ -573,5 +620,5 @@ private fun resolveSoundName(context: android.content.Context, uriStr: String): 
         }
     } catch (_: Exception) { /* ignore */ }
 
-    return "Custom sound"
+    return context.getString(R.string.settings_alarm_sound_custom_name)
 }

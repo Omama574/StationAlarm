@@ -1,17 +1,26 @@
 package com.omama.stationalarm
 
 import android.app.Application
+import android.os.Build
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
 import com.omama.stationalarm.network.GeocodingClient
 import com.omama.stationalarm.repository.StationRepository
+import com.omama.stationalarm.util.Analytics
+import com.omama.stationalarm.util.AppRemoteConfig
+import com.omama.stationalarm.util.BatteryOptimizationHelper
 import com.omama.stationalarm.util.Logger
+import com.omama.stationalarm.data.UserPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.osmdroid.config.Configuration
 import java.io.File
 
@@ -21,7 +30,13 @@ class StationAlarmApplication : Application() {
         StationRepository.initialize(this)
         Logger.initialize(this)
         com.omama.stationalarm.util.GpsLogger.initialize(this)
-        com.omama.stationalarm.data.UserPreferences.initialize(this)
+        UserPreferences.initialize(this)
+
+        // Apply the per-app locale BEFORE any Activity is created. Reading from
+        // DataStore is normally async, but app cold-start happens before the
+        // first Activity attaches its base context, so a brief runBlocking on
+        // disk I/O here is the standard pattern. Typical cost ~5–20 ms.
+        applyPersistedLocale()
 
         // osmdroid must be configured before any MapView is created.
         // OSM tile servers require a proper User-Agent string — without it your app
@@ -52,6 +67,18 @@ class StationAlarmApplication : Application() {
             // Crashlytics: disable in debug so stack traces go to Logcat, not the dashboard
             FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG)
 
+            // Analytics: separate util so call sites don't import Firebase types directly
+            Analytics.initialize(this)
+
+            // Always-on Crashlytics context. Set once at process start so EVERY
+            // crash report includes device + permission state — the slice
+            // dashboards typically need ("crashes on MIUI without battery
+            // exemption", etc.). Cheap; runs off the main thread implicitly
+            // since Crashlytics persists keys async.
+            setBaselineCrashlyticsKeys()
+            Analytics.setUserProperty("manufacturer", Build.MANUFACTURER)
+            Analytics.setUserProperty("android_sdk", Build.VERSION.SDK_INT.toString())
+
             // Remote Config: fetch geocoding_backend_url so we can swap backends without an update
             val remoteConfig = FirebaseRemoteConfig.getInstance()
             remoteConfig.setConfigSettingsAsync(remoteConfigSettings {
@@ -60,13 +87,24 @@ class StationAlarmApplication : Application() {
                 minimumFetchIntervalInSeconds = if (BuildConfig.DEBUG) 30 else 43200
             })
             remoteConfig.setDefaultsAsync(
-                mapOf("geocoding_backend_url" to "https://stationalarm-geo.mohammedomama2005.workers.dev/")
+                mapOf(
+                    "geocoding_backend_url" to "https://stationalarm-geo.mohammedomama2005.workers.dev/",
+                    AppRemoteConfig.KEY_MIN_SUPPORTED_VERSION to AppRemoteConfig.DEFAULT_MIN_SUPPORTED_VERSION,
+                    AppRemoteConfig.KEY_MAINTENANCE_MODE to AppRemoteConfig.DEFAULT_MAINTENANCE_MODE,
+                    AppRemoteConfig.KEY_MAINTENANCE_MESSAGE to AppRemoteConfig.DEFAULT_MAINTENANCE_MESSAGE,
+                    AppRemoteConfig.KEY_FEATURE_FLAGS to AppRemoteConfig.DEFAULT_FEATURE_FLAGS,
+                )
             )
+            // Seed AppRemoteConfig flows from defaults BEFORE the network fetch
+            // completes so the very first composition has sensible values.
+            AppRemoteConfig.refresh(remoteConfig)
             remoteConfig.fetchAndActivate().addOnCompleteListener { task ->
                 val url = remoteConfig.getString("geocoding_backend_url")
                 if (url.isNotBlank()) GeocodingClient.setWorkerUrl(url)
+                // Push the freshly-activated values into the app-controlled flows.
+                AppRemoteConfig.refresh(remoteConfig)
                 if (!task.isSuccessful) {
-                    android.util.Log.w("RemoteConfig", "Fetch failed — using default Worker URL")
+                    android.util.Log.w("RemoteConfig", "Fetch failed — using default values")
                 }
             }
         } catch (e: Exception) {
@@ -86,6 +124,51 @@ class StationAlarmApplication : Application() {
             } catch (e: Exception) {
                 android.util.Log.w("Reconcile", "reconcileOrphans failed", e)
             }
+            // Once the DB is reachable, publish the current alarm count to the
+            // crash context (banded so it stays useful as an Audience filter).
+            try {
+                val count = StationRepository.getAllActiveStationsList().size
+                FirebaseCrashlytics.getInstance().setCustomKey("alarms_count", count)
+                Analytics.setUserProperty("alarms_count_band", bandAlarms(count))
+            } catch (_: Exception) { /* Firebase may not be initialized */ }
         }
+    }
+
+    /** Read the persisted per-app locale and hand it to AppCompatDelegate.
+     *  No-op if the user hasn't picked anything (or picked "System default") —
+     *  Android falls back to the device locale automatically in that case. */
+    private fun applyPersistedLocale() {
+        try {
+            val tag = runBlocking { UserPreferences.appLocaleFlow.first() }
+            val locales = if (tag == UserPreferences.LOCALE_SYSTEM || tag.isBlank()) {
+                LocaleListCompat.getEmptyLocaleList()
+            } else {
+                LocaleListCompat.forLanguageTags(tag)
+            }
+            AppCompatDelegate.setApplicationLocales(locales)
+        } catch (e: Exception) {
+            // DataStore disk read failed, or AppCompatDelegate threw — never let
+            // localization break app startup. App will run in device locale.
+            android.util.Log.w("Locale", "applyPersistedLocale failed", e)
+        }
+    }
+
+    private fun setBaselineCrashlyticsKeys() {
+        try {
+            FirebaseCrashlytics.getInstance().apply {
+                setCustomKey("manufacturer", Build.MANUFACTURER ?: "unknown")
+                setCustomKey("device_model", Build.MODEL ?: "unknown")
+                setCustomKey("android_sdk", Build.VERSION.SDK_INT)
+                setCustomKey("battery_exempt", BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this@StationAlarmApplication))
+            }
+        } catch (_: Exception) { /* Firebase may not be initialized */ }
+    }
+
+    private fun bandAlarms(count: Int): String = when {
+        count <= 0 -> "0"
+        count == 1 -> "1"
+        count <= 5 -> "2-5"
+        count <= 9 -> "6-9"
+        else -> "10+"
     }
 }

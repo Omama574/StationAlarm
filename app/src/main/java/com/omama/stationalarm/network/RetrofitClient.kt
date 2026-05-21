@@ -15,10 +15,6 @@ object GeocodingClient {
     // Remote Config key: geocoding_backend_url
     private const val DEFAULT_WORKER_URL = "https://stationalarm-geo.mohammedomama2005.workers.dev/"
 
-    // Photon is called directly from the device (not via Worker).
-    // See PhotonService for explanation of why direct is better here.
-    private const val PHOTON_BASE_URL = "https://photon.komoot.io/"
-
     // ── Shared HTTP client ────────────────────────────────────────────────────
 
     private val httpClient = OkHttpClient.Builder()
@@ -38,38 +34,29 @@ object GeocodingClient {
     // ── Dynamic Worker URL (set by Remote Config on startup) ──────────────────
 
     @Volatile private var workerBaseUrl = DEFAULT_WORKER_URL
-    @Volatile private var _locationIqService: LocationIqService? = null
+    @Volatile private var _geocodingService: GeocodingService? = null
 
     /**
      * Called by StationAlarmApplication once Remote Config has fetched.
-     * If the URL changed, the next call to [locationIqService] rebuilds Retrofit.
+     * If the URL changed, the next call to [geocodingService] rebuilds Retrofit.
      */
     fun setWorkerUrl(url: String) {
         val normalized = if (url.endsWith("/")) url else "$url/"
         if (normalized != workerBaseUrl) {
             workerBaseUrl = normalized
-            _locationIqService = null
+            _geocodingService = null
         }
     }
 
     // ── Service instances ─────────────────────────────────────────────────────
 
-    val locationIqService: LocationIqService
-        get() = _locationIqService ?: buildLocationIqService().also { _locationIqService = it }
+    val geocodingService: GeocodingService
+        get() = _geocodingService ?: buildGeocodingService().also { _geocodingService = it }
 
-    private fun buildLocationIqService() = Retrofit.Builder()
+    private fun buildGeocodingService() = Retrofit.Builder()
         .baseUrl(workerBaseUrl)
         .client(httpClient)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
-        .create(LocationIqService::class.java)
-
-    val photonService: PhotonService by lazy {
-        Retrofit.Builder()
-            .baseUrl(PHOTON_BASE_URL)
-            .client(httpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(PhotonService::class.java)
-    }
+        .create(GeocodingService::class.java)
 }
