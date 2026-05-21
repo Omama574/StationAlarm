@@ -46,10 +46,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omama.stationalarm.BuildConfig
 import com.omama.stationalarm.MainActivity
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.service.LocationService
+import com.omama.stationalarm.util.AppRemoteConfig
 import com.omama.stationalarm.ui.screens.AboutScreen
 import com.omama.stationalarm.ui.screens.HomeScreen
 import com.omama.stationalarm.ui.screens.MapSearchScreen
@@ -150,10 +152,37 @@ fun AppRoot() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Remote-config-driven app-wide gates. Read once per recomposition.
+    val minVersion by AppRemoteConfig.minSupportedAppVersionFlow.collectAsState()
+    val maintenanceOn by AppRemoteConfig.maintenanceModeFlow.collectAsState()
+    val maintenanceMessage by AppRemoteConfig.maintenanceMessageFlow.collectAsState()
+    val forceUpdate = AppRemoteConfig.isForceUpdateRequired(
+        currentVersionCode = BuildConfig.VERSION_CODE.toLong(),
+        isDebug = BuildConfig.DEBUG,
+    )
+
     Box(modifier = Modifier.fillMaxSize()) {
-        AppNavigation(
-            isGpsEnabled = { MainActivity.isGpsEnabled(context) }
-        )
+        if (forceUpdate) {
+            // Hard-block the entire app behind an update prompt. The rest of
+            // AppNavigation is not composed — no map, no alarms, no settings.
+            ForceUpdateDialog(
+                onUpdate = { openPlayStore(context) }
+            )
+            return@Box
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (maintenanceOn) {
+                MaintenanceBanner(
+                    message = maintenanceMessage.ifBlank { stringResource(R.string.maintenance_default_body) }
+                )
+            }
+            Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+                AppNavigation(
+                    isGpsEnabled = { MainActivity.isGpsEnabled(context) }
+                )
+            }
+        }
 
         if (showPermissionRationale) {
             PermissionRationaleDialog {
@@ -192,6 +221,101 @@ fun AppRoot() {
                 onDismiss = { showNotificationRationale = false }
             )
         }
+    }
+}
+
+/**
+ * Non-dismissable amber banner shown at the top of the main screen when the
+ * server flips `maintenance_mode` on. Keep it small enough to leave the rest
+ * of the UI usable — users can still browse alarms, just can't trust new
+ * geocoding lookups to succeed.
+ */
+@Composable
+fun MaintenanceBanner(message: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xFFFFE082),       // Material amber 200
+        contentColor = Color(0xFF5D4037), // Brown 700 — readable on amber
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/**
+ * Blocking dialog shown when the running build is below the Remote-Config
+ * `min_supported_app_version` floor. There is no dismiss button on purpose —
+ * the only escape is to update. (Use this rarely: bump the floor only when
+ * an older build has a critical bug that can't be hot-fixed via the Worker.)
+ */
+@Composable
+fun ForceUpdateDialog(onUpdate: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.85f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            modifier = Modifier.fillMaxWidth().padding(32.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.force_update_title),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.force_update_body),
+                    fontSize = 15.sp,
+                    color = Color.DarkGray,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp,
+                )
+                Spacer(Modifier.height(24.dp))
+                Button(
+                    onClick = onUpdate,
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Black,
+                        contentColor = Color.White,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.force_update_button),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Same launch pattern as the drawer's "Rate Us" — market URI first, web
+ *  fallback if no Play Store app is installed. */
+private fun openPlayStore(context: Context) {
+    val pkg = context.packageName
+    val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    try {
+        context.startActivity(marketIntent)
+    } catch (_: android.content.ActivityNotFoundException) {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg"))
+        )
     }
 }
 

@@ -220,4 +220,10 @@
     <string name="notif_monitoring_count_format">Monitoring %d station(s)...</string>
     <string name="notif_monitoring_default">Monitoring stations...</string>
     <string name="notif_alarm_ringing_count_format">Alarm ringing — %d station(s) reached</string>
+
+    <!-- ── Remote-config-driven banners / dialogs ────────────────────── -->
+    <string name="force_update_title">Update required</string>
+    <string name="force_update_body">A newer version of StationAlarm is required to keep alarms working reliably. Please update to continue.</string>
+    <string name="force_update_button">Update now</string>
+    <string name="maintenance_default_body">Service temporarily unavailable. We\'re working on it.</string>
 </resources>

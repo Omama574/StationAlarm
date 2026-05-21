@@ -11,6 +11,7 @@ import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
 import com.omama.stationalarm.network.GeocodingClient
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.util.Analytics
+import com.omama.stationalarm.util.AppRemoteConfig
 import com.omama.stationalarm.util.BatteryOptimizationHelper
 import com.omama.stationalarm.util.Logger
 import com.omama.stationalarm.data.UserPreferences
@@ -86,13 +87,24 @@ class StationAlarmApplication : Application() {
                 minimumFetchIntervalInSeconds = if (BuildConfig.DEBUG) 30 else 43200
             })
             remoteConfig.setDefaultsAsync(
-                mapOf("geocoding_backend_url" to "https://stationalarm-geo.mohammedomama2005.workers.dev/")
+                mapOf(
+                    "geocoding_backend_url" to "https://stationalarm-geo.mohammedomama2005.workers.dev/",
+                    AppRemoteConfig.KEY_MIN_SUPPORTED_VERSION to AppRemoteConfig.DEFAULT_MIN_SUPPORTED_VERSION,
+                    AppRemoteConfig.KEY_MAINTENANCE_MODE to AppRemoteConfig.DEFAULT_MAINTENANCE_MODE,
+                    AppRemoteConfig.KEY_MAINTENANCE_MESSAGE to AppRemoteConfig.DEFAULT_MAINTENANCE_MESSAGE,
+                    AppRemoteConfig.KEY_FEATURE_FLAGS to AppRemoteConfig.DEFAULT_FEATURE_FLAGS,
+                )
             )
+            // Seed AppRemoteConfig flows from defaults BEFORE the network fetch
+            // completes so the very first composition has sensible values.
+            AppRemoteConfig.refresh(remoteConfig)
             remoteConfig.fetchAndActivate().addOnCompleteListener { task ->
                 val url = remoteConfig.getString("geocoding_backend_url")
                 if (url.isNotBlank()) GeocodingClient.setWorkerUrl(url)
+                // Push the freshly-activated values into the app-controlled flows.
+                AppRemoteConfig.refresh(remoteConfig)
                 if (!task.isSuccessful) {
-                    android.util.Log.w("RemoteConfig", "Fetch failed — using default Worker URL")
+                    android.util.Log.w("RemoteConfig", "Fetch failed — using default values")
                 }
             }
         } catch (e: Exception) {
