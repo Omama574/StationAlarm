@@ -162,7 +162,7 @@ Source: commit `617fb7d feat: editable alarm name + last-triggered timestamp`.
 | ID | Steps | Expected | Pass? |
 |---|---|---|:---:|
 | NAM-01 | My Stations tab → search "Bangalore" → tap a result → bottom sheet opens. | "Alarm name" field is pre-filled with the railway station's name (e.g., "Bangalore City Jn"). | ☐ |
-| NAM-02 | Map tab → search "Connaught Place" → tap a result → tap Set Alarm → bottom sheet opens. | "Alarm name" pre-filled with the geocoded address from LocationIQ/Photon. | ☐ |
+| NAM-02 | Map tab → search "Connaught Place" → tap a result → tap Set Alarm → bottom sheet opens. | "Alarm name" pre-filled with the geocoded address from LocationIQ. | ☐ |
 | NAM-03 | Map tab → tap an empty area on the map (no geocoding result) → tap Set Alarm. | "Alarm name" pre-filled with the literal string `Alarm`. | ☐ |
 | NAM-04 | In the sheet, clear the name field entirely and tap Set Alarm. | Alarm is created with name `Alarm` (fallback). | ☐ |
 | NAM-05 | In the sheet, type a custom name like "Office stop" → tap Set Alarm. | Card on My Stations shows "Office stop". | ☐ |

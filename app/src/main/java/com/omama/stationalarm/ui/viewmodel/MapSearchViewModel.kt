@@ -79,10 +79,9 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /**
-     * Three-tier search:
+     * Two-tier search:
      *   1. India station Room DB — instant, offline, zero API calls
-     *   2. LocationIQ via Cloudflare Worker — primary live geocoding
-     *   3. Photon by Komoot — fallback (direct from device, no key needed)
+     *   2. LocationIQ via Cloudflare Worker — live geocoding for everything else
      */
     private suspend fun performSearch(q: String) {
         _isSearching.value = true
@@ -105,31 +104,14 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             // ── Tier 2: LocationIQ via Cloudflare Worker ──────────────────────
-            try {
-                val results = GeocodingClient.locationIqService.autocomplete(query = q)
-                if (results.isNotEmpty()) {
-                    _searchResults.value = results.map { it.toSearchResult() }
-                        .filter { it.hasValidCoords }
-                    return
-                }
-            } catch (e: Exception) {
-                android.util.Log.w("MapSearch", "LocationIQ unavailable, falling back to Photon", e)
-            }
-
-            // ── Tier 3: Photon by Komoot (direct from device) ─────────────────
-            val bias = _initialCenter.value
-            val photonResponse = GeocodingClient.photonService.search(
-                query = q,
-                lat   = bias?.latitude,
-                lon   = bias?.longitude
-            )
-            _searchResults.value = photonResponse.features.map { it.toSearchResult() }
+            val results = GeocodingClient.locationIqService.autocomplete(query = q)
+            _searchResults.value = results.map { it.toSearchResult() }
                 .filter { it.hasValidCoords }
 
         } catch (e: Exception) {
             _searchError.value = errorMessageFor(e)
             _searchResults.value = emptyList()
-            android.util.Log.e("MapSearch", "All geocoding failed for '$q'", e)
+            android.util.Log.e("MapSearch", "Geocoding failed for '$q'", e)
         } finally {
             _isSearching.value = false
         }
@@ -162,7 +144,8 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     /**
      * Called when user taps anywhere on the map.
      * Immediately drops a pin with coordinates, then reverse geocodes in background.
-     * Two-tier: LocationIQ → Photon fallback.
+     * Single-tier: LocationIQ via Worker. On failure, fall back to raw coords so
+     * the pin still has a usable label.
      */
     fun onMapTap(lat: Double, lon: Double) {
         _selectedResult.value = GeoSearchResult(
@@ -175,32 +158,18 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         )
 
         viewModelScope.launch {
-            // ── Tier 1: LocationIQ reverse via Worker ─────────────────────────
             try {
                 val result = GeocodingClient.locationIqService.reverse(lat = lat, lon = lon)
                 _selectedResult.value = result.toSearchResult(lat, lon)
-                return@launch
             } catch (e: Exception) {
-                android.util.Log.w("MapSearch", "LocationIQ reverse failed, trying Photon", e)
+                android.util.Log.w("MapSearch", "LocationIQ reverse failed", e)
+                // Network / quota error — keep the pin but show coords as label so
+                // the user can still confirm the location they tapped.
+                _selectedResult.value = _selectedResult.value?.copy(
+                    name     = "Dropped Pin",
+                    subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
+                )
             }
-
-            // ── Tier 2: Photon reverse (direct from device) ───────────────────
-            try {
-                val photonResponse = GeocodingClient.photonService.reverse(lat = lat, lon = lon)
-                val feature = photonResponse.features.firstOrNull()
-                if (feature != null) {
-                    _selectedResult.value = feature.toSearchResult().copy(lat = lat, lon = lon)
-                    return@launch
-                }
-            } catch (e: Exception) {
-                android.util.Log.w("MapSearch", "Photon reverse also failed", e)
-            }
-
-            // ── Fallback: raw coordinates ─────────────────────────────────────
-            _selectedResult.value = _selectedResult.value?.copy(
-                name     = "Dropped Pin",
-                subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
-            )
         }
     }
 

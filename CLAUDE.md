@@ -42,14 +42,13 @@ Any semantic/behavioural change requires explicit approval before touching:
 ---
 
 ## Tech Stack
-
+do not add yourself as contirbutor while pushing to github
 | Layer | Tech |
 |---|---|
 | Language | Kotlin |
 | UI | Jetpack Compose + AndroidView (osmdroid) |
 | Map | osmdroid 6.1.20 + OSM MAPNIK tiles |
-| Geocoding primary | LocationIQ via Cloudflare Worker proxy |
-| Geocoding fallback | Photon by Komoot — called DIRECTLY from device (not via Worker) |
+| Geocoding | LocationIQ via Cloudflare Worker proxy (single source) |
 | Database | Room SQLite v5 |
 | Backend config | Firebase Remote Config (`geocoding_backend_url`) + Crashlytics |
 
@@ -57,10 +56,9 @@ Any semantic/behavioural change requires explicit approval before touching:
 
 ## Architecture
 
-### Search (3-tier)
+### Search (2-tier)
 1. **StationData** — offline Indian railway JSON, instant, zero API calls
-2. **LocationIQ** — via Cloudflare Worker, 500ms debounce
-3. **Photon** — direct from device (preserves per-user IP quota, NOT pooled)
+2. **LocationIQ** — via Cloudflare Worker, 500ms debounce, mapLatest cancellation
 
 ### Alarm Flow
 ```
@@ -94,8 +92,7 @@ Station selected → StationConfigBottomSheet → StationRepository.addActiveSta
 | `ui/screens/AlarmActivity.kt` | Full-screen alarm UI |
 | `data/UserPreferences.kt` | App settings (Theme, Units, Audio Routing) via DataStore |
 | `network/LocationIqService.kt` | Retrofit interface — LocationIQ (via Worker) |
-| `network/PhotonService.kt` | Retrofit interface — Photon (direct) |
-| `network/GeocodingModels.kt` | All geocoding models + toSearchResult() mappers |
+| `network/GeocodingModels.kt` | LocationIQ models + toSearchResult() mappers |
 | `network/RetrofitClient.kt` | OkHttp client, dynamic Worker URL |
 | `data/StationData.kt` | Loader for stations.json |
 | `data/db/StationDatabase.kt` | Room v5 — saved_places + active_stations |
@@ -107,10 +104,9 @@ Station selected → StationConfigBottomSheet → StationRepository.addActiveSta
 
 1. **No API keys in APK** — all geocoding goes via Cloudflare Worker
 2. **No `countrycodes` restriction** — app is global
-3. **Photon is always called directly from device** — never via Worker
-4. **Room DB schema changes require a migration** — bump version in `StationDatabase.kt`
-5. **No Mapbox** — TOS violation (geocoding results on non-Mapbox maps)
-6. **Geocoding stack is locked** — LocationIQ primary, Photon fallback, no other sources
+3. **Room DB schema changes require a migration** — bump version in `StationDatabase.kt`
+4. **No Mapbox** — TOS violation (geocoding results on non-Mapbox maps)
+5. **Geocoding source** — LocationIQ via the Cloudflare Worker proxy. Worker is the only place the API key lives; the app never talks to LocationIQ directly.
 
 ---
 

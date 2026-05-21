@@ -46,8 +46,7 @@ Android app that alerts the user when approaching a railway station or any custo
 | Language | Kotlin |
 | UI | Jetpack Compose + AndroidView (for osmdroid) |
 | Map | osmdroid 6.1.20 + OpenStreetMap (MAPNIK tiles) |
-| Geocoding primary | LocationIQ via Cloudflare Worker proxy |
-| Geocoding fallback | Photon by Komoot (direct from device) |
+| Geocoding | LocationIQ via Cloudflare Worker proxy (single source) |
 | Database | Room SQLite v5 |
 | Backend config | Firebase Remote Config (backend URL), Crashlytics |
 | Preferences | DataStore Preferences (theme, distance unit, alarm sound URI, ring_speaker_with_headphones) |
@@ -57,20 +56,17 @@ Android app that alerts the user when approaching a railway station or any custo
 
 ## Architecture
 
-### Search Flow (3-tier)
+### Search Flow (2-tier)
 ```
 User types in MapSearchScreen
     │
     ├─ Tier 1: StationData (offline JSON) — Indian railway stations
     │          Instant, zero API calls. Returns if any match found.
     │
-    ├─ Tier 2: LocationIQ via Cloudflare Worker
-    │          Primary live geocoding. 500ms debounce.
-    │          Worker URL controlled by Firebase Remote Config.
-    │
-    └─ Tier 3: Photon by Komoot (direct from device)
-               Fallback. Called DIRECTLY (not via Worker) to keep
-               per-user IP quota instead of pooled server quota.
+    └─ Tier 2: LocationIQ via Cloudflare Worker
+               Live geocoding for everything else. 500ms debounce,
+               mapLatest cancellation. Worker URL is overridable via
+               Firebase Remote Config (geocoding_backend_url).
 ```
 
 ### Alarm Flow
@@ -118,8 +114,8 @@ Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs
 | NaPTAN / EU GTFS / AU feeds | Static station data for Europe/Australia | Scope too large, deferred to Phase 4 |
 | Nominatim direct | As primary geocoder | Rate limits too tight for production |
 | GADM offline boundaries | Point-in-polygon city tagging | Overkill for current scope |
-| Photon via Worker | Routing Photon through Cloudflare | Destroys per-user IP quota, becomes pooled server quota |
-| `layers` filter on geocoders | Allowlist of OSM layers in LocationIQ/Photon | Excluded `amenity`/POI results (bus stands, stations, airports) |
+| Photon by Komoot fallback | Was a second geocoder for when LocationIQ failed | Removed 2026-05; single LocationIQ source + Worker-side cache + queue is enough |
+| `layers` filter on the LocationIQ call | Allowlist of OSM layers | Excluded `amenity`/POI results (bus stands, stations, airports) |
 | Watchdog as terminal alert | Single 60s stall → loud user-visible notification | Misfired on every transient dip; no self-heal attempted |
 | Delete-on-dismiss | Removing the active_stations row when alarm fires | Lost user config; replaced with `PAUSED` state |
 
@@ -304,7 +300,7 @@ Implemented all "TO-DO IMMEDIATELY" items from `plans/production-readiness.md`. 
 - **Audio terminal-failure escalation:** Force the rare double-failure path → confirm vibration starts and "Alarm fired silently" notification appears.
 - **Watchdog tiers:** Long ride with brief signal dips → no notification (Tier 1 self-heal). Sustained loss → Tier 2 notification appears, vanishes on first fix.
 - **High-velocity polling:** Mock at 150–250 km/h → adaptive tracker fires before passing threshold.
-- **Failover chaos drill:** Misconfigure RC URL to force 502 → Photon takes over.
+- **Failover chaos drill:** Misconfigure RC URL to force 502 → search surfaces the right error copy (not a silent fail) and the user can still drop a map pin manually.
 
 ### Low Priority (noted, not scheduled)
 - `StationConfigBottomSheet` param `initialNotes` → rename to `customReminder`.

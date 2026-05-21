@@ -15,10 +15,6 @@ object GeocodingClient {
     // Remote Config key: geocoding_backend_url
     private const val DEFAULT_WORKER_URL = "https://stationalarm-geo.mohammedomama2005.workers.dev/"
 
-    // Photon is called directly from the device (not via Worker).
-    // See PhotonService for explanation of why direct is better here.
-    private const val PHOTON_BASE_URL = "https://photon.komoot.io/"
-
     // ── Shared HTTP client ────────────────────────────────────────────────────
 
     private val httpClient = OkHttpClient.Builder()
@@ -63,13 +59,4 @@ object GeocodingClient {
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(LocationIqService::class.java)
-
-    val photonService: PhotonService by lazy {
-        Retrofit.Builder()
-            .baseUrl(PHOTON_BASE_URL)
-            .client(httpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(PhotonService::class.java)
-    }
 }
