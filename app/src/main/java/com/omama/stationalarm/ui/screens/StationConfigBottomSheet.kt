@@ -32,10 +32,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
+import com.omama.stationalarm.R
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.ui.theme.glassBorderColor
@@ -65,7 +67,8 @@ fun StationConfigBottomSheet(
     val spacing = MaterialTheme.spacing
     val colors = MaterialTheme.colorScheme
 
-    var alarmName by remember { mutableStateOf(initialName.ifBlank { "Alarm" }) }
+    val defaultName = stringResource(R.string.alarm_config_default_name)
+    var alarmName by remember { mutableStateOf(initialName.ifBlank { defaultName }) }
     var alertDistance by remember { mutableStateOf(initialRadius) }
     var notifyEnabled by remember { mutableStateOf(initialNotify) }
     var vibrateEnabled by remember { mutableStateOf(initialVibrate) }
@@ -98,7 +101,7 @@ fun StationConfigBottomSheet(
                 OutlinedTextField(
                     value = alarmName,
                     onValueChange = { alarmName = it.take(60) },
-                    label = { Text("Alarm name") },
+                    label = { Text(stringResource(R.string.alarm_config_name_label)) },
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
@@ -129,14 +132,14 @@ fun StationConfigBottomSheet(
             }
 
             // ── Alert distance ──────────────────────────────────────────────
-            SectionLabel("Alert distance")
+            SectionLabel(stringResource(R.string.alarm_config_section_distance))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Ring when within",
+                    text = stringResource(R.string.alarm_config_ring_when_within),
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.onSurfaceVariant
                 )
@@ -163,9 +166,9 @@ fun StationConfigBottomSheet(
             OutlinedTextField(
                 value = customReminder,
                 onValueChange = { if (it.length <= MAX_REMINDER_CHARS) customReminder = it },
-                label = { Text("Reminder note (optional)") },
+                label = { Text(stringResource(R.string.alarm_config_reminder_label)) },
                 supportingText = {
-                    Text("${customReminder.length} / $MAX_REMINDER_CHARS")
+                    Text(stringResource(R.string.alarm_config_reminder_counter_format, customReminder.length, MAX_REMINDER_CHARS))
                 },
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
@@ -185,12 +188,12 @@ fun StationConfigBottomSheet(
             ) {
                 Column(Modifier.padding(end = spacing.md)) {
                     Text(
-                        "Show reminder when alarm fires",
+                        stringResource(R.string.alarm_config_reminder_toggle_title),
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.onSurface
                     )
                     Text(
-                        "Displayed on the alarm screen and notification.",
+                        stringResource(R.string.alarm_config_reminder_toggle_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.onSurfaceVariant
                     )
@@ -203,25 +206,25 @@ fun StationConfigBottomSheet(
             }
 
             // ── Alert channels ──────────────────────────────────────────────
-            SectionLabel("Alert by")
+            SectionLabel(stringResource(R.string.alarm_config_section_alert_by))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(spacing.sm)
             ) {
                 ChannelChip(
-                    label = "Notify",
+                    label = stringResource(R.string.alarm_config_channel_notify),
                     selected = notifyEnabled,
                     onChange = { notifyEnabled = it },
                     modifier = Modifier.weight(1f)
                 )
                 ChannelChip(
-                    label = "Vibrate",
+                    label = stringResource(R.string.alarm_config_channel_vibrate),
                     selected = vibrateEnabled,
                     onChange = { vibrateEnabled = it },
                     modifier = Modifier.weight(1f)
                 )
                 ChannelChip(
-                    label = "Sound",
+                    label = stringResource(R.string.alarm_config_channel_sound),
                     selected = soundEnabled,
                     onChange = { soundEnabled = it },
                     modifier = Modifier.weight(1f)
@@ -242,7 +245,7 @@ fun StationConfigBottomSheet(
                             sound = soundEnabled,
                             customReminder = customReminder.takeIf { it.isNotBlank() },
                             sendReminder = sendReminder,
-                            stationName = alarmName.trim().ifBlank { "Alarm" },
+                            stationName = alarmName.trim().ifBlank { defaultName },
                             lat = station.lat,
                             lon = station.lon
                         )
@@ -258,7 +261,7 @@ fun StationConfigBottomSheet(
                     .height(56.dp)
             ) {
                 Text(
-                    text = if (isActive) "Update alarm" else "Set alarm",
+                    text = stringResource(if (isActive) R.string.alarm_config_update else R.string.alarm_config_set),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )

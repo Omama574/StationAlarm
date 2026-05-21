@@ -104,6 +104,15 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            // Lets Robolectric tests resolve resources (strings.xml, etc.)
+            // via the merged AAR resources. Without this, getString() inside
+            // ViewModels under test throws Resources$NotFoundException.
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {

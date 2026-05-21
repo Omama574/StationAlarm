@@ -29,10 +29,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omama.stationalarm.R
 import com.omama.stationalarm.ui.theme.LocalAppHazeState
 import com.omama.stationalarm.ui.theme.appGradient
 import com.omama.stationalarm.ui.theme.glassTopBarStyle
@@ -199,27 +201,25 @@ fun NotificationPermissionDialog(onOpenSettings: () -> Unit, onDismiss: () -> Un
         onDismissRequest = onDismiss,
         title = {
             Text(
-                "Enable Notifications",
+                stringResource(R.string.permission_notifications_title),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         },
         text = {
             Text(
-                "StationAlarm needs notification permission to show alarms while your " +
-                        "phone is locked. Without it, the alarm may ring silently in the " +
-                        "background and you'll miss your stop.",
+                stringResource(R.string.permission_notifications_body),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
             )
         },
         confirmButton = {
             TextButton(onClick = onOpenSettings) {
-                Text("Open Settings", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.common_open_settings), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Not Now", color = Color.Gray)
+                Text(stringResource(R.string.common_not_now), color = Color.Gray)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -247,7 +247,7 @@ fun PermissionRationaleDialog(onOpenSettings: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Location Access Required",
+                    text = stringResource(R.string.permission_location_title),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black,
@@ -255,7 +255,7 @@ fun PermissionRationaleDialog(onOpenSettings: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "StationAlarm requires 'Allow all the time' location access to wake up and sound the alarm when you arrive near your destination while the app is closed or your phone is locked.",
+                    text = stringResource(R.string.permission_location_body),
                     fontSize = 16.sp,
                     color = Color.DarkGray,
                     textAlign = TextAlign.Center,
@@ -263,7 +263,7 @@ fun PermissionRationaleDialog(onOpenSettings: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "• Tap 'Settings' below\n• Tap 'Permissions'\n• Select 'Location'\n• Choose 'Allow all the time'",
+                    text = stringResource(R.string.permission_location_steps),
                     fontSize = 14.sp,
                     color = Color.Black,
                     fontWeight = FontWeight.Medium
@@ -275,7 +275,7 @@ fun PermissionRationaleDialog(onOpenSettings: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Open Settings", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.common_open_settings), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -295,7 +295,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
     val coroutineScope = rememberCoroutineScope()
 
     val activeStations by viewModel.activeStations.observeAsState(initial = emptyList())
-    val tabs = listOf("Alarms", "Map")
+    val tabs = listOf(stringResource(R.string.tab_alarms), stringResource(R.string.tab_map))
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -378,13 +378,13 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     val pkg = context.packageName
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "StationAlarm")
+                        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.share_app_subject))
                         putExtra(
                             Intent.EXTRA_TEXT,
-                            "Check out StationAlarm — a location-based train/place alarm app.\nhttps://play.google.com/store/apps/details?id=$pkg"
+                            context.getString(R.string.share_app_text_format, pkg)
                         )
                     }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share StationAlarm"))
+                    context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_app_chooser_title)))
                 }
             )
         }
@@ -404,14 +404,14 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         CenterAlignedTopAppBar(
                             title = {
                                 Text(
-                                    "StationAlarm",
+                                    stringResource(R.string.app_name),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
                                 )
                             },
                             navigationIcon = {
                                 IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
-                                    Icon(Icons.Default.Menu, contentDescription = "Menu")
+                                    Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.nav_menu))
                                 }
                             },
                             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -616,7 +616,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     editingStation = null
                     isFromMap = false
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Alarm updated for $stationName")
+                        snackbarHostState.showSnackbar(context.getString(R.string.snackbar_alarm_updated_format, stationName))
                     }
                     val soundOn = activeStation.sound
                     val needsBatterySheet = !batteryOptDismissed
@@ -646,7 +646,7 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         if (wasFromMap) {
                             pagerState.animateScrollToPage(0)
                         }
-                        snackbarHostState.showSnackbar("Alarm set for $stationName")
+                        snackbarHostState.showSnackbar(context.getString(R.string.snackbar_alarm_set_format, stationName))
                     }
                     val soundOn = activeStation.sound
                     val needsBatterySheet = !batteryOptDismissed
@@ -715,14 +715,14 @@ private fun AppDrawerContent(
                 .padding(24.dp)
         ) {
             Text(
-                "StationAlarm",
+                stringResource(R.string.app_name),
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                "v${com.omama.stationalarm.BuildConfig.VERSION_NAME}",
+                stringResource(R.string.nav_drawer_app_version_format, com.omama.stationalarm.BuildConfig.VERSION_NAME),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -733,28 +733,28 @@ private fun AppDrawerContent(
 
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-            label = { Text("Settings") },
+            label = { Text(stringResource(R.string.nav_settings)) },
             selected = false,
             onClick = onSettings,
             modifier = Modifier.padding(horizontal = 12.dp)
         )
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Info, contentDescription = null) },
-            label = { Text("About") },
+            label = { Text(stringResource(R.string.nav_about)) },
             selected = false,
             onClick = onAbout,
             modifier = Modifier.padding(horizontal = 12.dp)
         )
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Star, contentDescription = null) },
-            label = { Text("Rate Us") },
+            label = { Text(stringResource(R.string.nav_rate_us)) },
             selected = false,
             onClick = onRateUs,
             modifier = Modifier.padding(horizontal = 12.dp)
         )
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Share, contentDescription = null) },
-            label = { Text("Share App") },
+            label = { Text(stringResource(R.string.nav_share_app)) },
             selected = false,
             onClick = onShareApp,
             modifier = Modifier.padding(horizontal = 12.dp)
@@ -768,25 +768,25 @@ fun AlarmVolumeWarningDialog(onIncreaseToMax: () -> Unit, onDismiss: () -> Unit)
         onDismissRequest = onDismiss,
         title = {
             Text(
-                "Alarm volume is low",
+                stringResource(R.string.volume_low_title),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         },
         text = {
             Text(
-                "Your alarm volume is below 50%. Increase it now so the alarm wakes you reliably.",
+                stringResource(R.string.volume_low_body),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
             )
         },
         confirmButton = {
             TextButton(onClick = onIncreaseToMax) {
-                Text("Increase to max", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.volume_low_increase), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Keep current", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.volume_low_keep), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -798,16 +798,16 @@ fun AlarmVolumeWarningDialog(onIncreaseToMax: () -> Unit, onDismiss: () -> Unit)
 fun GpsDisabledDialog(onDismiss: () -> Unit, onTurnOn: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("GPS Disabled", color = Color.Black, fontWeight = FontWeight.Bold) },
-        text = { Text("Please allow StationAlarm to turn on location services for accurate tracking.", color = Color.DarkGray) },
+        title = { Text(stringResource(R.string.gps_disabled_title), color = Color.Black, fontWeight = FontWeight.Bold) },
+        text = { Text(stringResource(R.string.gps_disabled_body), color = Color.DarkGray) },
         confirmButton = {
             TextButton(onClick = onTurnOn) {
-                Text("Turn On GPS", color = Color.Black, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.gps_disabled_turn_on), color = Color.Black, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color.Gray)
+                Text(stringResource(R.string.common_cancel), color = Color.Gray)
             }
         },
         containerColor = Color.White,

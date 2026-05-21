@@ -70,11 +70,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omama.stationalarm.R
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.ui.theme.LocalAppHazeState
@@ -134,12 +136,12 @@ fun HomeScreen(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Search station to add alarm…") },
+                placeholder = { Text(stringResource(R.string.home_search_placeholder)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
                         IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear")
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.home_clear))
                         }
                     }
                 },
@@ -159,8 +161,8 @@ fun HomeScreen(
             Crossfade(targetState = query.isNotEmpty(), animationSpec = tween(300), label = "homeCrossfade") { isSearching ->
                 if (isSearching) {
                     when {
-                        query.length < 2 -> HintState("Type at least 2 characters")
-                        searchResults.isEmpty() -> HintState("No stations found")
+                        query.length < 2 -> HintState(stringResource(R.string.home_hint_type_more))
+                        searchResults.isEmpty() -> HintState(stringResource(R.string.home_hint_no_stations))
                         else -> LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(horizontal = spacing.md, vertical = spacing.sm),
@@ -214,10 +216,13 @@ fun HomeScreen(
         stationToRemove?.let { target ->
             AlertDialog(
                 onDismissRequest = { stationToRemove = null },
-                title = { Text("Remove alarm?", fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.home_remove_title), fontWeight = FontWeight.SemiBold) },
                 text = {
                     Text(
-                        "This will stop monitoring ${target.getStation()?.name ?: target.stationId}.",
+                        stringResource(
+                            R.string.home_remove_body_format,
+                            target.getStation()?.name ?: target.stationId
+                        ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
@@ -229,14 +234,14 @@ fun HomeScreen(
                         }
                     ) {
                         Text(
-                            "Remove",
+                            stringResource(R.string.common_remove),
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { stationToRemove = null }) { Text("Cancel") }
+                    TextButton(onClick = { stationToRemove = null }) { Text(stringResource(R.string.common_cancel)) }
                 },
                 shape = MaterialTheme.shapes.extraLarge
             )
@@ -397,9 +402,10 @@ fun StationCard(
                             unfocusedBorderColor = colors.outline
                         )
                     )
+                    val fallbackName = stringResource(R.string.alarm_config_default_name)
                     IconButton(
                         onClick = {
-                            val trimmed = draftName.trim().ifBlank { "Alarm" }
+                            val trimmed = draftName.trim().ifBlank { fallbackName }
                             if (trimmed != name) onRename(trimmed)
                             isEditingName = false
                         },
@@ -407,7 +413,7 @@ fun StationCard(
                     ) {
                         Icon(
                             Icons.Default.Check,
-                            contentDescription = "Save name",
+                            contentDescription = stringResource(R.string.card_action_save_name),
                             tint = colors.primary
                         )
                     }
@@ -420,7 +426,7 @@ fun StationCard(
                     ) {
                         Icon(
                             Icons.Default.Close,
-                            contentDescription = "Cancel rename",
+                            contentDescription = stringResource(R.string.card_action_cancel_rename),
                             tint = colors.onSurfaceVariant
                         )
                     }
@@ -443,7 +449,7 @@ fun StationCard(
                     ) {
                         Icon(
                             Icons.Default.Edit,
-                            contentDescription = "Rename alarm",
+                            contentDescription = stringResource(R.string.card_action_rename),
                             tint = colors.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
@@ -451,13 +457,13 @@ fun StationCard(
                     Spacer(Modifier.width(spacing.sm))
                     Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
                         StatusBadge(
-                            text = if (station.sound) "Alarm" else "Notify",
+                            text = stringResource(if (station.sound) R.string.card_badge_alarm else R.string.card_badge_notify),
                             container = colors.tertiaryContainer,
                             content = colors.onTertiaryContainer
                         )
                         when {
-                            isAlerting -> StatusBadge("Ringing", colors.error, colors.onError)
-                            isPaused -> StatusBadge("Paused", colors.outline, colors.surface)
+                            isAlerting -> StatusBadge(stringResource(R.string.card_badge_ringing), colors.error, colors.onError)
+                            isPaused -> StatusBadge(stringResource(R.string.card_badge_paused), colors.outline, colors.surface)
                         }
                     }
                 }
@@ -465,14 +471,14 @@ fun StationCard(
 
             Spacer(Modifier.height(spacing.xs))
             Text(
-                text = "Alerts within ${formatDistance(station.alertDistanceKm, unit)}",
+                text = stringResource(R.string.card_alerts_within_format, formatDistance(station.alertDistanceKm, unit)),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (isAlerting) contentColor.copy(alpha = 0.85f) else colors.onSurfaceVariant
             )
 
             station.lastTriggeredAt?.let { ts ->
                 Text(
-                    text = "Last triggered: ${formatLastTriggered(ts)}",
+                    text = stringResource(R.string.card_last_triggered_format, formatLastTriggered(ts)),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant
                 )
@@ -489,7 +495,7 @@ fun StationCard(
                 )
             } else {
                 Text(
-                    text = "Paused — toggle the switch to resume",
+                    text = stringResource(R.string.card_paused_body),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant
                 )
@@ -503,7 +509,7 @@ fun StationCard(
                     contentColor = colors.onSurfaceVariant
                 ) {
                     Text(
-                        text = "\u201C${station.customReminder}\u201D",
+                        text = stringResource(R.string.card_reminder_format, station.customReminder),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(
                             horizontal = spacing.sm,
@@ -523,13 +529,13 @@ fun StationCard(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
                     CardActionButton(
-                        label = "Edit",
+                        label = stringResource(R.string.card_action_edit),
                         icon = Icons.Default.Edit,
                         onClick = onEdit,
                         enabled = isActive
                     )
                     CardActionButton(
-                        label = "Map",
+                        label = stringResource(R.string.card_action_map),
                         icon = Icons.Default.LocationOn,
                         onClick = onViewOnMap,
                         enabled = true
@@ -540,7 +546,7 @@ fun StationCard(
                     ) {
                         Icon(
                             Icons.Default.Delete,
-                            contentDescription = "Remove alarm",
+                            contentDescription = stringResource(R.string.card_action_remove),
                             tint = colors.error
                         )
                     }
@@ -610,7 +616,7 @@ private fun ProximityRow(
         label = "proximityColor"
     )
 
-    val distanceText = distanceKm?.let { formatDistance(it, unit) } ?: "Locating…"
+    val distanceText = distanceKm?.let { formatDistance(it, unit) } ?: stringResource(R.string.card_locating)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -672,6 +678,7 @@ private fun StatusBadge(text: String, container: Color, content: Color) {
     }
 }
 
+@Composable
 private fun formatLastTriggered(epochMs: Long): String {
     val now = java.time.LocalDateTime.now()
     val ts = java.time.LocalDateTime.ofInstant(
@@ -680,8 +687,8 @@ private fun formatLastTriggered(epochMs: Long): String {
     )
     val timePart = ts.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
     return when {
-        ts.toLocalDate() == now.toLocalDate() -> "Today $timePart"
-        ts.toLocalDate() == now.toLocalDate().minusDays(1) -> "Yesterday $timePart"
+        ts.toLocalDate() == now.toLocalDate() -> stringResource(R.string.time_today_format, timePart)
+        ts.toLocalDate() == now.toLocalDate().minusDays(1) -> stringResource(R.string.time_yesterday_format, timePart)
         else -> ts.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM HH:mm"))
     }
 }
@@ -713,14 +720,14 @@ fun EmptyState(onNavigateToMap: () -> Unit) {
             }
             Spacer(Modifier.height(spacing.md))
             Text(
-                text = "No alarms yet",
+                text = stringResource(R.string.home_empty_title),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(spacing.xs))
             Text(
-                text = "Search for a station above, or drop a pin on the map.",
+                text = stringResource(R.string.home_empty_body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -741,7 +748,7 @@ fun EmptyState(onNavigateToMap: () -> Unit) {
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(spacing.sm))
-                Text("Open the map")
+                Text(stringResource(R.string.home_empty_open_map))
             }
         }
     }

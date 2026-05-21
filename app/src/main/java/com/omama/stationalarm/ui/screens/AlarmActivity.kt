@@ -17,10 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omama.stationalarm.R
 import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.service.LocationService
 import com.omama.stationalarm.service.ServiceNotifications
@@ -58,8 +60,9 @@ class AlarmActivity : ComponentActivity() {
             // Seed the displayed name from the intent extra so the first frame
             // shows the real station name instead of briefly flashing the raw
             // stationId during the async DB lookup.
+            val defaultDestination = stringResource(R.string.alarm_screen_default_destination)
             var stationName by remember {
-                mutableStateOf(initialStationName ?: stationId ?: "Destination")
+                mutableStateOf(initialStationName ?: stationId ?: defaultDestination)
             }
 
             LaunchedEffect(stationId) {
@@ -122,7 +125,7 @@ fun AlarmScreen(stationName: String, customReminder: String?, onDismiss: () -> U
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Wake Up!",
+            text = stringResource(R.string.alarm_screen_wake_up),
             fontSize = 36.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
@@ -131,7 +134,7 @@ fun AlarmScreen(stationName: String, customReminder: String?, onDismiss: () -> U
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Arrived at",
+            text = stringResource(R.string.alarm_screen_arrived_at),
             fontSize = 20.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
         )
@@ -172,12 +175,12 @@ fun AlarmScreen(stationName: String, customReminder: String?, onDismiss: () -> U
             ),
             shape = RoundedCornerShape(32.dp)
         ) {
-            Text("Dismiss", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.alarm_screen_dismiss), fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Press any physical button to dismiss",
+            text = stringResource(R.string.alarm_screen_press_button_hint),
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
         )

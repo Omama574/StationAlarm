@@ -7,6 +7,7 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.location.LocationServices
+import com.omama.stationalarm.R
 import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.network.GeocodingClient
@@ -90,11 +91,13 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
             // ── Tier 1: India railway stations (offline) ──────────────────────
             val indiaResults = StationData.searchStations(q)
             if (indiaResults.isNotEmpty()) {
+                val railwayLabel = getApplication<Application>()
+                    .getString(R.string.map_hint_railway_station)
                 _searchResults.value = indiaResults.take(8).map { station ->
                     GeoSearchResult(
                         id               = station.id,
                         name             = station.name,
-                        formattedAddress = "India · Railway Station",
+                        formattedAddress = railwayLabel,
                         lat              = station.lat,
                         lon              = station.lon,
                     )
@@ -133,15 +136,18 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
      *  SocketTimeoutException is treated separately from generic IOException
      *  because a timeout usually means a flaky network, not a fully-offline one,
      *  and the user-facing fix is different ("try again" vs "turn wifi on"). */
-    internal fun errorMessageFor(e: Throwable): String = when (e) {
-        is SocketTimeoutException -> "Search timed out — check your connection."
-        is IOException -> "No internet connection."
-        is HttpException -> when (e.code()) {
-            429 -> "Too many requests — try again in a moment."
-            in 500..599 -> "Search service is down — try again shortly."
-            else -> "Search unavailable (${e.code()})."
+    internal fun errorMessageFor(e: Throwable): String {
+        val app = getApplication<Application>()
+        return when (e) {
+            is SocketTimeoutException -> app.getString(R.string.error_search_timed_out)
+            is IOException -> app.getString(R.string.error_no_internet)
+            is HttpException -> when (e.code()) {
+                429 -> app.getString(R.string.error_too_many_requests)
+                in 500..599 -> app.getString(R.string.error_search_down)
+                else -> app.getString(R.string.error_search_unavailable_format, e.code())
+            }
+            else -> app.getString(R.string.error_search_unavailable)
         }
-        else -> "Search unavailable."
     }
 
     // ── Map interactions ──────────────────────────────────────────────────────
@@ -159,10 +165,14 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
      * its raw-coords label so the user can still confirm what they tapped.
      */
     fun onMapTap(lat: Double, lon: Double) {
+        val app = getApplication<Application>()
+        val droppedPinLabel = app.getString(R.string.map_pin_dropped_default)
+        val loadingLabel = app.getString(R.string.map_pin_loading_address)
+
         _selectedResult.value = GeoSearchResult(
             id               = "manual-${System.currentTimeMillis()}",
-            name             = "Dropped Pin",
-            formattedAddress = "Loading address...",
+            name             = droppedPinLabel,
+            formattedAddress = loadingLabel,
             lat              = lat,
             lon              = lon,
         )
@@ -185,14 +195,14 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                 } else {
                     // No address known here (e.g., middle of an ocean) — fall back to raw coords.
                     _selectedResult.value = _selectedResult.value?.copy(
-                        name             = "Dropped Pin",
+                        name             = droppedPinLabel,
                         formattedAddress = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
                     )
                 }
             } catch (e: Exception) {
                 android.util.Log.w("MapSearch", "Reverse geocode failed", e)
                 _selectedResult.value = _selectedResult.value?.copy(
-                    name             = "Dropped Pin",
+                    name             = droppedPinLabel,
                     formattedAddress = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
                 )
             }
@@ -236,13 +246,13 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                     // FAB request: lastLocation is sometimes null on first launch
                     // before any client has triggered a fix. Surface so the user
                     // doesn't tap the FAB and silently wonder why nothing happened.
-                    _searchError.value = "No recent location fix — try moving to an open area."
+                    _searchError.value = ctx.getString(R.string.snackbar_no_recent_fix)
                 }
             }
             .addOnFailureListener { e ->
                 android.util.Log.w("MapSearch", "lastLocation failed", e)
                 if (!emitToCenter) {
-                    _searchError.value = "Couldn't read your location."
+                    _searchError.value = ctx.getString(R.string.snackbar_couldnt_read_location)
                 }
             }
     }

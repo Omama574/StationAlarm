@@ -20,6 +20,7 @@ import com.omama.stationalarm.service.gps.GpsReliabilityCoordinator
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.omama.stationalarm.BuildConfig
+import com.omama.stationalarm.R
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.repository.StationRepository
@@ -832,15 +833,15 @@ class LocationService : Service() {
                 val dist = nearest?.currentDistanceKm
                 if (dist != null) {
                     val distStr = "%.1f".format(dist)
-                    "Nearest station: ${nearest.getStation()?.name ?: "..."} — $distStr km"
+                    getString(R.string.notif_nearest_format, nearest.getStation()?.name ?: "...", distStr)
                 } else {
-                    "Monitoring ${monitoringStations.size} station(s)..."
+                    getString(R.string.notif_monitoring_count_format, monitoringStations.size)
                 }
             }
             alertingStationIds.isNotEmpty() -> {
-                "Alarm ringing — ${alertingStationIds.size} station(s) reached"
+                getString(R.string.notif_alarm_ringing_count_format, alertingStationIds.size)
             }
-            else -> "Monitoring stations..."
+            else -> getString(R.string.notif_monitoring_default)
         }
         val notif = notifications.buildForeground(text)
 
@@ -1070,9 +1071,9 @@ class LocationService : Service() {
             }
             val minutes = (stallMs / 60_000L).coerceAtLeast(1)
             val (title, body) = if (gpsOff) {
-                "Location is off" to "Tap to enable location — alarm is paused until then."
+                getString(R.string.notif_watchdog_location_off_title) to getString(R.string.notif_watchdog_location_off_body)
             } else {
-                "Searching for GPS\u2026" to "Still tracking — last fix ${minutes}m ago."
+                getString(R.string.notif_watchdog_title) to getString(R.string.notif_watchdog_body_format, minutes.toInt())
             }
             Logger.breadcrumb("WATCHDOG_TRIGGERED", extra = "tier2 stall=${stallMs / 1000}s gpsOff=$gpsOff stallAction=$stallAction")
             // Visible escalation — counts how often the user actually sees the

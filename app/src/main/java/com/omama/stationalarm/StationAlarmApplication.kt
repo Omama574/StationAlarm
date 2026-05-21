@@ -2,6 +2,8 @@ package com.omama.stationalarm
 
 import android.app.Application
 import android.os.Build
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
@@ -11,10 +13,13 @@ import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.BatteryOptimizationHelper
 import com.omama.stationalarm.util.Logger
+import com.omama.stationalarm.data.UserPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.osmdroid.config.Configuration
 import java.io.File
 
@@ -24,7 +29,13 @@ class StationAlarmApplication : Application() {
         StationRepository.initialize(this)
         Logger.initialize(this)
         com.omama.stationalarm.util.GpsLogger.initialize(this)
-        com.omama.stationalarm.data.UserPreferences.initialize(this)
+        UserPreferences.initialize(this)
+
+        // Apply the per-app locale BEFORE any Activity is created. Reading from
+        // DataStore is normally async, but app cold-start happens before the
+        // first Activity attaches its base context, so a brief runBlocking on
+        // disk I/O here is the standard pattern. Typical cost ~5–20 ms.
+        applyPersistedLocale()
 
         // osmdroid must be configured before any MapView is created.
         // OSM tile servers require a proper User-Agent string — without it your app
@@ -108,6 +119,25 @@ class StationAlarmApplication : Application() {
                 FirebaseCrashlytics.getInstance().setCustomKey("alarms_count", count)
                 Analytics.setUserProperty("alarms_count_band", bandAlarms(count))
             } catch (_: Exception) { /* Firebase may not be initialized */ }
+        }
+    }
+
+    /** Read the persisted per-app locale and hand it to AppCompatDelegate.
+     *  No-op if the user hasn't picked anything (or picked "System default") —
+     *  Android falls back to the device locale automatically in that case. */
+    private fun applyPersistedLocale() {
+        try {
+            val tag = runBlocking { UserPreferences.appLocaleFlow.first() }
+            val locales = if (tag == UserPreferences.LOCALE_SYSTEM || tag.isBlank()) {
+                LocaleListCompat.getEmptyLocaleList()
+            } else {
+                LocaleListCompat.forLanguageTags(tag)
+            }
+            AppCompatDelegate.setApplicationLocales(locales)
+        } catch (e: Exception) {
+            // DataStore disk read failed, or AppCompatDelegate threw — never let
+            // localization break app startup. App will run in device locale.
+            android.util.Log.w("Locale", "applyPersistedLocale failed", e)
         }
     }
 
