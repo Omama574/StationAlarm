@@ -23,7 +23,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.omama.stationalarm.data.UserPreferences
+import com.omama.stationalarm.service.LocationService
+import kotlin.math.roundToInt
+import com.omama.stationalarm.util.BatteryOptimizationHelper
 import com.omama.stationalarm.util.GpsLogger
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.launch
@@ -37,6 +43,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val themeMode by UserPreferences.themeModeFlow.collectAsState(initial = UserPreferences.THEME_SYSTEM)
     val distanceUnit by UserPreferences.distanceUnitFlow.collectAsState(initial = UserPreferences.UNIT_KM)
     val alarmSoundUri by UserPreferences.alarmSoundUriFlow.collectAsState(initial = "")
+    val ringSpeakerWithHeadphones by UserPreferences.ringSpeakerWithHeadphonesFlow.collectAsState(initial = true)
 
     // Ringtone picker — system ringtones / alarms
     val ringtoneLauncher = rememberLauncherForActivityResult(
@@ -182,6 +189,234 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 Text("Reset")
                             }
                         }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    // Lets the user hear what the alarm actually sounds like at
+                    // current volume + routing without having to walk into a
+                    // geofence to test it. Plays for 3 seconds via LocationService.
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(context, LocationService::class.java).apply {
+                                action = LocationService.ACTION_TEST_ALARM
+                            }
+                            context.startForegroundService(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Test alarm (3s)")
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+
+            // Audio Routing
+            SectionTitle("Audio Routing")
+
+            val escalatingAlarm by UserPreferences.escalatingAlarmFlow.collectAsState(initial = true)
+            val rampSecs by UserPreferences.escalatingAlarmRampSecsFlow
+                .collectAsState(initial = UserPreferences.DEFAULT_RAMP_SECS)
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    // Ring speaker with headphones
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Ring speaker with headphones",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Keep the phone speaker loud when wired or Bluetooth audio is connected.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(
+                            checked = ringSpeakerWithHeadphones,
+                            onCheckedChange = { enabled ->
+                                scope.launch { UserPreferences.setRingSpeakerWithHeadphones(enabled) }
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                    )
+
+                    // Escalating alarm volume
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Start quiet, build to full volume",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Gradually increases over ${rampSecs}s so you wake naturally",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(
+                            checked = escalatingAlarm,
+                            onCheckedChange = { enabled ->
+                                scope.launch { UserPreferences.setEscalatingAlarm(enabled) }
+                            }
+                        )
+                    }
+
+                    if (escalatingAlarm) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Ramp duration: ${rampSecs}s",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Slider(
+                            value = rampSecs.toFloat(),
+                            onValueChange = { raw ->
+                                val snapped = (raw / 5).roundToInt() * 5
+                                scope.launch { UserPreferences.setEscalatingAlarmRampSecs(snapped) }
+                            },
+                            valueRange = 15f..60f,
+                            steps = 8,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("15s", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("60s", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+
+            // ── Alarm Duration ─────────────────────────────────────────────
+            SectionTitle("Alarm Duration")
+            val alarmDurationSecs by UserPreferences.alarmDurationSecsFlow
+                .collectAsState(initial = UserPreferences.DEFAULT_ALARM_DURATION_SECS)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(
+                        text = "How long the alarm rings before auto-stopping.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Rings for: ${alarmDurationSecs / 60} min",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = alarmDurationSecs.toFloat(),
+                        onValueChange = { raw ->
+                            // Snap to whole-minute steps so the label stays clean.
+                            val snapped = (raw / 60f).roundToInt() * 60
+                            scope.launch { UserPreferences.setAlarmDurationSecs(snapped) }
+                        },
+                        valueRange = UserPreferences.MIN_ALARM_DURATION_SECS.toFloat()..
+                                UserPreferences.MAX_ALARM_DURATION_SECS.toFloat(),
+                        steps = 13, // 60..900 in 60s steps → 14 intervals → 13 in-between stops
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("1 min", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("15 min", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+
+            // ── Background Running ─────────────────────────────────────────
+            SectionTitle("Background Running")
+            // Re-check on every ON_RESUME so the row updates immediately when
+            // the user returns from the system battery settings — without
+            // this, the screen stays "Restricted" until next recomposition.
+            val lifecycleOwner = LocalLifecycleOwner.current
+            var isExempt by remember {
+                mutableStateOf(BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context))
+            }
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        isExempt = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Battery exemption",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = if (isExempt)
+                                "Unrestricted — alarms will fire reliably"
+                            else
+                                "Restricted — alarms may be missed",
+                            fontSize = 13.sp,
+                            color = if (isExempt)
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            else
+                                MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    OutlinedButton(onClick = { BatteryOptimizationHelper.openBatterySettings(context) }) {
+                        Text("Open")
                     }
                 }
             }

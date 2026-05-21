@@ -7,21 +7,21 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.location.LocationServices
-import com.omama.stationalarm.data.SavedPlace
 import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.network.GeocodingClient
 import com.omama.stationalarm.network.toSearchResult
 import com.omama.stationalarm.repository.StationRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import retrofit2.HttpException
 import java.io.IOException
-import java.util.UUID
+import java.net.SocketTimeoutException
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class MapSearchViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Search state ──────────────────────────────────────────────────────────
@@ -52,21 +52,19 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     private val _initialCenter = MutableStateFlow<GeoPoint?>(null)
     val initialCenter: StateFlow<GeoPoint?> = _initialCenter.asStateFlow()
 
-    // ── Saved places ──────────────────────────────────────────────────────────
-
-    val savedPlaces: StateFlow<List<SavedPlace>> = StationRepository.savedPlacesFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     // ── Init ──────────────────────────────────────────────────────────────────
 
     init {
-        viewModelScope.launch {
-            _query
-                .debounce(500)          // 500ms — balances UX vs LocationIQ quota
-                .filter { it.length >= 3 }
-                .distinctUntilChanged()
-                .collect { q -> performSearch(q) }
-        }
+        // mapLatest cancels the previous performSearch when a new query
+        // arrives mid-flight — without it, a slow Photon request kicked off
+        // for "Mum" could resolve after the user has typed "Mumbai" and
+        // overwrite the fresh result with stale data.
+        _query
+            .debounce(500)          // 500ms — balances UX vs LocationIQ quota
+            .filter { it.length >= 3 }
+            .distinctUntilChanged()
+            .mapLatest { q -> performSearch(q) }
+            .launchIn(viewModelScope)
         fetchAndEmitUserLocation(emitToCenter = true)
     }
 
@@ -138,8 +136,12 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /** Translates a network-level failure into a short user-facing message so the
-     *  Map snackbar tells the user *why* search failed, not just that it did. */
-    private fun errorMessageFor(e: Throwable): String = when (e) {
+     *  Map snackbar tells the user *why* search failed, not just that it did.
+     *  SocketTimeoutException is treated separately from generic IOException
+     *  because a timeout usually means a flaky network, not a fully-offline one,
+     *  and the user-facing fix is different ("try again" vs "turn wifi on"). */
+    internal fun errorMessageFor(e: Throwable): String = when (e) {
+        is SocketTimeoutException -> "Search timed out — check your connection."
         is IOException -> "No internet connection."
         is HttpException -> when (e.code()) {
             429 -> "Too many requests — try again in a moment."
@@ -155,18 +157,6 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         _selectedResult.value = result
         _searchResults.value = emptyList()
         _query.value = ""
-    }
-
-    fun selectSavedPlace(place: SavedPlace) {
-        _selectedResult.value = GeoSearchResult(
-            id         = place.id,
-            name       = place.name,
-            subtitle   = "Saved · ${String.format("%.4f", place.lat)}, ${String.format("%.4f", place.lon)}",
-            lat        = place.lat,
-            lon        = place.lon,
-            confidence = "exact"
-        )
-        _radiusKm.value = place.radiusKm
     }
 
     /**
@@ -260,24 +250,5 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                     _searchError.value = "Couldn't read your location."
                 }
             }
-    }
-
-    // ── Favorites CRUD ────────────────────────────────────────────────────────
-
-    fun savePlace(name: String, notes: String?) {
-        val result = _selectedResult.value ?: return
-        val place = SavedPlace(
-            id      = "custom-${UUID.randomUUID()}",
-            name    = name.ifBlank { result.name },
-            lat     = result.lat,
-            lon     = result.lon,
-            radiusKm = _radiusKm.value,
-            notes   = notes?.ifBlank { null }
-        )
-        StationRepository.saveFavoritePlace(place)
-    }
-
-    fun deletePlace(placeId: String) {
-        StationRepository.deleteFavoritePlace(placeId)
     }
 }

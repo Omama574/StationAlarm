@@ -1,0 +1,100 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 6,
+    "identityHash": "0e7c788b968055a3cbd4116cc13576f5",
+    "entities": [
+      {
+        "tableName": "active_stations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stationId` TEXT NOT NULL, `alertDistanceKm` REAL NOT NULL, `notify` INTEGER NOT NULL, `vibrate` INTEGER NOT NULL, `sound` INTEGER NOT NULL, `customReminder` TEXT, `sendReminder` INTEGER NOT NULL, `status` TEXT NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `stationName` TEXT NOT NULL, `lastTriggeredAt` INTEGER, PRIMARY KEY(`stationId`))",
+        "fields": [
+          {
+            "fieldPath": "stationId",
+            "columnName": "stationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alertDistanceKm",
+            "columnName": "alertDistanceKm",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notify",
+            "columnName": "notify",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vibrate",
+            "columnName": "vibrate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sound",
+            "columnName": "sound",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "customReminder",
+            "columnName": "customReminder",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sendReminder",
+            "columnName": "sendReminder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lat",
+            "columnName": "lat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lon",
+            "columnName": "lon",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stationName",
+            "columnName": "stationName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastTriggeredAt",
+            "columnName": "lastTriggeredAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "stationId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0e7c788b968055a3cbd4116cc13576f5')"
+    ]
+  }
+}

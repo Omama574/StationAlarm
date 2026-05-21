@@ -18,14 +18,19 @@ import com.omama.stationalarm.service.gps.FixQualityGate
 import com.omama.stationalarm.service.gps.FlpClientGuardian
 import com.omama.stationalarm.service.gps.GpsReliabilityCoordinator
 import com.google.android.gms.tasks.CancellationTokenSource
+import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.omama.stationalarm.BuildConfig
 import com.omama.stationalarm.data.ActiveStation
 import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.repository.StationRepository
+import com.omama.stationalarm.util.BatteryOptimizationHelper
 import com.omama.stationalarm.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -52,6 +57,7 @@ class LocationService : Service() {
         const val ACTION_DISMISS_ALARM = "com.omama.stationalarm.ACTION_DISMISS_ALARM"
         const val ACTION_RESTORE_NOTIFICATION = "com.omama.stationalarm.ACTION_RESTORE_NOTIFICATION"
         const val ACTION_STOP_ALL_MONITORING = "com.omama.stationalarm.ACTION_STOP_ALL_MONITORING"
+        const val ACTION_TEST_ALARM = "com.omama.stationalarm.ACTION_TEST_ALARM"
     }
 
     // --- In-memory tracking (only MONITORING stations) ---
@@ -95,9 +101,16 @@ class LocationService : Service() {
     // Cached alarm URI string — updated whenever UserPreferences.alarmSoundUriFlow
     // emits. Reading this in fireAlert() avoids blocking the Main dispatcher on
     // DataStore disk I/O (was an ANR risk with runBlocking). Blank = system default.
-    @Volatile private var cachedAlarmSoundUri: String = ""
+    @Volatile private var cachedAlarmSoundUri: String? = null
+    @Volatile private var cachedRingSpeakerWithHeadphones: Boolean? = null
+    @Volatile private var cachedEscalatingAlarm: Boolean? = null
+    @Volatile private var cachedRampSecs: Int? = null
+    @Volatile private var cachedAlarmDurationSecs: Int? = null
 
     private var lastLocationTimeMs = 0L
+    // Last reported accuracy in metres; used as a Crashlytics custom key when
+    // an alarm fires so a Doze/MIUI sleep-induced bad fix can be diagnosed.
+    @Volatile private var lastKnownAccuracyM: Float = -1f
     // Self-heal state. Set when silent recovery is in flight; cleared on first
     // fix arrival (→ cancels any visible watchdog notification). Also drives
     // whether we've already escalated to the user-visible Tier 2 state.
@@ -165,6 +178,7 @@ class LocationService : Service() {
 
         syncWithDatabase()
         observeAlarmSoundUri()
+        observeAudioRoutingPreference()
     }
 
     /**
@@ -228,6 +242,29 @@ class LocationService : Service() {
         }
     }
 
+    private fun observeAudioRoutingPreference() {
+        serviceScope.launch {
+            UserPreferences.ringSpeakerWithHeadphonesFlow.collect { enabled ->
+                cachedRingSpeakerWithHeadphones = enabled
+            }
+        }
+        serviceScope.launch {
+            UserPreferences.escalatingAlarmFlow.collect { enabled ->
+                cachedEscalatingAlarm = enabled
+            }
+        }
+        serviceScope.launch {
+            UserPreferences.escalatingAlarmRampSecsFlow.collect { secs ->
+                cachedRampSecs = secs
+            }
+        }
+        serviceScope.launch {
+            UserPreferences.alarmDurationSecsFlow.collect { secs ->
+                cachedAlarmDurationSecs = secs
+            }
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISMISS_ALARM) {
             val stationId = intent.getStringExtra("stationId") ?: return START_NOT_STICKY
@@ -237,6 +274,15 @@ class LocationService : Service() {
 
         if (intent?.action == ACTION_STOP_ALL_MONITORING) {
             handleStopAll()
+            return START_NOT_STICKY
+        }
+
+        if (intent?.action == ACTION_TEST_ALARM) {
+            // Required by Android: must call startForeground() within 5s of
+            // startForegroundService. The notification disappears with stopSelf()
+            // after the 3s test if no real alarms are armed.
+            updateForegroundNotification(forceStartForeground = true)
+            handleTestAlarm()
             return START_NOT_STICKY
         }
 
@@ -324,6 +370,25 @@ class LocationService : Service() {
      */
     private fun syncWithDatabase() {
         serviceScope.launch {
+            // Process kill can leave a row stuck in ALERTING (alertingStationIds
+            // is in-memory only). Without this reset, the first flow emission
+            // below would diff dbAlertingIds - alertingStationIds (= dbAlertingIds
+            // on cold start) and re-fire the alarm without user interaction.
+            // Awaited before subscribing so the first emission reflects the
+            // cleared state. Geofences were already removed at markAlerting()
+            // time, so the user must enter the radius again to re-fire.
+            try {
+                StationRepository.resetAllAlertingToMonitoring()
+            } catch (e: Exception) {
+                // Hard-fail: if we can't clear ALERTING rows on cold start, the
+                // diff in the first emission below will treat every ALERTING
+                // row as "newly alerting" and re-fire the alarm with no user
+                // intent. Better to stop the service and let WorkManager / the
+                // next user action retry than to wake users with ghost alarms.
+                Logger.log("ALERTING_RESET_FAILED", extra = "stopping service: ${e.message}")
+                stopSelf()
+                return@launch
+            }
             StationRepository.activeStationsFlow.collect { allFromDb ->
 
                 // --- Partition by status ---
@@ -416,6 +481,7 @@ class LocationService : Service() {
     // ============================
 
     private fun processLocationUpdate(location: Location) {
+        lastKnownAccuracyM = location.accuracy
         serviceScope.launch(Dispatchers.Default) {
             if (monitoringStations.isEmpty()) return@launch
 
@@ -518,10 +584,39 @@ class LocationService : Service() {
      * Called by syncWithDatabase when a station transitions to ALERTING.
      * Plays sound, shows fullscreen notification. Does NOT delete from DB.
      */
-    private fun fireAlert(active: ActiveStation) {
+    private suspend fun fireAlert(active: ActiveStation) {
         Logger.log("ALERT_FIRED", active.stationId, "distance=${active.currentDistanceKm}")
 
         wakeLocks.acquireAlarm()
+
+        // Crashlytics context: if anything in the alarm path throws after this,
+        // the dashboard report includes the active station + reliability-relevant
+        // state. Cached pref reads (vs .first()) so we never block on disk here;
+        // the DataStore default mirrors the cache-miss value.
+        if (!BuildConfig.DEBUG) {
+            try {
+                FirebaseCrashlytics.getInstance().apply {
+                    setCustomKey("alarm_station_id", active.stationId)
+                    setCustomKey(
+                        "alarm_battery_exempt",
+                        BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this@LocationService)
+                    )
+                    setCustomKey("alarm_gps_accuracy_m", lastKnownAccuracyM.toDouble())
+                    setCustomKey(
+                        "alarm_audio_route",
+                        if (cachedRingSpeakerWithHeadphones != false) "speaker+ext" else "ext_only"
+                    )
+                    setCustomKey("alarm_escalating", cachedEscalatingAlarm != false)
+                    setCustomKey(
+                        "alarm_duration_secs",
+                        cachedAlarmDurationSecs ?: UserPreferences.DEFAULT_ALARM_DURATION_SECS
+                    )
+                }
+            } catch (_: Exception) {
+                // Firebase may have failed to init at process start — see
+                // StationAlarmApplication. Alarm logic must not depend on it.
+            }
+        }
 
         val startedNewAlarm = (!audio.isAlarmRinging && active.sound) || (!audio.isVibrating && active.vibrate)
 
@@ -530,9 +625,38 @@ class LocationService : Service() {
             // validates readability — persisted SAF permissions are sometimes
             // revoked by the OS after reboot, so a URI that worked at pick
             // time may no longer resolve. Null → default sound.
-            val customUri: android.net.Uri? = resolveValidatedAlarmUri(cachedAlarmSoundUri)
+            // DataStore .first() can throw on corrupted/unreadable prefs file.
+            // Without these guards, an IOException here cancels fireAlert mid-
+            // execution: wake lock is already held, DB still ALERTING, alarm
+            // never starts — a silent failure. Defaults match DataStore's
+            // fresh-install defaults, so behaviour is identical to a new user.
+            val customUriStr = cachedAlarmSoundUri ?: try {
+                UserPreferences.alarmSoundUriFlow.first().also { cachedAlarmSoundUri = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "alarmSoundUri: ${e.message}")
+                ""
+            }
+            val customUri: android.net.Uri? = resolveValidatedAlarmUri(customUriStr)
             val stationLabel = active.getStation()?.name ?: active.stationId
-            audio.playAlarmSound(customUri) {
+            val ringSpeaker = cachedRingSpeakerWithHeadphones ?: try {
+                UserPreferences.ringSpeakerWithHeadphonesFlow.first().also { cachedRingSpeakerWithHeadphones = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "ringSpeaker: ${e.message}")
+                true
+            }
+            val escalating = cachedEscalatingAlarm ?: try {
+                UserPreferences.escalatingAlarmFlow.first().also { cachedEscalatingAlarm = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "escalating: ${e.message}")
+                true
+            }
+            val rampSecs = cachedRampSecs ?: try {
+                UserPreferences.escalatingAlarmRampSecsFlow.first().also { cachedRampSecs = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "rampSecs: ${e.message}")
+                UserPreferences.DEFAULT_RAMP_SECS
+            }
+            audio.playAlarmSound(customUri, ringSpeaker, escalating, rampSecs.takeIf { escalating } ?: 0) {
                 // Both custom and default URIs failed — escalate so the user
                 // doesn't think the alarm silently failed. The full-screen
                 // alert still fires; this just adds vibration + a notification.
@@ -547,8 +671,15 @@ class LocationService : Service() {
         }
 
         if (startedNewAlarm) {
-            audio.startTimeout(serviceScope) {
-                Logger.log("ALARM_TIMEOUT", extra = "Auto-dismissing all alerting stations after 5m")
+            val durationSecs = cachedAlarmDurationSecs ?: try {
+                UserPreferences.alarmDurationSecsFlow.first().also { cachedAlarmDurationSecs = it }
+            } catch (e: Exception) {
+                Logger.log("PREF_READ_FAILED", extra = "alarmDurationSecs: ${e.message}")
+                UserPreferences.DEFAULT_ALARM_DURATION_SECS
+            }
+            val durationMs = durationSecs * 1000L
+            audio.startTimeout(serviceScope, durationMs) {
+                Logger.log("ALARM_TIMEOUT", extra = "Auto-dismissing after ${durationSecs}s")
                 // Auto-dismiss all alerting stations to prevent zombie state
                 val ids = alertingStationIds.toList()
                 for (id in ids) {
@@ -585,10 +716,44 @@ class LocationService : Service() {
             audio.stopAll()
             wakeLocks.releaseAlarm()
             notifications.cancelAudioFailureNotification()
+            // Reset Crashlytics context so crashes after dismissal don't get
+            // mis-attributed to a stale alarm. Best-effort; never throws.
+            if (!BuildConfig.DEBUG) {
+                try {
+                    FirebaseCrashlytics.getInstance().setCustomKey("alarm_station_id", "none")
+                } catch (_: Exception) { /* Firebase may not be initialized */ }
+            }
         }
 
         notifications.cancelAlert(stationId)
         StationRepository.dismissStation(stationId)
+    }
+
+    /**
+     * Plays the user's configured alarm sound for ~3 seconds, then stops.
+     * Triggered from Settings > Alarm Sound > "Test alarm" so the user can
+     * verify what the alarm will actually sound like before relying on it.
+     * Stops the service afterwards if there's no real work pending — we don't
+     * want a stray foreground notification lingering after a quick test.
+     */
+    private fun handleTestAlarm() {
+        serviceScope.launch {
+            val uriStr = cachedAlarmSoundUri ?: try {
+                UserPreferences.alarmSoundUriFlow.first()
+            } catch (_: Exception) { "" }
+            val ringSpeaker = cachedRingSpeakerWithHeadphones ?: try {
+                UserPreferences.ringSpeakerWithHeadphonesFlow.first()
+            } catch (_: Exception) { true }
+            val customUri = resolveValidatedAlarmUri(uriStr)
+            Logger.log("TEST_ALARM_STARTED")
+            audio.playAlarmSound(customUri, ringSpeaker, false, 0, null)
+            delay(3_000L)
+            audio.stopAll()
+            Logger.log("TEST_ALARM_STOPPED")
+            if (monitoringStations.isEmpty() && alertingStationIds.isEmpty()) {
+                stopSelf()
+            }
+        }
     }
 
     /**

@@ -1,8 +1,10 @@
 package com.omama.stationalarm.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -44,14 +46,23 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omama.stationalarm.MainActivity
 import com.omama.stationalarm.data.Station
+import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.service.LocationService
 import com.omama.stationalarm.ui.screens.AboutScreen
 import com.omama.stationalarm.ui.screens.HomeScreen
 import com.omama.stationalarm.ui.screens.MapSearchScreen
 import com.omama.stationalarm.ui.screens.SettingsScreen
+import com.omama.stationalarm.ui.screens.BatteryOptimizationSheet
 import com.omama.stationalarm.ui.screens.StationConfigBottomSheet
 import com.omama.stationalarm.ui.viewmodel.StationViewModel
+import com.omama.stationalarm.util.BatteryOptimizationHelper
 import kotlinx.coroutines.launch
+
+private fun isAlarmVolumeLow(context: Context): Boolean {
+    val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+    return am.getStreamVolume(AudioManager.STREAM_ALARM) < (max * 0.5f)
+}
 
 /**
  * Top-level Compose root: drives the runtime permission flow and hosts
@@ -296,6 +307,12 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
 
     var currentScreen by remember { mutableStateOf(Screen.Main) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    var showBatteryOptSheet by remember { mutableStateOf(false) }
+    var showVolumeWarning by remember { mutableStateOf(false) }
+    var checkVolumeAfterBattery by remember { mutableStateOf(false) }
+    // Read once per recomposition; the sheet is gated on this so users who
+    // hit "Don't ask again" never see it again from the post-confirm path.
+    val batteryOptDismissed by UserPreferences.batteryOptDismissedFlow.collectAsState(initial = false)
 
     // Back handling for sub-screens and open drawer
     BackHandler(enabled = currentScreen != Screen.Main) {
@@ -545,17 +562,32 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
         )
     }
 
-    if (selectedStation != null) {
-        val isEditing = editingStation != null
-        val isActive = isEditing || activeStations.any { it.stationId == selectedStation!!.id }
+    // Capture selectedStation into a local val so all subsequent reads work
+    // off the same snapshot — without this, a recomposition between the null
+    // check and an `!!` deref could throw NPE.
+    val station = selectedStation
+    val editing = editingStation
+    if (station != null) {
+        val isEditing = editing != null
+        val isActive = isEditing || activeStations.any { it.stationId == station.id }
+        // Pre-fill name: edit → existing alarm name; new → station name
+        // (railway result or geocoded address). Raw "Dropped Pin" with no
+        // reverse-geocode becomes a plain "Alarm" placeholder.
+        val initialAlarmName = if (isEditing) {
+            editing!!.stationName.ifBlank { "Alarm" }
+        } else {
+            val raw = station.name
+            if (raw.isBlank() || raw == "Dropped Pin") "Alarm" else raw
+        }
         StationConfigBottomSheet(
-            station = selectedStation!!,
+            station = station,
             isActive = isActive,
-            initialRadius = if (isEditing) editingStation!!.alertDistanceKm else (selectedRadius ?: 5.0),
-            initialNotify = if (isEditing) editingStation!!.notify else true,
-            initialVibrate = if (isEditing) editingStation!!.vibrate else true,
-            initialSound = if (isEditing) editingStation!!.sound else true,
-            initialNotes = if (isEditing) editingStation!!.customReminder else null,
+            initialRadius = if (isEditing) editing!!.alertDistanceKm else (selectedRadius ?: 5.0),
+            initialNotify = if (isEditing) editing!!.notify else true,
+            initialVibrate = if (isEditing) editing!!.vibrate else true,
+            initialSound = if (isEditing) editing!!.sound else true,
+            initialNotes = if (isEditing) editing!!.customReminder else null,
+            initialName = initialAlarmName,
             onDismiss = {
                 selectedStation = null
                 selectedRadius = null
@@ -572,7 +604,13 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         reminder = activeStation.customReminder,
                         sendReminder = activeStation.sendReminder
                     )
-                    val stationName = selectedStation!!.name
+                    // updateActiveStationSettings doesn't touch stationName —
+                    // persist a rename made inside the bottom sheet here.
+                    if (activeStation.stationName.isNotBlank() &&
+                        activeStation.stationName != editing!!.stationName) {
+                        viewModel.updateStationName(activeStation.stationId, activeStation.stationName)
+                    }
+                    val stationName = activeStation.stationName.ifBlank { station.name }
                     selectedStation = null
                     selectedRadius = null
                     editingStation = null
@@ -580,11 +618,20 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Alarm updated for $stationName")
                     }
+                    val soundOn = activeStation.sound
+                    val needsBatterySheet = !batteryOptDismissed
+                        && !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                    if (needsBatterySheet) {
+                        checkVolumeAfterBattery = soundOn
+                        showBatteryOptSheet = true
+                    } else if (soundOn && isAlarmVolumeLow(context)) {
+                        showVolumeWarning = true
+                    }
                 } else {
-                    val isRailway = com.omama.stationalarm.data.StationData.getStationById(selectedStation!!.id) != null
-                    viewModel.addActiveStation(activeStation, if (!isRailway) selectedStation else null)
+                    val isRailway = com.omama.stationalarm.data.StationData.getStationById(station.id) != null
+                    viewModel.addActiveStation(activeStation, if (!isRailway) station else null)
 
-                    val stationName = selectedStation!!.name
+                    val stationName = activeStation.stationName.ifBlank { station.name }
                     val wasFromMap = isFromMap
                     selectedStation = null
                     selectedRadius = null
@@ -601,8 +648,48 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
                         }
                         snackbarHostState.showSnackbar("Alarm set for $stationName")
                     }
+                    val soundOn = activeStation.sound
+                    val needsBatterySheet = !batteryOptDismissed
+                        && !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                    if (needsBatterySheet) {
+                        checkVolumeAfterBattery = soundOn
+                        showBatteryOptSheet = true
+                    } else if (soundOn && isAlarmVolumeLow(context)) {
+                        showVolumeWarning = true
+                    }
                 }
             }
+        )
+    }
+
+    if (showBatteryOptSheet) {
+        BatteryOptimizationSheet(
+            onDismiss = {
+                showBatteryOptSheet = false
+                if (checkVolumeAfterBattery && isAlarmVolumeLow(context)) {
+                    showVolumeWarning = true
+                }
+                checkVolumeAfterBattery = false
+            },
+            onDontAskAgain = {
+                coroutineScope.launch { UserPreferences.setBatteryOptDismissed(true) }
+                showBatteryOptSheet = false
+                if (checkVolumeAfterBattery && isAlarmVolumeLow(context)) {
+                    showVolumeWarning = true
+                }
+                checkVolumeAfterBattery = false
+            }
+        )
+    }
+
+    if (showVolumeWarning) {
+        AlarmVolumeWarningDialog(
+            onIncreaseToMax = {
+                val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                am.setStreamVolume(AudioManager.STREAM_ALARM, am.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0)
+                showVolumeWarning = false
+            },
+            onDismiss = { showVolumeWarning = false }
         )
     }
 }
@@ -673,6 +760,38 @@ private fun AppDrawerContent(
             modifier = Modifier.padding(horizontal = 12.dp)
         )
     }
+}
+
+@Composable
+fun AlarmVolumeWarningDialog(onIncreaseToMax: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Alarm volume is low",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                "Your alarm volume is below 50%. Increase it now so the alarm wakes you reliably.",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onIncreaseToMax) {
+                Text("Increase to max", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Keep current", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp)
+    )
 }
 
 @Composable

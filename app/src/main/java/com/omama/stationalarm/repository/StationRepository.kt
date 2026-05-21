@@ -1,10 +1,7 @@
 package com.omama.stationalarm.repository
 
 import android.content.Context
-import androidx.lifecycle.asLiveData
-import androidx.room.withTransaction
 import com.omama.stationalarm.data.ActiveStation
-import com.omama.stationalarm.data.SavedPlace
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.data.db.StationDatabase
@@ -25,21 +22,25 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
 
 object StationRepository {
 
     private lateinit var appContext: Context
     private lateinit var database: StationDatabase
-    
+
     // Centralized scope for all database writes to prevent fire-and-forget race conditions
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    // Per-station mutex so concurrent edits on the same alarm row (rapid
+    // toggle, edit + alert at the same moment, etc.) serialize cleanly
+    // instead of racing the DB + GMS geofence side-effects.
+    private val stationLocks = ConcurrentHashMap<String, Mutex>()
+    private fun lockFor(id: String): Mutex = stationLocks.getOrPut(id) { Mutex() }
+
     lateinit var activeStationsFlow: Flow<List<ActiveStation>>
-
-    /** Exposes all saved places as a real-time flow for the Map tab UI. */
-    lateinit var savedPlacesFlow: Flow<List<SavedPlace>>
-
-    private var _savedPlacesCache = mapOf<String, SavedPlace>()
 
     private val _distancesFlow = MutableStateFlow<Map<String, Double>>(emptyMap())
     val distancesFlow: StateFlow<Map<String, Double>> = _distancesFlow.asStateFlow()
@@ -72,56 +73,34 @@ object StationRepository {
         activeStationsFlow = database.activeStationDao().getAllActiveStations().map { entities ->
             entities.map { it.toDomainModel() }
         }
-
-        savedPlacesFlow = database.savedPlaceDao().getAllSavedPlaces().map { entities ->
-            entities.map { it.toDomainModel() }
-        }
-
-        // Keep a memory cache for synchronous lookups in LocationService/UI
-        repositoryScope.launch {
-            savedPlacesFlow.collect { list ->
-                _savedPlacesCache = list.associateBy { it.id }
-            }
-        }
     }
 
     /**
      * Resolves a station by ID. First checks the hardcoded railway list,
-     * then falls back to user-saved places (for custom geofence locations).
-     * Called from LocationService background threads — must be suspend.
+     * then falls back to the active_stations table (which persists lat/lon
+     * for custom map-pin alarms). Called from background threads (e.g.
+     * GeofenceManager) — must be suspend.
      */
     suspend fun getStationById(id: String): Station? {
-        return StationData.getStationById(id)
-            ?: database.savedPlaceDao().getById(id)?.toDomainModel()?.toStation()
+        StationData.getStationById(id)?.let { return it }
+        val entity = database.activeStationDao().getStationById(id) ?: return null
+        return if (entity.lat != 0.0 || entity.lon != 0.0) {
+            Station(
+                id = entity.stationId,
+                name = entity.stationName.ifEmpty { "Custom Location" },
+                lat = entity.lat,
+                lon = entity.lon
+            )
+        } else null
     }
 
-    /** Synchronous variant for non-suspend callers that already know the type. */
-    fun getStationByIdSync(id: String): Station? {
-        return StationData.getStationById(id) ?: _savedPlacesCache[id]?.toStation()
-    }
+    /** Synchronous variant for non-suspend callers. Custom-station fallback is
+     *  handled by [ActiveStation.getStation], which reads lat/lon off the
+     *  ActiveStation itself — no in-memory cache needed. */
+    fun getStationByIdSync(id: String): Station? = StationData.getStationById(id)
 
     fun searchStations(query: String): List<Station> = StationData.searchStations(query)
     fun getAllStations(): List<Station> = StationData.getAllStations()
-
-    // ── Saved Places CRUD ──────────────────────────────────────────────────
-
-    fun saveFavoritePlace(place: SavedPlace) {
-        repositoryScope.launch {
-            database.savedPlaceDao().insert(place.toEntity())
-            Logger.log("SAVED_PLACE_ADDED", extra = "id=${place.id} name=${place.name}")
-        }
-    }
-
-    fun deleteFavoritePlace(placeId: String) {
-        repositoryScope.launch {
-            database.savedPlaceDao().delete(placeId)
-            Logger.log("SAVED_PLACE_DELETED", extra = "id=$placeId")
-        }
-    }
-
-    suspend fun getAllSavedPlacesList(): List<SavedPlace> {
-        return database.savedPlaceDao().getAllSavedPlacesList().map { it.toDomainModel() }
-    }
 
     fun addActiveStation(activeStation: ActiveStation, customStation: Station? = null) {
         repositoryScope.launch {
@@ -145,28 +124,14 @@ object StationRepository {
             val entityWithCoords = activeStation.copy(
                 lat = resolvedStation?.lat ?: activeStation.lat,
                 lon = resolvedStation?.lon ?: activeStation.lon,
-                stationName = resolvedStation?.name ?: activeStation.stationName
+                // Prefer the user-typed name from the bottom sheet; only fall
+                // back to the resolved station name if the user cleared it.
+                stationName = activeStation.stationName.ifBlank { resolvedStation?.name ?: "" }
             )
 
-            // Atomic DB insert: if the process dies between the two inserts, Room
-            // rolls back so we never end up with a saved_place but no active_station
-            // (or vice versa). Geofence registration stays outside the transaction
-            // because it's GMS, not Room — its rollback is handled below.
-            database.withTransaction {
-                if (customStation != null) {
-                    val place = SavedPlace(
-                        id = customStation.id,
-                        name = customStation.name,
-                        lat = customStation.lat,
-                        lon = customStation.lon,
-                        radiusKm = activeStation.alertDistanceKm,
-                        notes = "Custom alarmed location",
-                        createdAt = System.currentTimeMillis()
-                    )
-                    database.savedPlaceDao().insert(place.toEntity())
-                }
-                database.activeStationDao().insert(entityWithCoords.toEntity())
-            }
+            // Single-table insert: active_stations now persists everything we
+            // need for both railway and custom map-pin alarms (lat/lon/name).
+            database.activeStationDao().insert(entityWithCoords.toEntity())
 
             val result = GeofenceManager.addGeofencesForStation(
                 context = appContext,
@@ -182,15 +147,9 @@ object StationRepository {
                 alertDistanceM = (entityWithCoords.alertDistanceKm * 1000).toFloat()
             )
             result.onFailure { e ->
-                // Registration failed — roll back both rows in a single transaction
-                // so the UI doesn't show a ghost alarm and the saved_place doesn't
-                // leak as a phantom favourite.
-                database.withTransaction {
-                    database.activeStationDao().delete(entityWithCoords.stationId)
-                    if (customStation != null) {
-                        database.savedPlaceDao().delete(customStation.id)
-                    }
-                }
+                // Registration failed — roll back the active_stations row so
+                // the UI doesn't show a ghost alarm that will never fire.
+                database.activeStationDao().delete(entityWithCoords.stationId)
                 val msg = e.message ?: "Failed to register alarm."
                 _errorEvents.emit(msg)
                 Logger.log("STATION_ADD_ROLLED_BACK", entityWithCoords.stationId, msg)
@@ -238,12 +197,41 @@ object StationRepository {
 
     /** Transition a station to ALERTING status. Only valid from MONITORING — guards
      *  against late geofence events or duplicate markAlerting calls re-firing the
-     *  alarm after the user has already dismissed (PAUSED) or while it is ringing. */
+     *  alarm after the user has already dismissed (PAUSED) or while it is ringing.
+     *  Also stamps `lastTriggeredAt` so the StationCard can show "Last triggered".
+     *
+     *  Fire-and-forget variant kept for non-coroutine callers; the receiver path
+     *  uses [markAlertingSync] to avoid racing with a near-simultaneous dismissal. */
     fun markAlerting(stationId: String) {
         repositoryScope.launch {
+            lockFor(stationId).withLock {
+                database.activeStationDao().markAlertingFromMonitoring(stationId)
+                database.activeStationDao().setLastTriggeredAt(stationId, System.currentTimeMillis())
+                GeofenceManager.removeGeofencesForStation(appContext, stationId)
+                Logger.log("STATUS_CHANGE", stationId, "ALERTING")
+            }
+        }
+    }
+
+    /** Awaitable version of [markAlerting]. The GeofenceBroadcastReceiver is
+     *  already inside a coroutine — using this guarantees the DB write + geofence
+     *  removal complete before the BR finishes, eliminating a race where a late
+     *  resetToMonitoring (from a startForegroundService failure path) could
+     *  overlap and produce inconsistent state. */
+    suspend fun markAlertingSync(stationId: String) {
+        lockFor(stationId).withLock {
             database.activeStationDao().markAlertingFromMonitoring(stationId)
+            database.activeStationDao().setLastTriggeredAt(stationId, System.currentTimeMillis())
             GeofenceManager.removeGeofencesForStation(appContext, stationId)
             Logger.log("STATUS_CHANGE", stationId, "ALERTING")
+        }
+    }
+
+    /** Rename an active alarm — used by the inline rename in StationCard. */
+    fun updateStationName(stationId: String, name: String) {
+        repositoryScope.launch {
+            database.activeStationDao().updateStationName(stationId, name)
+            Logger.log("STATION_RENAMED", stationId, name)
         }
     }
 
@@ -269,30 +257,33 @@ object StationRepository {
     /** Re-arm a paused station (toggle ON). Re-registers geofences and sets MONITORING. */
     fun rearmStation(stationId: String) {
         repositoryScope.launch {
-            database.activeStationDao().updateStatus(stationId, "MONITORING")
-            val station = database.activeStationDao().getStationById(stationId)?.toDomainModel() ?: return@launch
-            val result = GeofenceManager.addGeofencesForStation(
-                context = appContext,
-                stationId = station.stationId,
-                radiusLevel8M = (station.radiusLevel8Km * 1000).toFloat(),
-                radiusLevel7M = (station.radiusLevel7Km * 1000).toFloat(),
-                radiusLevel6M = (station.radiusLevel6Km * 1000).toFloat(),
-                radiusLevel5M = (station.radiusLevel5Km * 1000).toFloat(),
-                radiusLevel4M = (station.radiusLevel4Km * 1000).toFloat(),
-                radiusLevel3M = (station.radiusLevel3Km * 1000).toFloat(),
-                radiusLevel2M = (station.radiusLevel2Km * 1000).toFloat(),
-                radiusLevel1M = (station.radiusLevel1Km * 1000).toFloat(),
-                alertDistanceM = (station.alertDistanceKm * 1000).toFloat()
-            )
-            result.onSuccess {
-                Logger.log("STATION_REARMED", stationId)
-            }.onFailure { e ->
-                // Re-registration failed — flip back to PAUSED so the toggle
-                // doesn't lie about the alarm being armed.
-                database.activeStationDao().updateStatus(stationId, "PAUSED")
-                val msg = e.message ?: "Failed to re-arm alarm."
-                _errorEvents.emit(msg)
-                Logger.log("STATION_REARM_FAILED", stationId, msg)
+            lockFor(stationId).withLock {
+                database.activeStationDao().updateStatus(stationId, "MONITORING")
+                val station = database.activeStationDao().getStationById(stationId)?.toDomainModel()
+                    ?: return@withLock
+                val result = GeofenceManager.addGeofencesForStation(
+                    context = appContext,
+                    stationId = station.stationId,
+                    radiusLevel8M = (station.radiusLevel8Km * 1000).toFloat(),
+                    radiusLevel7M = (station.radiusLevel7Km * 1000).toFloat(),
+                    radiusLevel6M = (station.radiusLevel6Km * 1000).toFloat(),
+                    radiusLevel5M = (station.radiusLevel5Km * 1000).toFloat(),
+                    radiusLevel4M = (station.radiusLevel4Km * 1000).toFloat(),
+                    radiusLevel3M = (station.radiusLevel3Km * 1000).toFloat(),
+                    radiusLevel2M = (station.radiusLevel2Km * 1000).toFloat(),
+                    radiusLevel1M = (station.radiusLevel1Km * 1000).toFloat(),
+                    alertDistanceM = (station.alertDistanceKm * 1000).toFloat()
+                )
+                result.onSuccess {
+                    Logger.log("STATION_REARMED", stationId)
+                }.onFailure { e ->
+                    // Re-registration failed — flip back to PAUSED so the toggle
+                    // doesn't lie about the alarm being armed.
+                    database.activeStationDao().updateStatus(stationId, "PAUSED")
+                    val msg = e.message ?: "Failed to re-arm alarm."
+                    _errorEvents.emit(msg)
+                    Logger.log("STATION_REARM_FAILED", stationId, msg)
+                }
             }
         }
     }
@@ -362,6 +353,21 @@ object StationRepository {
         Logger.log("STATUS_CHANGE", stationId, "MONITORING (reset)")
     }
 
+    /**
+     * Bulk reset every ALERTING row back to MONITORING. Called by
+     * [com.omama.stationalarm.service.LocationService] on cold start to
+     * prevent ghost alarms when the process was killed mid-alarm: without
+     * this, the first sync emission would treat any still-ALERTING DB row
+     * as "newly alerting" and re-fire the alarm without user interaction.
+     * Geofences for those stations were already removed at markAlerting()
+     * time, so the user must enter the radius again for the alarm to fire.
+     */
+    suspend fun resetAllAlertingToMonitoring(): Int {
+        val count = database.activeStationDao().resetAllAlertingToMonitoring()
+        if (count > 0) Logger.log("ALERTING_RESET_BULK", extra = "count=$count")
+        return count
+    }
+
     /** Update settings of an active station in-place (radius, notification prefs, reminder). */
     fun updateActiveStationSettings(
         stationId: String,
@@ -373,28 +379,31 @@ object StationRepository {
         sendReminder: Boolean
     ) {
         repositoryScope.launch {
-            database.activeStationDao().updateSettings(stationId, radius, notify, vibrate, sound, reminder, sendReminder)
-            // Re-register geofences with new radius
-            GeofenceManager.removeGeofencesForStation(appContext, stationId)
-            val updated = database.activeStationDao().getStationById(stationId)?.toDomainModel() ?: return@launch
-            val result = GeofenceManager.addGeofencesForStation(
-                context = appContext,
-                stationId = updated.stationId,
-                radiusLevel8M = (updated.radiusLevel8Km * 1000).toFloat(),
-                radiusLevel7M = (updated.radiusLevel7Km * 1000).toFloat(),
-                radiusLevel6M = (updated.radiusLevel6Km * 1000).toFloat(),
-                radiusLevel5M = (updated.radiusLevel5Km * 1000).toFloat(),
-                radiusLevel4M = (updated.radiusLevel4Km * 1000).toFloat(),
-                radiusLevel3M = (updated.radiusLevel3Km * 1000).toFloat(),
-                radiusLevel2M = (updated.radiusLevel2Km * 1000).toFloat(),
-                radiusLevel1M = (updated.radiusLevel1Km * 1000).toFloat(),
-                alertDistanceM = (updated.alertDistanceKm * 1000).toFloat()
-            )
-            result.onFailure { e ->
-                _errorEvents.emit(e.message ?: "Failed to update alarm.")
-                Logger.log("STATION_UPDATE_GEOFENCE_FAILED", stationId, e.message)
+            lockFor(stationId).withLock {
+                database.activeStationDao().updateSettings(stationId, radius, notify, vibrate, sound, reminder, sendReminder)
+                // Re-register geofences with new radius
+                GeofenceManager.removeGeofencesForStation(appContext, stationId)
+                val updated = database.activeStationDao().getStationById(stationId)?.toDomainModel()
+                    ?: return@withLock
+                val result = GeofenceManager.addGeofencesForStation(
+                    context = appContext,
+                    stationId = updated.stationId,
+                    radiusLevel8M = (updated.radiusLevel8Km * 1000).toFloat(),
+                    radiusLevel7M = (updated.radiusLevel7Km * 1000).toFloat(),
+                    radiusLevel6M = (updated.radiusLevel6Km * 1000).toFloat(),
+                    radiusLevel5M = (updated.radiusLevel5Km * 1000).toFloat(),
+                    radiusLevel4M = (updated.radiusLevel4Km * 1000).toFloat(),
+                    radiusLevel3M = (updated.radiusLevel3Km * 1000).toFloat(),
+                    radiusLevel2M = (updated.radiusLevel2Km * 1000).toFloat(),
+                    radiusLevel1M = (updated.radiusLevel1Km * 1000).toFloat(),
+                    alertDistanceM = (updated.alertDistanceKm * 1000).toFloat()
+                )
+                result.onFailure { e ->
+                    _errorEvents.emit(e.message ?: "Failed to update alarm.")
+                    Logger.log("STATION_UPDATE_GEOFENCE_FAILED", stationId, e.message)
+                }
+                Logger.log("STATION_SETTINGS_UPDATED", stationId, "radius=$radius notify=$notify vibrate=$vibrate sound=$sound")
             }
-            Logger.log("STATION_SETTINGS_UPDATED", stationId, "radius=$radius notify=$notify vibrate=$vibrate sound=$sound")
         }
     }
 }

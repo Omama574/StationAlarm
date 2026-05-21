@@ -14,7 +14,8 @@ data class ActiveStation(
     val status: String = "MONITORING",
     val lat: Double = 0.0,
     val lon: Double = 0.0,
-    val stationName: String = ""
+    val stationName: String = "",
+    val lastTriggeredAt: Long? = null
 ) {
     val radiusLevel5Km: Double get() = alertDistanceKm + 60
     val radiusLevel4Km: Double get() = alertDistanceKm + 40

@@ -46,7 +46,14 @@ internal class ServiceNotifications(private val context: Context) {
                 ALARM_CHANNEL_ID,
                 ALARM_CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
-            ).apply { description = "High priority alarm alerts" }
+            ).apply {
+                description = "High priority alarm alerts"
+                // Without this, Do Not Disturb suppresses the full-screen alert
+                // intent that's the only way the user sees the alarm screen on
+                // a locked device. CATEGORY_ALARM alone isn't enough on stock
+                // Pixels and most OEM ROMs.
+                setBypassDnd(true)
+            }
             manager.createNotificationChannel(channel)
             manager.createNotificationChannel(alarmChannel)
         }

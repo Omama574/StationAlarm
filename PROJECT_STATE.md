@@ -1,6 +1,6 @@
 # StationAlarm — Project State
 
-> **Last updated:** 2026-05-13
+> **Last updated:** 2026-05-16
 > Update this file at the end of every session with what changed and what's next.
 
 ---
@@ -48,9 +48,9 @@ Android app that alerts the user when approaching a railway station or any custo
 | Map | osmdroid 6.1.20 + OpenStreetMap (MAPNIK tiles) |
 | Geocoding primary | LocationIQ via Cloudflare Worker proxy |
 | Geocoding fallback | Photon by Komoot (direct from device) |
-| Database | Room SQLite v3 |
+| Database | Room SQLite v5 |
 | Backend config | Firebase Remote Config (backend URL), Crashlytics |
-| Preferences | DataStore Preferences (theme, distance unit, alarm sound URI) |
+| Preferences | DataStore Preferences (theme, distance unit, alarm sound URI, ring_speaker_with_headphones) |
 | Core alarm engine | LocationService + GeofenceManager (foreground service) |
 
 ---
@@ -96,16 +96,16 @@ Station selected → StationConfigBottomSheet → radius/sound/vibrate config
 
 ---
 
-## Database Schema (Room v3)
+## Database Schema (Room v5)
 
 ### `saved_places` table (`SavedPlaceEntity`)
 `id, name, lat, lon, radiusKm, notify, vibrate, sound, notes, createdAt`
 
 ### `active_stations` table (`ActiveStationEntity`)
 Tracks currently active alarms. Status enum: `MONITORING`, `ALERTING`, `PAUSED`.
-`PAUSED` is the post-dismiss state — row stays so the user can re-arm without re-configuring.
+`stationId, alertDistanceKm, notify, vibrate, sound, customReminder, sendReminder, status, lat, lon, stationName`
 
-Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs wipe instead of crashing. Bump version + write migration for any schema change going forward.
+Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs wipe instead of crashing. Bump version + write migration for any schema change going forward. Current version: 5 (Migration 4->5 adds `lat`, `lon`, `stationName` to `active_stations`).
 
 ---
 
@@ -126,6 +126,16 @@ Migration policy: `.fallbackToDestructiveMigrationFrom(1)` — legacy v1 dev DBs
 ---
 
 ## Session Log
+
+### Session: Bluetooth/Headphone Audio Routing (2026-05-16)
+Implemented safety-first dual-route audio routing to ensure alarms ring through both the device speaker and external audio devices (Bluetooth/Wired) by default.
+
+- **Dual-Route Playback:** `AlarmAudioController` now manages two `MediaPlayer` instances: one for the `BUILTIN_SPEAKER` and one for the best available `EXTERNAL` device.
+- **Dynamic Device Monitoring:** Integrated `AudioDeviceCallback` to automatically rebuild routes if a device is connected or disconnected during an active alarm (e.g., Bluetooth buds dying mid-journey).
+- **Global Preference:** Added `ring_speaker_with_headphones` (default: true) to `UserPreferences` via DataStore, with a corresponding toggle card in the `SettingsScreen`.
+- **Cold-Start Safety:** Updated `LocationService.fireAlert` to be a `suspend` function, using `.first()` to fetch fresh preferences from DataStore even on service startup, preventing race conditions.
+- **Fail-Safe Routing:** Explicitly excluded unreliable `TYPE_BLUETOOTH_SCO` from alarm routes. `setPreferredDevice` rejection now releases the player to prevent "ghost" audio routes.
+- **Room Migration (v5):** Incremented DB version to 5. Migration 4->5 persists `lat`, `lon`, and `stationName` in `active_stations` to ensure map-dropped pins survive reboots without requiring a network lookup.
 
 ### Session: GPS Reliability Overhaul - Phase 1 & 2 (2026-05-13)
 Resolved critical field failures (50-minute "Stale IPC Pipe" blackout) and optimized battery usage by implementing a robust layered GPS reliability architecture. `./gradlew compileDebugKotlin` clean.

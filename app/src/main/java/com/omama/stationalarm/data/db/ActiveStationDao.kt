@@ -32,7 +32,16 @@ interface ActiveStationDao {
     @Query("UPDATE active_stations SET status = 'ALERTING' WHERE stationId = :stationId AND status = 'MONITORING'")
     suspend fun markAlertingFromMonitoring(stationId: String)
 
+    @Query("UPDATE active_stations SET status = 'MONITORING' WHERE status = 'ALERTING'")
+    suspend fun resetAllAlertingToMonitoring(): Int
+
     @Query("UPDATE active_stations SET alertDistanceKm = :radius, notify = :notify, vibrate = :vibrate, sound = :sound, customReminder = :reminder, sendReminder = :sendReminder WHERE stationId = :stationId")
     suspend fun updateSettings(stationId: String, radius: Double, notify: Boolean, vibrate: Boolean, sound: Boolean, reminder: String?, sendReminder: Boolean)
+
+    @Query("UPDATE active_stations SET stationName = :name WHERE stationId = :stationId")
+    suspend fun updateStationName(stationId: String, name: String)
+
+    @Query("UPDATE active_stations SET lastTriggeredAt = :timestamp WHERE stationId = :stationId")
+    suspend fun setLastTriggeredAt(stationId: String, timestamp: Long)
 
 }

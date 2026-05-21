@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omama.stationalarm.data.SavedPlace
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.ui.viewmodel.MapSearchViewModel
@@ -73,7 +72,6 @@ fun MapSearchScreen(
     val isSearching     by viewModel.isSearching.collectAsState()
     val selectedResult  by viewModel.selectedResult.collectAsState()
     val radiusKm        by viewModel.radiusKm.collectAsState()
-    val savedPlaces     by viewModel.savedPlaces.collectAsState()
     val searchError     by viewModel.searchError.collectAsState()
     val initialCenter   by viewModel.initialCenter.collectAsState()
 
@@ -335,8 +333,6 @@ fun MapSearchScreen(
         )
     }
 
-    // ── Save dialog (now triggered externally after alarm is set) ──────────────
-    // Kept for programmatic use by MainActivity via SaveFavoriteDialog
 }
 
 // ── Sub-composables ───────────────────────────────────────────────────────────
@@ -535,60 +531,3 @@ private fun BottomControlBar(
 
 // ── Map View ──────────────────────────────────────────────────────────────────
 
-// ── Save dialog ───────────────────────────────────────────────────────────────
-
-@Composable
-fun SaveFavoriteDialog(
-    initialName: String,
-    onSave     : (name: String, notes: String?) -> Unit,
-    onDismiss  : () -> Unit
-) {
-    var name  by remember { mutableStateOf(initialName) }
-    var notes by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape            = RoundedCornerShape(20.dp),
-        title = {
-            Text(
-                "Name this place",
-                fontWeight = FontWeight.Bold,
-                fontSize   = 18.sp
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value         = name,
-                    onValueChange = { name = it },
-                    label         = { Text("Name *") },
-                    singleLine    = true,
-                    modifier      = Modifier.fillMaxWidth(),
-                    shape         = RoundedCornerShape(12.dp)
-                )
-                OutlinedTextField(
-                    value         = notes,
-                    onValueChange = { notes = it },
-                    label         = { Text("Notes (optional)") },
-                    singleLine    = true,
-                    modifier      = Modifier.fillMaxWidth(),
-                    shape         = RoundedCornerShape(12.dp)
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick  = { if (name.isNotBlank()) onSave(name, notes.ifBlank { null }) },
-                shape    = RoundedCornerShape(12.dp),
-                enabled  = name.isNotBlank()
-            ) {
-                Text("Save ⭐", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
