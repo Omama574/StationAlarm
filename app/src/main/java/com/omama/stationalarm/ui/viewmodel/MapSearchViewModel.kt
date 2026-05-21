@@ -10,7 +10,6 @@ import com.google.android.gms.location.LocationServices
 import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.network.GeocodingClient
-import com.omama.stationalarm.network.toSearchResult
 import com.omama.stationalarm.repository.StationRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -20,6 +19,7 @@ import org.osmdroid.util.GeoPoint
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.util.Locale
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class MapSearchViewModel(application: Application) : AndroidViewModel(application) {
@@ -81,7 +81,7 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     /**
      * Two-tier search:
      *   1. India station Room DB — instant, offline, zero API calls
-     *   2. LocationIQ via Cloudflare Worker — live geocoding for everything else
+     *   2. Cloudflare Worker (geocoding proxy) — live geocoding for everything else
      */
     private suspend fun performSearch(q: String) {
         _isSearching.value = true
@@ -92,21 +92,25 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
             if (indiaResults.isNotEmpty()) {
                 _searchResults.value = indiaResults.take(8).map { station ->
                     GeoSearchResult(
-                        id         = station.id,
-                        name       = station.name,
-                        subtitle   = "India · Railway Station",
-                        lat        = station.lat,
-                        lon        = station.lon,
-                        confidence = "exact"
+                        id               = station.id,
+                        name             = station.name,
+                        formattedAddress = "India · Railway Station",
+                        lat              = station.lat,
+                        lon              = station.lon,
                     )
                 }
                 return
             }
 
-            // ── Tier 2: LocationIQ via Cloudflare Worker ──────────────────────
-            val results = GeocodingClient.locationIqService.autocomplete(query = q)
-            _searchResults.value = results.map { it.toSearchResult() }
-                .filter { it.hasValidCoords }
+            // ── Tier 2: Cloudflare Worker geocoding ──────────────────────────
+            val bias = _initialCenter.value
+            val response = GeocodingClient.geocodingService.search(
+                query   = q,
+                biasLat = bias?.latitude,
+                biasLon = bias?.longitude,
+                lang    = currentLang(),
+            )
+            _searchResults.value = response.results.filter { it.hasValidCoords }
 
         } catch (e: Exception) {
             _searchError.value = errorMessageFor(e)
@@ -116,6 +120,13 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
             _isSearching.value = false
         }
     }
+
+    /** ISO 639-1 language code from the (possibly per-app-overridden) current
+     *  locale. Sent to the Worker as a hint so the geocoder localizes place
+     *  names when it can. Defaults to "en" if the locale somehow has a blank
+     *  language tag (shouldn't happen, but defensive). */
+    private fun currentLang(): String =
+        Locale.getDefault().language.takeIf { it.isNotBlank() } ?: "en"
 
     /** Translates a network-level failure into a short user-facing message so the
      *  Map snackbar tells the user *why* search failed, not just that it did.
@@ -142,32 +153,47 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /**
-     * Called when user taps anywhere on the map.
-     * Immediately drops a pin with coordinates, then reverse geocodes in background.
-     * Single-tier: LocationIQ via Worker. On failure, fall back to raw coords so
-     * the pin still has a usable label.
+     * Called when user taps anywhere on the map. Immediately drops a pin with
+     * raw coords, then reverse-geocodes in the background. If the geocoder has
+     * nothing for that point (empty results) or the request fails, the pin keeps
+     * its raw-coords label so the user can still confirm what they tapped.
      */
     fun onMapTap(lat: Double, lon: Double) {
         _selectedResult.value = GeoSearchResult(
-            id         = "manual-${System.currentTimeMillis()}",
-            name       = "Dropped Pin",
-            subtitle   = "Loading address...",
-            lat        = lat,
-            lon        = lon,
-            confidence = "exact"
+            id               = "manual-${System.currentTimeMillis()}",
+            name             = "Dropped Pin",
+            formattedAddress = "Loading address...",
+            lat              = lat,
+            lon              = lon,
         )
 
         viewModelScope.launch {
             try {
-                val result = GeocodingClient.locationIqService.reverse(lat = lat, lon = lon)
-                _selectedResult.value = result.toSearchResult(lat, lon)
+                val response = GeocodingClient.geocodingService.reverse(
+                    lat  = lat,
+                    lon  = lon,
+                    lang = currentLang(),
+                )
+                val first = response.results.firstOrNull()
+                if (first != null) {
+                    // Use the Worker's lat/lon (snapped to the resolved address)
+                    // only if valid; otherwise stick with the tap point.
+                    _selectedResult.value = first.copy(
+                        lat = if (first.hasValidCoords) first.lat else lat,
+                        lon = if (first.hasValidCoords) first.lon else lon,
+                    )
+                } else {
+                    // No address known here (e.g., middle of an ocean) — fall back to raw coords.
+                    _selectedResult.value = _selectedResult.value?.copy(
+                        name             = "Dropped Pin",
+                        formattedAddress = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
+                    )
+                }
             } catch (e: Exception) {
-                android.util.Log.w("MapSearch", "LocationIQ reverse failed", e)
-                // Network / quota error — keep the pin but show coords as label so
-                // the user can still confirm the location they tapped.
+                android.util.Log.w("MapSearch", "Reverse geocode failed", e)
                 _selectedResult.value = _selectedResult.value?.copy(
-                    name     = "Dropped Pin",
-                    subtitle = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
+                    name             = "Dropped Pin",
+                    formattedAddress = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
                 )
             }
         }

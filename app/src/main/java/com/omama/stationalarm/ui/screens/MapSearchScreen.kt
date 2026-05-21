@@ -86,12 +86,11 @@ fun MapSearchScreen(
         if (station.lat != 0.0 || station.lon != 0.0) {
             viewModel.selectResult(
                 com.omama.stationalarm.network.GeoSearchResult(
-                    id = station.stationId,
-                    name = station.stationName.ifEmpty { station.stationId },
-                    subtitle = "Alert radius: ${station.alertDistanceKm} km",
-                    lat = station.lat,
-                    lon = station.lon,
-                    confidence = "exact"
+                    id               = station.stationId,
+                    name             = station.stationName.ifEmpty { station.stationId },
+                    formattedAddress = "Alert radius: ${station.alertDistanceKm} km",
+                    lat              = station.lat,
+                    lon              = station.lon,
                 )
             )
             viewModel.onRadiusChanged(station.alertDistanceKm)
@@ -321,7 +320,7 @@ fun MapSearchScreen(
             onRadius    = viewModel::onRadiusChanged,
             hasPin      = selectedResult != null,
             pinName     = selectedResult?.name ?: "",
-            pinSubtitle = selectedResult?.subtitle ?: "",
+            pinSubtitle = selectedResult?.formattedAddress ?: "",
             onSetAlarm  = {
                 val pin = selectedResult ?: return@BottomControlBar
                 onStartTrip(
@@ -339,12 +338,6 @@ fun MapSearchScreen(
 
 @Composable
 private fun SearchResultRow(result: GeoSearchResult, onClick: () -> Unit) {
-    val (chipColor, chipText) = when (result.confidence) {
-        "exact"  -> Pair(Color(0xFF00C853), "Exact")
-        "high"   -> Pair(Color(0xFF00BCD4), "High")
-        "medium" -> Pair(Color(0xFFFFA726), "Medium")
-        else     -> Pair(Color(0xFFEF5350), "Low")
-    }
     Row(
         modifier           = Modifier
             .fillMaxWidth()
@@ -378,28 +371,17 @@ private fun SearchResultRow(result: GeoSearchResult, onClick: () -> Unit) {
                 overflow     = TextOverflow.Ellipsis,
                 color        = MaterialTheme.colorScheme.onSurface
             )
-            if (result.subtitle.isNotBlank()) {
+            if (result.formattedAddress.isNotBlank()) {
                 Text(
-                    result.subtitle,
+                    result.formattedAddress,
                     fontSize = 12.sp,
                     color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                    maxLines = 1,
+                    // 2 lines = enough for "Locality, City, Region, Country" while
+                    // bounded so a wildly verbose provider can't blow up the row.
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = chipColor.copy(alpha = 0.13f)
-        ) {
-            Text(
-                chipText,
-                color      = chipColor,
-                fontSize   = 10.sp,
-                fontWeight = FontWeight.Bold,
-                modifier   = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-            )
         }
     }
     HorizontalDivider(
@@ -450,7 +432,10 @@ private fun BottomControlBar(
                     Text(
                         pinSubtitle,
                         fontSize = 12.sp,
-                        maxLines = 1,
+                        // 2 lines so the full "Locality, City, Region, Country"
+                        // from the geocoder is readable; bounded so a noisy
+                        // provider can't push the Set Alarm button off-screen.
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
                     )

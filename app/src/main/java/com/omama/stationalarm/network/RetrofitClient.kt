@@ -34,29 +34,29 @@ object GeocodingClient {
     // ── Dynamic Worker URL (set by Remote Config on startup) ──────────────────
 
     @Volatile private var workerBaseUrl = DEFAULT_WORKER_URL
-    @Volatile private var _locationIqService: LocationIqService? = null
+    @Volatile private var _geocodingService: GeocodingService? = null
 
     /**
      * Called by StationAlarmApplication once Remote Config has fetched.
-     * If the URL changed, the next call to [locationIqService] rebuilds Retrofit.
+     * If the URL changed, the next call to [geocodingService] rebuilds Retrofit.
      */
     fun setWorkerUrl(url: String) {
         val normalized = if (url.endsWith("/")) url else "$url/"
         if (normalized != workerBaseUrl) {
             workerBaseUrl = normalized
-            _locationIqService = null
+            _geocodingService = null
         }
     }
 
     // ── Service instances ─────────────────────────────────────────────────────
 
-    val locationIqService: LocationIqService
-        get() = _locationIqService ?: buildLocationIqService().also { _locationIqService = it }
+    val geocodingService: GeocodingService
+        get() = _geocodingService ?: buildGeocodingService().also { _geocodingService = it }
 
-    private fun buildLocationIqService() = Retrofit.Builder()
+    private fun buildGeocodingService() = Retrofit.Builder()
         .baseUrl(workerBaseUrl)
         .client(httpClient)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
-        .create(LocationIqService::class.java)
+        .create(GeocodingService::class.java)
 }
