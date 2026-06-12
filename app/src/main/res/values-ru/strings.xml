@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <string name="common_cancel">Отмена</string>
+    <string name="common_remove">Удалить</string>
+    <string name="common_back">Назад</string>
+    <string name="common_open_settings">Открыть настройки</string>
+    <string name="common_not_now">Не сейчас</string>
+
+    <string name="tab_alarms">Будильники</string>
+    <string name="tab_map">Карта</string>
+    <string name="nav_menu">Меню</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="nav_about">О приложении</string>
+    <string name="nav_rate_us">Оценить</string>
+    <string name="nav_share_app">Поделиться</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <string name="permission_location_title">Требуется доступ к местоположению</string>
+    <string name="permission_location_body">StationAlarm требует доступа к местоположению \'Разрешить всегда\', чтобы сработать, когда вы приблизитесь к месту назначения при закрытом приложении или заблокированном телефоне.</string>
+    <string name="permission_location_steps">• Нажмите \'Настройки\' ниже\n• Нажмите \'Разрешения\'\n• Выберите \'Местоположение\'\n• Выберите \'Разрешить всегда\'</string>
+    <string name="permission_notifications_title">Включить уведомления</string>
+    <string name="permission_notifications_body">StationAlarm нужно разрешение на уведомления, чтобы показывать будильники при заблокированном телефоне. Без него будильник может звенеть тихо в фоне, и вы пропустите остановку.</string>
+
+    <string name="gps_disabled_title">GPS отключён</string>
+    <string name="gps_disabled_body">Разрешите StationAlarm включить службы геолокации для точного отслеживания.</string>
+    <string name="gps_disabled_turn_on">Включить GPS</string>
+
+    <string name="volume_low_title">Громкость будильника низкая</string>
+    <string name="volume_low_body">Громкость будильника ниже 50%. Увеличьте её, чтобы будильник разбудил вас надёжно.</string>
+    <string name="volume_low_increase">Увеличить до максимума</string>
+    <string name="volume_low_keep">Оставить текущую</string>
+
+    <string name="battery_sheet_title">Сохраните надёжность будильников</string>
+    <string name="battery_sheet_body">Вы только что настроили будильник — давайте убедимся, что он сработает. Без исключения батареи Android может усыпить StationAlarm, и будильник может сработать с опозданием или вовсе не сработать.</string>
+    <string name="battery_sheet_open">Открыть настройки</string>
+    <string name="battery_sheet_skip">Пропустить пока</string>
+    <string name="battery_sheet_dont_ask_again">Больше не спрашивать</string>
+
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">Попробуйте StationAlarm — приложение с будильниками по местоположению для поездов и мест.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">Поделиться StationAlarm</string>
+
+    <string name="home_search_placeholder">Поиск станции для добавления будильника…</string>
+    <string name="home_clear">Очистить</string>
+    <string name="home_hint_type_more">Введите не менее 2 символов</string>
+    <string name="home_hint_no_stations">Станции не найдены</string>
+    <string name="home_empty_title">Будильников пока нет</string>
+    <string name="home_empty_body">Найдите станцию выше или установите маркер на карте.</string>
+    <string name="home_empty_open_map">Открыть карту</string>
+    <string name="home_remove_title">Удалить будильник?</string>
+    <string name="home_remove_body_format">Это остановит мониторинг %s.</string>
+
+    <string name="card_badge_alarm">Будильник</string>
+    <string name="card_badge_notify">Уведомление</string>
+    <string name="card_badge_ringing">Звонит</string>
+    <string name="card_badge_paused">На паузе</string>
+    <string name="card_alerts_within_format">Оповещение в %s</string>
+    <string name="card_last_triggered_format">Последний раз: %s</string>
+    <string name="card_paused_body">На паузе — переключите тумблер для возобновления</string>
+    <string name="card_locating">Определение…</string>
+    <string name="card_reminder_format">«%s»</string>
+    <string name="card_action_edit">Изменить</string>
+    <string name="card_action_map">Карта</string>
+    <string name="card_action_remove">Удалить будильник</string>
+    <string name="card_action_rename">Переименовать будильник</string>
+    <string name="card_action_save_name">Сохранить название</string>
+    <string name="card_action_cancel_rename">Отменить переименование</string>
+
+    <string name="time_today_format">Сегодня %s</string>
+    <string name="time_yesterday_format">Вчера %s</string>
+
+    <string name="alarm_config_name_label">Название будильника</string>
+    <string name="alarm_config_default_name">Будильник</string>
+    <string name="alarm_config_section_distance">Расстояние оповещения</string>
+    <string name="alarm_config_ring_when_within">Звонить в радиусе</string>
+    <string name="alarm_config_reminder_label">Заметка-напоминание (необязательно)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">Показывать напоминание при срабатывании будильника</string>
+    <string name="alarm_config_reminder_toggle_subtitle">Отображается на экране будильника и в уведомлении.</string>
+    <string name="alarm_config_section_alert_by">Оповещать через</string>
+    <string name="alarm_config_channel_notify">Уведомление</string>
+    <string name="alarm_config_channel_vibrate">Вибрация</string>
+    <string name="alarm_config_channel_sound">Звук</string>
+    <string name="alarm_config_set">Установить будильник</string>
+    <string name="alarm_config_update">Обновить будильник</string>
+
+    <string name="map_search_placeholder">Поиск места, достопримечательности, адреса…</string>
+    <string name="map_search_clear">Очистить</string>
+    <string name="map_search_attribution">Поиск от LocationIQ.com</string>
+    <string name="map_my_location">Моё местоположение</string>
+    <string name="map_pin_dropped_default">Установленный маркер</string>
+    <string name="map_pin_loading_address">Загрузка адреса...</string>
+    <string name="map_perimeter">Периметр</string>
+    <string name="map_set_alarm">Установить будильник</string>
+    <string name="map_view_focus_radius_format">Радиус оповещения: %s км</string>
+    <string name="map_hint_railway_station">Индия · Железнодорожная станция</string>
+
+    <string name="alarm_screen_wake_up">Просыпайтесь!</string>
+    <string name="alarm_screen_arrived_at">Прибыли на</string>
+    <string name="alarm_screen_dismiss">Остановить</string>
+    <string name="alarm_screen_press_button_hint">Нажмите любую физическую кнопку для остановки</string>
+    <string name="alarm_screen_default_destination">Место назначения</string>
+
+    <string name="settings_title">Настройки</string>
+    <string name="settings_distance_unit">Единица расстояния</string>
+    <string name="settings_distance_km">Километры</string>
+    <string name="settings_distance_miles">Мили</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_theme_system">По умолчанию системы</string>
+    <string name="settings_theme_light">Светлая</string>
+    <string name="settings_theme_dark">Тёмная</string>
+    <string name="settings_language">Язык</string>
+    <string name="settings_language_system">По умолчанию системы</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજরાતી</string>
+    <string name="settings_language_more_coming">Другие языки скоро.</string>
+    <string name="settings_alarm_sound">Звук будильника</string>
+    <string name="settings_alarm_sound_current_format">Текущий: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ Звук недоступен — выберите заново для исправления.</string>
+    <string name="settings_alarm_sound_change">Изменить</string>
+    <string name="settings_alarm_sound_reselect">Выбрать заново</string>
+    <string name="settings_alarm_sound_reset">Сбросить</string>
+    <string name="settings_alarm_sound_test">Тест будильника (3с)</string>
+    <string name="settings_alarm_sound_default_name">Звук по умолчанию</string>
+    <string name="settings_alarm_sound_custom_name">Пользовательский звук</string>
+    <string name="settings_sound_picker_title">Выбор звука будильника</string>
+    <string name="settings_sound_picker_body">Выберите источник для звука будильника.</string>
+    <string name="settings_sound_picker_system">Системные рингтоны</string>
+    <string name="settings_sound_picker_file">Локальный файл</string>
+    <string name="settings_sound_picker_select_title">Выбрать звук будильника</string>
+    <string name="settings_audio_routing">Маршрутизация звука</string>
+    <string name="settings_ring_speaker_title">Звонить через динамик с наушниками</string>
+    <string name="settings_ring_speaker_subtitle">Оставить динамик телефона громким при подключённом проводном или Bluetooth аудио.</string>
+    <string name="settings_escalating_title">Начать тихо, нарастать до полной громкости</string>
+    <string name="settings_escalating_subtitle_format">Постепенно нарастает за %dс для естественного пробуждения</string>
+    <string name="settings_ramp_duration_format">Длительность нарастания: %dс</string>
+    <string name="settings_ramp_15s">15с</string>
+    <string name="settings_ramp_60s">60с</string>
+    <string name="settings_alarm_duration">Длительность будильника</string>
+    <string name="settings_alarm_duration_subtitle">Как долго звонит будильник перед автоматическим отключением.</string>
+    <string name="settings_alarm_duration_format">Звенит: %d мин</string>
+    <string name="settings_alarm_duration_min">1 мин</string>
+    <string name="settings_alarm_duration_max">15 мин</string>
+    <string name="settings_background_running">Работа в фоне</string>
+    <string name="settings_battery_exemption">Исключение батареи</string>
+    <string name="settings_battery_exempt_yes">Без ограничений — будильники сработают надёжно</string>
+    <string name="settings_battery_exempt_no">Ограничен — будильники могут пропускаться</string>
+    <string name="settings_battery_open">Открыть</string>
+    <string name="settings_debug_logs">Журналы отладки</string>
+    <string name="settings_debug_logs_subtitle">Поделитесь журналами для диагностики проблем с будильником.</string>
+    <string name="settings_debug_logs_app">Журналы приложения</string>
+    <string name="settings_debug_logs_gps">Журналы GPS</string>
+
+    <string name="about_title">О приложении</string>
+    <string name="about_version_format">Версия %s</string>
+    <string name="about_privacy">Политика конфиденциальности</string>
+    <string name="about_terms">Условия использования</string>
+    <string name="about_licenses">Лицензии с открытым кодом</string>
+    <string name="about_made_with_love">Сделано с ♥ для путешественников.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <string name="snackbar_alarm_set_format">Будильник установлен для %s</string>
+    <string name="snackbar_alarm_updated_format">Будильник обновлён для %s</string>
+    <string name="snackbar_no_recent_fix">Нет последних данных о местоположении — попробуйте выйти на открытое место.</string>
+    <string name="snackbar_couldnt_read_location">Не удалось определить местоположение.</string>
+
+    <string name="error_search_timed_out">Истекло время поиска — проверьте соединение.</string>
+    <string name="error_no_internet">Нет подключения к интернету.</string>
+    <string name="error_too_many_requests">Слишком много запросов — повторите через момент.</string>
+    <string name="error_search_down">Служба поиска недоступна — повторите позже.</string>
+    <string name="error_search_unavailable_format">Поиск недоступен (%d).</string>
+    <string name="error_search_unavailable">Поиск недоступен.</string>
+
+    <string name="notif_channel_service">Служба Station Alarm</string>
+    <string name="notif_channel_service_desc">Показывает статус отслеживания</string>
+    <string name="notif_channel_alerts">Оповещения Station Alarm</string>
+    <string name="notif_channel_alerts_desc">Высокоприоритетные оповещения</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">Остановить всё</string>
+    <string name="notif_alert_title_format">Станция достигнута: %s</string>
+    <string name="notif_alert_body_default">Вы прибыли к месту назначения.</string>
+    <string name="notif_alert_body_reminder_format">Напоминание: %s</string>
+    <string name="notif_alert_dismiss">Остановить</string>
+    <string name="notif_watchdog_title">Поиск GPS…</string>
+    <string name="notif_watchdog_body_format">Всё ещё отслеживаем — последний сигнал %d мин. назад.</string>
+    <string name="notif_watchdog_default_body">Всё ещё отслеживаем — возобновится при восстановлении сигнала.</string>
+    <string name="notif_watchdog_location_off_title">Местоположение отключено</string>
+    <string name="notif_watchdog_location_off_body">Нажмите для включения геолокации — будильник на паузе.</string>
+    <string name="notif_audio_failure_title">Будильник сработал без звука</string>
+    <string name="notif_audio_failure_body_format">Ошибка звуковой системы в %s — только вибрация.</string>
+    <string name="notif_boot_restart_title">Требуется перезапуск</string>
+    <string name="notif_boot_restart_body">Откройте StationAlarm для повторного включения будильников.</string>
+    <string name="notif_nearest_format">Ближайшая станция: %1$s — %2$s км</string>
+    <string name="notif_monitoring_count_format">Отслеживание %d станц(ии/ий)...</string>
+    <string name="notif_monitoring_default">Отслеживание станций...</string>
+    <string name="notif_alarm_ringing_count_format">Будильник звонит — достигнуто %d станц(ия/ии)</string>
+
+    <string name="force_update_title">Требуется обновление</string>
+    <string name="force_update_body">Для надёжной работы будильников требуется более новая версия StationAlarm. Обновите, чтобы продолжить.</string>
+    <string name="force_update_button">Обновить сейчас</string>
+    <string name="maintenance_default_body">Сервис временно недоступен. Мы работаем над этим.</string>
+</resources>

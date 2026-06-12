@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <string name="common_cancel">ரத்து</string>
+    <string name="common_remove">நீக்கு</string>
+    <string name="common_back">பின்னால்</string>
+    <string name="common_open_settings">அமைப்புகளை திற</string>
+    <string name="common_not_now">இப்போது வேண்டாம்</string>
+
+    <string name="tab_alarms">அலாரங்கள்</string>
+    <string name="tab_map">வரைபடம்</string>
+    <string name="nav_menu">மெனு</string>
+    <string name="nav_settings">அமைப்புகள்</string>
+    <string name="nav_about">பற்றி</string>
+    <string name="nav_rate_us">மதிப்பிடுங்கள்</string>
+    <string name="nav_share_app">பயன்பாட்டை பகிர்</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <string name="permission_location_title">இருப்பிட அணுகல் தேவை</string>
+    <string name="permission_location_body">பயன்பாடு மூடியிருக்கும்போதும் தொலைபேசி பூட்டியிருக்கும்போதும் இலக்கை அடையும்போது அலாரம் ஒலிக்க StationAlarm-க்கு \'எப்போதும் அனுமதி\' இருப்பிட அணுகல் தேவை.</string>
+    <string name="permission_location_steps">• கீழே \'அமைப்புகள்\'-ஐ தட்டவும்\n• \'அனுமதிகள்\'-ஐ தட்டவும்\n• \'இருப்பிடம்\' தேர்ந்தெடுக்கவும்\n• \'எப்போதும் அனுமதி\' தேர்ந்தெடுக்கவும்</string>
+    <string name="permission_notifications_title">அறிவிப்புகளை இயக்கவும்</string>
+    <string name="permission_notifications_body">தொலைபேசி பூட்டியிருக்கும்போது அலாரம் காட்ட StationAlarm-க்கு அறிவிப்பு அனுமதி தேவை. இல்லாவிட்டால் அலாரம் பின்னணியில் சத்தமின்றி ஒலிக்கும், நீங்கள் நிலையத்தை தவறவிடுவீர்கள்.</string>
+
+    <string name="gps_disabled_title">GPS முடக்கப்பட்டுள்ளது</string>
+    <string name="gps_disabled_body">துல்லியமான கண்காணிப்புக்கு இருப்பிட சேவைகளை இயக்க StationAlarm-ஐ அனுமதிக்கவும்.</string>
+    <string name="gps_disabled_turn_on">GPS இயக்கவும்</string>
+
+    <string name="volume_low_title">அலாரம் ஒலி குறைவாக உள்ளது</string>
+    <string name="volume_low_body">உங்கள் அலாரம் ஒலி 50%-க்கும் குறைவாக உள்ளது. நம்பகமாக எழுப்ப இப்போதே அதிகரிக்கவும்.</string>
+    <string name="volume_low_increase">அதிகபட்சமாக அதிகரிக்கவும்</string>
+    <string name="volume_low_keep">தற்போதையதை வைக்கவும்</string>
+
+    <string name="battery_sheet_title">அலாரங்களை நம்பகமாக வைக்கவும்</string>
+    <string name="battery_sheet_body">நீங்கள் ஒரு அலாரம் அமைத்தீர்கள் — அது உண்மையில் வேலை செய்யும் என்று உறுதிப்படுத்திக்கொள்வோம். பேட்டரி விலக்கு இல்லாமல் Android StationAlarm-ஐ தூக்கமூட்டலாம், அலாரம் தாமதமாக அல்லது அறவே ஒலிக்காமல் போகலாம்.</string>
+    <string name="battery_sheet_open">அமைப்புகளை திற</string>
+    <string name="battery_sheet_skip">இப்போது தவிர்க்கவும்</string>
+    <string name="battery_sheet_dont_ask_again">மீண்டும் கேட்காதே</string>
+
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">StationAlarm-ஐ முயற்சிக்கவும் — ரயில் மற்றும் இடங்களுக்கான இருப்பிட அடிப்படையிலான அலாரம் பயன்பாடு.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">StationAlarm-ஐ பகிர்</string>
+
+    <string name="home_search_placeholder">அலாரம் சேர்க்க நிலையத்தை தேடவும்…</string>
+    <string name="home_clear">அழி</string>
+    <string name="home_hint_type_more">குறைந்தது 2 எழுத்துக்கள் தட்டச்சு செய்யவும்</string>
+    <string name="home_hint_no_stations">நிலையங்கள் கிடைக்கவில்லை</string>
+    <string name="home_empty_title">அலாரங்கள் இல்லை</string>
+    <string name="home_empty_body">மேலே நிலையத்தை தேடவும் அல்லது வரைபடத்தில் பின் வைக்கவும்.</string>
+    <string name="home_empty_open_map">வரைபடத்தை திறக்கவும்</string>
+    <string name="home_remove_title">அலாரம் நீக்கவா?</string>
+    <string name="home_remove_body_format">இது %s கண்காணிப்பை நிறுத்தும்.</string>
+
+    <string name="card_badge_alarm">அலாரம்</string>
+    <string name="card_badge_notify">அறிவி</string>
+    <string name="card_badge_ringing">ஒலிக்கிறது</string>
+    <string name="card_badge_paused">இடைநிறுத்தப்பட்டது</string>
+    <string name="card_alerts_within_format">%s-க்குள் எச்சரிக்கை</string>
+    <string name="card_last_triggered_format">கடைசியாக: %s</string>
+    <string name="card_paused_body">இடைநிறுத்தப்பட்டது — தொடர சுவிட்சை இயக்கவும்</string>
+    <string name="card_locating">இருப்பிடம் கண்டறிகிறது…</string>
+    <string name="card_reminder_format">"%s"</string>
+    <string name="card_action_edit">திருத்து</string>
+    <string name="card_action_map">வரைபடம்</string>
+    <string name="card_action_remove">அலாரம் நீக்கு</string>
+    <string name="card_action_rename">அலாரம் பெயர் மாற்று</string>
+    <string name="card_action_save_name">பெயர் சேமி</string>
+    <string name="card_action_cancel_rename">பெயர் மாற்றை ரத்து செய்</string>
+
+    <string name="time_today_format">இன்று %s</string>
+    <string name="time_yesterday_format">நேற்று %s</string>
+
+    <string name="alarm_config_name_label">அலாரம் பெயர்</string>
+    <string name="alarm_config_default_name">அலாரம்</string>
+    <string name="alarm_config_section_distance">எச்சரிக்கை தூரம்</string>
+    <string name="alarm_config_ring_when_within">இந்த தூரத்தில் ஒலிக்கும்</string>
+    <string name="alarm_config_reminder_label">நினைவூட்டல் குறிப்பு (விரும்பினால்)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">அலாரம் ஒலிக்கும்போது நினைவூட்டல் காட்டு</string>
+    <string name="alarm_config_reminder_toggle_subtitle">அலாரம் திரை மற்றும் அறிவிப்பில் காட்டப்படும்.</string>
+    <string name="alarm_config_section_alert_by">எதன் மூலம் எச்சரிக்கை</string>
+    <string name="alarm_config_channel_notify">அறிவிப்பு</string>
+    <string name="alarm_config_channel_vibrate">அதிர்வு</string>
+    <string name="alarm_config_channel_sound">ஒலி</string>
+    <string name="alarm_config_set">அலாரம் அமை</string>
+    <string name="alarm_config_update">அலாரம் புதுப்பி</string>
+
+    <string name="map_search_placeholder">இடம், அடையாளம், முகவரி தேடவும்…</string>
+    <string name="map_search_clear">அழி</string>
+    <string name="map_search_attribution">LocationIQ.com மூலம் தேடல்</string>
+    <string name="map_my_location">என் இருப்பிடம்</string>
+    <string name="map_pin_dropped_default">பின் வைக்கப்பட்டது</string>
+    <string name="map_pin_loading_address">முகவரி ஏற்றுகிறது...</string>
+    <string name="map_perimeter">சுற்றளவு</string>
+    <string name="map_set_alarm">அலாரம் அமை</string>
+    <string name="map_view_focus_radius_format">எச்சரிக்கை ஆரம்: %s கி.மீ</string>
+    <string name="map_hint_railway_station">இந்தியா · ரயில் நிலையம்</string>
+
+    <string name="alarm_screen_wake_up">எழுங்கள்!</string>
+    <string name="alarm_screen_arrived_at">வந்துவிட்டீர்கள்</string>
+    <string name="alarm_screen_dismiss">அலாரம் நிறுத்து</string>
+    <string name="alarm_screen_press_button_hint">நிறுத்த எந்த பௌதிக பட்டனையும் அழுத்தவும்</string>
+    <string name="alarm_screen_default_destination">இலக்கு</string>
+
+    <string name="settings_title">அமைப்புகள்</string>
+    <string name="settings_distance_unit">தூர அலகு</string>
+    <string name="settings_distance_km">கிலோமீட்டர்</string>
+    <string name="settings_distance_miles">மைல்</string>
+    <string name="settings_theme">தீம்</string>
+    <string name="settings_theme_system">சிஸ்டம் இயல்புநிலை</string>
+    <string name="settings_theme_light">வெளிர்</string>
+    <string name="settings_theme_dark">இருண்ட</string>
+    <string name="settings_language">மொழி</string>
+    <string name="settings_language_system">சிஸ்டம் இயல்புநிலை</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">மேலும் மொழிகள் விரைவில் வரும்.</string>
+    <string name="settings_alarm_sound">அலாரம் ஒலி</string>
+    <string name="settings_alarm_sound_current_format">தற்போதைய: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ ஒலி கிடைக்கவில்லை — சரிசெய்ய மீண்டும் தேர்ந்தெடுக்கவும்.</string>
+    <string name="settings_alarm_sound_change">மாற்று</string>
+    <string name="settings_alarm_sound_reselect">மீண்டும் தேர்ந்தெடு</string>
+    <string name="settings_alarm_sound_reset">மீட்டமை</string>
+    <string name="settings_alarm_sound_test">அலாரம் சோதனை (3வி)</string>
+    <string name="settings_alarm_sound_default_name">இயல்புநிலை அலாரம்</string>
+    <string name="settings_alarm_sound_custom_name">தனிப்பயன் ஒலி</string>
+    <string name="settings_sound_picker_title">அலாரம் ஒலி தேர்ந்தெடு</string>
+    <string name="settings_sound_picker_body">அலாரம் ஒலிக்கான மூலத்தை தேர்ந்தெடுக்கவும்.</string>
+    <string name="settings_sound_picker_system">சிஸ்டம் ரிங்டோன்கள்</string>
+    <string name="settings_sound_picker_file">உள்ளூர் கோப்பு</string>
+    <string name="settings_sound_picker_select_title">அலாரம் ஒலி தேர்ந்தெடு</string>
+    <string name="settings_audio_routing">ஒலி வழிப்படுத்தல்</string>
+    <string name="settings_ring_speaker_title">ஹெட்ஃபோனில் ஸ்பீக்கரையும் ஒலிக்கவும்</string>
+    <string name="settings_ring_speaker_subtitle">கம்பி அல்லது புளூடூத் ஆடியோ இணைக்கப்பட்டிருந்தாலும் ஃபோன் ஸ்பீக்கரை உரத்து வைக்கவும்.</string>
+    <string name="settings_escalating_title">மெதுவாக தொடங்கி முழு ஒலியளவுக்கு வரவும்</string>
+    <string name="settings_escalating_subtitle_format">இயற்கையாக எழுவதற்கு %d வினாடிகளில் படிப்படியாக அதிகரிக்கும்</string>
+    <string name="settings_ramp_duration_format">அதிகரிப்பு நேரம்: %dவி</string>
+    <string name="settings_ramp_15s">15வி</string>
+    <string name="settings_ramp_60s">60வி</string>
+    <string name="settings_alarm_duration">அலாரம் காலம்</string>
+    <string name="settings_alarm_duration_subtitle">தானியங்கி நிறுத்தத்திற்கு முன் அலாரம் எத்தனை நேரம் ஒலிக்கும்.</string>
+    <string name="settings_alarm_duration_format">ஒலிக்கும் நேரம்: %d நிமி</string>
+    <string name="settings_alarm_duration_min">1 நிமி</string>
+    <string name="settings_alarm_duration_max">15 நிமி</string>
+    <string name="settings_background_running">பின்னணி இயக்கம்</string>
+    <string name="settings_battery_exemption">பேட்டரி விலக்கு</string>
+    <string name="settings_battery_exempt_yes">கட்டுப்பாடற்றது — அலாரங்கள் நம்பகமாக ஒலிக்கும்</string>
+    <string name="settings_battery_exempt_no">கட்டுப்படுத்தப்பட்டது — அலாரங்கள் தவறலாம்</string>
+    <string name="settings_battery_open">திற</string>
+    <string name="settings_debug_logs">பிழைத்திருத்த பதிவுகள்</string>
+    <string name="settings_debug_logs_subtitle">அலாரம் சிக்கல்களை கண்டறிய பதிவுகளை பகிர்ந்து கொள்ளுங்கள்.</string>
+    <string name="settings_debug_logs_app">பயன்பாட்டு பதிவுகள்</string>
+    <string name="settings_debug_logs_gps">GPS பதிவுகள்</string>
+
+    <string name="about_title">பற்றி</string>
+    <string name="about_version_format">பதிப்பு %s</string>
+    <string name="about_privacy">தனியுரிமை கொள்கை</string>
+    <string name="about_terms">பயன்பாட்டு விதிமுறைகள்</string>
+    <string name="about_licenses">திறந்த மூல உரிமங்கள்</string>
+    <string name="about_made_with_love">பயணிகளுக்காக ♥ உடன் செய்யப்பட்டது.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <string name="snackbar_alarm_set_format">%s-க்கு அலாரம் அமைக்கப்பட்டது</string>
+    <string name="snackbar_alarm_updated_format">%s-க்கு அலாரம் புதுப்பிக்கப்பட்டது</string>
+    <string name="snackbar_no_recent_fix">சமீபத்திய இருப்பிடம் இல்லை — திறந்த வெளியில் நகர முயற்சிக்கவும்.</string>
+    <string name="snackbar_couldnt_read_location">உங்கள் இருப்பிடத்தை படிக்க முடியவில்லை.</string>
+
+    <string name="error_search_timed_out">தேடல் நேரம் முடிந்தது — இணைப்பை சரிபார்க்கவும்.</string>
+    <string name="error_no_internet">இணைய இணைப்பு இல்லை.</string>
+    <string name="error_too_many_requests">மிகவும் அதிகமான கோரிக்கைகள் — சிறிது நேரம் கழித்து மீண்டும் முயற்சிக்கவும்.</string>
+    <string name="error_search_down">தேடல் சேவை கிடைக்கவில்லை — விரைவில் மீண்டும் முயற்சிக்கவும்.</string>
+    <string name="error_search_unavailable_format">தேடல் கிடைக்கவில்லை (%d).</string>
+    <string name="error_search_unavailable">தேடல் கிடைக்கவில்லை.</string>
+
+    <string name="notif_channel_service">Station Alarm சேவை</string>
+    <string name="notif_channel_service_desc">கண்காணிப்பு நிலையை காட்டுகிறது</string>
+    <string name="notif_channel_alerts">Station Alarm எச்சரிக்கைகள்</string>
+    <string name="notif_channel_alerts_desc">உயர் முன்னுரிமை அலாரம் எச்சரிக்கைகள்</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">அனைத்தையும் நிறுத்து</string>
+    <string name="notif_alert_title_format">நிலையம் அடைந்தீர்கள்: %s</string>
+    <string name="notif_alert_body_default">உங்கள் இலக்கை அடைந்தீர்கள்.</string>
+    <string name="notif_alert_body_reminder_format">நினைவூட்டல்: %s</string>
+    <string name="notif_alert_dismiss">நிறுத்து</string>
+    <string name="notif_watchdog_title">GPS தேடுகிறது…</string>
+    <string name="notif_watchdog_body_format">இன்னும் கண்காணிக்கிறது — கடைசி சிக்னல் %dm முன்பு.</string>
+    <string name="notif_watchdog_default_body">இன்னும் கண்காணிக்கிறது — சிக்னல் திரும்பும்போது தொடரும்.</string>
+    <string name="notif_watchdog_location_off_title">இருப்பிடம் முடக்கப்பட்டுள்ளது</string>
+    <string name="notif_watchdog_location_off_body">இருப்பிடம் இயக்க தட்டவும் — அதுவரை அலாரம் இடைநிறுத்தப்பட்டுள்ளது.</string>
+    <string name="notif_audio_failure_title">அலாரம் சத்தமின்றி ஒலித்தது</string>
+    <string name="notif_audio_failure_body_format">%s-ல் ஒலி அமைப்பு பிழை — அதிர்வு மட்டும்.</string>
+    <string name="notif_boot_restart_title">மறுதொடக்கம் தேவை</string>
+    <string name="notif_boot_restart_body">அலாரங்களை மீண்டும் இயக்க StationAlarm-ஐ திறக்கவும்.</string>
+    <string name="notif_nearest_format">அருகிலுள்ள நிலையம்: %1$s — %2$s கி.மீ</string>
+    <string name="notif_monitoring_count_format">%d நிலையம் கண்காணிக்கப்படுகிறது...</string>
+    <string name="notif_monitoring_default">நிலையங்கள் கண்காணிக்கப்படுகின்றன...</string>
+    <string name="notif_alarm_ringing_count_format">அலாரம் ஒலிக்கிறது — %d நிலையம் அடைந்தீர்கள்</string>
+
+    <string name="force_update_title">புதுப்பிப்பு தேவை</string>
+    <string name="force_update_body">அலாரங்கள் நம்பகமாக செயல்பட StationAlarm-இன் புதிய பதிப்பு தேவை. தொடர புதுப்பிக்கவும்.</string>
+    <string name="force_update_button">இப்போதே புதுப்பிக்கவும்</string>
+    <string name="maintenance_default_body">சேவை தற்காலிகமாக கிடைக்கவில்லை. நாங்கள் செயல்படுகிறோம்.</string>
+</resources>

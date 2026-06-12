@@ -156,6 +156,26 @@ fun SettingsScreen(onBack: () -> Unit) {
             val languageOptions = listOf(
                 UserPreferences.LOCALE_SYSTEM to stringResource(R.string.settings_language_system),
                 "en" to stringResource(R.string.settings_language_english),
+                "hi" to stringResource(R.string.settings_language_hindi),
+                "es" to stringResource(R.string.settings_language_spanish),
+                "fr" to stringResource(R.string.settings_language_french),
+                "de" to stringResource(R.string.settings_language_german),
+                "pt-BR" to stringResource(R.string.settings_language_portuguese_br),
+                "pt-PT" to stringResource(R.string.settings_language_portuguese_pt),
+                "it" to stringResource(R.string.settings_language_italian),
+                "ru" to stringResource(R.string.settings_language_russian),
+                "nl" to stringResource(R.string.settings_language_dutch),
+                "tr" to stringResource(R.string.settings_language_turkish),
+                "id" to stringResource(R.string.settings_language_indonesian),
+                "pl" to stringResource(R.string.settings_language_polish),
+                "vi" to stringResource(R.string.settings_language_vietnamese),
+                "ko" to stringResource(R.string.settings_language_korean),
+                "ja" to stringResource(R.string.settings_language_japanese),
+                "bn" to stringResource(R.string.settings_language_bengali),
+                "ta" to stringResource(R.string.settings_language_tamil),
+                "te" to stringResource(R.string.settings_language_telugu),
+                "mr" to stringResource(R.string.settings_language_marathi),
+                "gu" to stringResource(R.string.settings_language_gujarati),
             )
             Column(modifier = Modifier.fillMaxWidth()) {
                 languageOptions.forEach { (tag, label) ->

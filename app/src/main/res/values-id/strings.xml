@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <string name="common_cancel">Batal</string>
+    <string name="common_remove">Hapus</string>
+    <string name="common_back">Kembali</string>
+    <string name="common_open_settings">Buka Pengaturan</string>
+    <string name="common_not_now">Nanti saja</string>
+
+    <string name="tab_alarms">Alarm</string>
+    <string name="tab_map">Peta</string>
+    <string name="nav_menu">Menu</string>
+    <string name="nav_settings">Pengaturan</string>
+    <string name="nav_about">Tentang</string>
+    <string name="nav_rate_us">Beri Nilai</string>
+    <string name="nav_share_app">Bagikan Aplikasi</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <string name="permission_location_title">Akses Lokasi Diperlukan</string>
+    <string name="permission_location_body">StationAlarm membutuhkan akses lokasi \'Izinkan sepanjang waktu\' untuk membunyikan alarm saat Anda mendekati tujuan ketika aplikasi ditutup atau ponsel terkunci.</string>
+    <string name="permission_location_steps">• Ketuk \'Pengaturan\' di bawah\n• Ketuk \'Izin\'\n• Pilih \'Lokasi\'\n• Pilih \'Izinkan sepanjang waktu\'</string>
+    <string name="permission_notifications_title">Aktifkan Notifikasi</string>
+    <string name="permission_notifications_body">StationAlarm membutuhkan izin notifikasi untuk menampilkan alarm saat ponsel terkunci. Tanpanya, alarm bisa berbunyi diam-diam di latar belakang dan Anda melewatkan pemberhentian.</string>
+
+    <string name="gps_disabled_title">GPS Nonaktif</string>
+    <string name="gps_disabled_body">Izinkan StationAlarm mengaktifkan layanan lokasi untuk pelacakan yang akurat.</string>
+    <string name="gps_disabled_turn_on">Aktifkan GPS</string>
+
+    <string name="volume_low_title">Volume alarm rendah</string>
+    <string name="volume_low_body">Volume alarm Anda di bawah 50%. Naikkan sekarang agar alarm dapat membangunkan Anda dengan andal.</string>
+    <string name="volume_low_increase">Naikkan ke maksimum</string>
+    <string name="volume_low_keep">Pertahankan saat ini</string>
+
+    <string name="battery_sheet_title">Jaga keandalan alarm</string>
+    <string name="battery_sheet_body">Anda baru saja mengatur alarm — pastikan alarm benar-benar membangunkan Anda. Tanpa pengecualian baterai, Android dapat menidurkan StationAlarm dan alarm Anda bisa terlambat atau tidak berbunyi sama sekali.</string>
+    <string name="battery_sheet_open">Buka pengaturan</string>
+    <string name="battery_sheet_skip">Lewati untuk sekarang</string>
+    <string name="battery_sheet_dont_ask_again">Jangan tanya lagi</string>
+
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">Coba StationAlarm — aplikasi alarm berbasis lokasi untuk kereta dan tempat.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">Bagikan StationAlarm</string>
+
+    <string name="home_search_placeholder">Cari stasiun untuk tambah alarm…</string>
+    <string name="home_clear">Hapus</string>
+    <string name="home_hint_type_more">Ketik minimal 2 karakter</string>
+    <string name="home_hint_no_stations">Tidak ada stasiun ditemukan</string>
+    <string name="home_empty_title">Belum ada alarm</string>
+    <string name="home_empty_body">Cari stasiun di atas atau letakkan pin di peta.</string>
+    <string name="home_empty_open_map">Buka peta</string>
+    <string name="home_remove_title">Hapus alarm?</string>
+    <string name="home_remove_body_format">Ini akan menghentikan pemantauan %s.</string>
+
+    <string name="card_badge_alarm">Alarm</string>
+    <string name="card_badge_notify">Notifikasi</string>
+    <string name="card_badge_ringing">Berbunyi</string>
+    <string name="card_badge_paused">Dijeda</string>
+    <string name="card_alerts_within_format">Peringatan dalam %s</string>
+    <string name="card_last_triggered_format">Terakhir berbunyi: %s</string>
+    <string name="card_paused_body">Dijeda — aktifkan sakelar untuk melanjutkan</string>
+    <string name="card_locating">Melacak lokasi…</string>
+    <string name="card_reminder_format">"%s"</string>
+    <string name="card_action_edit">Edit</string>
+    <string name="card_action_map">Peta</string>
+    <string name="card_action_remove">Hapus alarm</string>
+    <string name="card_action_rename">Ganti nama alarm</string>
+    <string name="card_action_save_name">Simpan nama</string>
+    <string name="card_action_cancel_rename">Batalkan penggantian nama</string>
+
+    <string name="time_today_format">Hari ini %s</string>
+    <string name="time_yesterday_format">Kemarin %s</string>
+
+    <string name="alarm_config_name_label">Nama alarm</string>
+    <string name="alarm_config_default_name">Alarm</string>
+    <string name="alarm_config_section_distance">Jarak peringatan</string>
+    <string name="alarm_config_ring_when_within">Berbunyi saat dalam jangkauan</string>
+    <string name="alarm_config_reminder_label">Catatan pengingat (opsional)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">Tampilkan pengingat saat alarm berbunyi</string>
+    <string name="alarm_config_reminder_toggle_subtitle">Ditampilkan di layar alarm dan notifikasi.</string>
+    <string name="alarm_config_section_alert_by">Peringatkan melalui</string>
+    <string name="alarm_config_channel_notify">Notifikasi</string>
+    <string name="alarm_config_channel_vibrate">Getar</string>
+    <string name="alarm_config_channel_sound">Suara</string>
+    <string name="alarm_config_set">Atur alarm</string>
+    <string name="alarm_config_update">Perbarui alarm</string>
+
+    <string name="map_search_placeholder">Cari tempat, landmark, alamat…</string>
+    <string name="map_search_clear">Hapus</string>
+    <string name="map_search_attribution">Pencarian oleh LocationIQ.com</string>
+    <string name="map_my_location">Lokasi saya</string>
+    <string name="map_pin_dropped_default">Pin Dijatuhkan</string>
+    <string name="map_pin_loading_address">Memuat alamat...</string>
+    <string name="map_perimeter">Perimeter</string>
+    <string name="map_set_alarm">Atur Alarm</string>
+    <string name="map_view_focus_radius_format">Radius peringatan: %s km</string>
+    <string name="map_hint_railway_station">India · Stasiun Kereta Api</string>
+
+    <string name="alarm_screen_wake_up">Bangun!</string>
+    <string name="alarm_screen_arrived_at">Tiba di</string>
+    <string name="alarm_screen_dismiss">Matikan</string>
+    <string name="alarm_screen_press_button_hint">Tekan tombol fisik mana saja untuk mematikan</string>
+    <string name="alarm_screen_default_destination">Tujuan</string>
+
+    <string name="settings_title">Pengaturan</string>
+    <string name="settings_distance_unit">Satuan Jarak</string>
+    <string name="settings_distance_km">Kilometer</string>
+    <string name="settings_distance_miles">Mil</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Bawaan sistem</string>
+    <string name="settings_theme_light">Terang</string>
+    <string name="settings_theme_dark">Gelap</string>
+    <string name="settings_language">Bahasa</string>
+    <string name="settings_language_system">Bawaan sistem</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">Lebih banyak bahasa segera hadir.</string>
+    <string name="settings_alarm_sound">Suara Alarm</string>
+    <string name="settings_alarm_sound_current_format">Saat ini: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ Suara tidak tersedia — pilih ulang untuk memperbaiki.</string>
+    <string name="settings_alarm_sound_change">Ubah</string>
+    <string name="settings_alarm_sound_reselect">Pilih ulang</string>
+    <string name="settings_alarm_sound_reset">Reset</string>
+    <string name="settings_alarm_sound_test">Uji alarm (3d)</string>
+    <string name="settings_alarm_sound_default_name">Alarm bawaan</string>
+    <string name="settings_alarm_sound_custom_name">Suara kustom</string>
+    <string name="settings_sound_picker_title">Pilih Suara Alarm</string>
+    <string name="settings_sound_picker_body">Pilih sumber untuk suara alarm Anda.</string>
+    <string name="settings_sound_picker_system">Nada dering sistem</string>
+    <string name="settings_sound_picker_file">File lokal</string>
+    <string name="settings_sound_picker_select_title">Pilih suara alarm</string>
+    <string name="settings_audio_routing">Perutean Audio</string>
+    <string name="settings_ring_speaker_title">Bunyikan speaker saat pakai headphone</string>
+    <string name="settings_ring_speaker_subtitle">Tetap bunyikan speaker ponsel saat audio kabel atau Bluetooth tersambung.</string>
+    <string name="settings_escalating_title">Mulai pelan, naik ke volume penuh</string>
+    <string name="settings_escalating_subtitle_format">Bertahap naik dalam %ds agar bangun lebih alami</string>
+    <string name="settings_ramp_duration_format">Durasi kenaikan: %ds</string>
+    <string name="settings_ramp_15s">15d</string>
+    <string name="settings_ramp_60s">60d</string>
+    <string name="settings_alarm_duration">Durasi Alarm</string>
+    <string name="settings_alarm_duration_subtitle">Berapa lama alarm berbunyi sebelum berhenti otomatis.</string>
+    <string name="settings_alarm_duration_format">Berbunyi selama: %d mnt</string>
+    <string name="settings_alarm_duration_min">1 mnt</string>
+    <string name="settings_alarm_duration_max">15 mnt</string>
+    <string name="settings_background_running">Berjalan di Latar Belakang</string>
+    <string name="settings_battery_exemption">Pengecualian baterai</string>
+    <string name="settings_battery_exempt_yes">Tidak dibatasi — alarm akan berbunyi dengan andal</string>
+    <string name="settings_battery_exempt_no">Dibatasi — alarm bisa terlewat</string>
+    <string name="settings_battery_open">Buka</string>
+    <string name="settings_debug_logs">Log Debug</string>
+    <string name="settings_debug_logs_subtitle">Bagikan log untuk mendiagnosis masalah alarm.</string>
+    <string name="settings_debug_logs_app">Log aplikasi</string>
+    <string name="settings_debug_logs_gps">Log GPS</string>
+
+    <string name="about_title">Tentang</string>
+    <string name="about_version_format">Versi %s</string>
+    <string name="about_privacy">Kebijakan Privasi</string>
+    <string name="about_terms">Ketentuan Penggunaan</string>
+    <string name="about_licenses">Lisensi Open Source</string>
+    <string name="about_made_with_love">Dibuat dengan ♥ untuk para pelancong.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <string name="snackbar_alarm_set_format">Alarm diatur untuk %s</string>
+    <string name="snackbar_alarm_updated_format">Alarm diperbarui untuk %s</string>
+    <string name="snackbar_no_recent_fix">Tidak ada lokasi terbaru — coba pindah ke area terbuka.</string>
+    <string name="snackbar_couldnt_read_location">Tidak bisa membaca lokasi Anda.</string>
+
+    <string name="error_search_timed_out">Pencarian habis waktu — periksa koneksi Anda.</string>
+    <string name="error_no_internet">Tidak ada koneksi internet.</string>
+    <string name="error_too_many_requests">Terlalu banyak permintaan — coba lagi sebentar lagi.</string>
+    <string name="error_search_down">Layanan pencarian tidak tersedia — coba lagi sebentar lagi.</string>
+    <string name="error_search_unavailable_format">Pencarian tidak tersedia (%d).</string>
+    <string name="error_search_unavailable">Pencarian tidak tersedia.</string>
+
+    <string name="notif_channel_service">Layanan Station Alarm</string>
+    <string name="notif_channel_service_desc">Menampilkan status pelacakan</string>
+    <string name="notif_channel_alerts">Peringatan Station Alarm</string>
+    <string name="notif_channel_alerts_desc">Peringatan alarm prioritas tinggi</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">Hentikan semua</string>
+    <string name="notif_alert_title_format">Stasiun Tercapai: %s</string>
+    <string name="notif_alert_body_default">Anda telah tiba di tujuan.</string>
+    <string name="notif_alert_body_reminder_format">Pengingat: %s</string>
+    <string name="notif_alert_dismiss">Matikan</string>
+    <string name="notif_watchdog_title">Mencari GPS…</string>
+    <string name="notif_watchdog_body_format">Masih melacak — sinyal terakhir %dm lalu.</string>
+    <string name="notif_watchdog_default_body">Masih melacak — akan dilanjutkan saat sinyal kembali.</string>
+    <string name="notif_watchdog_location_off_title">Lokasi nonaktif</string>
+    <string name="notif_watchdog_location_off_body">Ketuk untuk mengaktifkan lokasi — alarm dijeda sampai saat itu.</string>
+    <string name="notif_audio_failure_title">Alarm berbunyi tanpa suara</string>
+    <string name="notif_audio_failure_body_format">Kesalahan sistem audio pada %s — hanya getar.</string>
+    <string name="notif_boot_restart_title">Perlu restart</string>
+    <string name="notif_boot_restart_body">Buka StationAlarm untuk mengaktifkan ulang alarm.</string>
+    <string name="notif_nearest_format">Stasiun terdekat: %1$s — %2$s km</string>
+    <string name="notif_monitoring_count_format">Memantau %d stasiun...</string>
+    <string name="notif_monitoring_default">Memantau stasiun...</string>
+    <string name="notif_alarm_ringing_count_format">Alarm berbunyi — %d stasiun tercapai</string>
+
+    <string name="force_update_title">Pembaruan diperlukan</string>
+    <string name="force_update_body">Versi StationAlarm yang lebih baru diperlukan agar alarm berfungsi dengan andal. Perbarui untuk melanjutkan.</string>
+    <string name="force_update_button">Perbarui sekarang</string>
+    <string name="maintenance_default_body">Layanan sementara tidak tersedia. Kami sedang mengerjakannya.</string>
+</resources>

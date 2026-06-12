@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <string name="common_cancel">İptal</string>
+    <string name="common_remove">Kaldır</string>
+    <string name="common_back">Geri</string>
+    <string name="common_open_settings">Ayarları Aç</string>
+    <string name="common_not_now">Şimdi değil</string>
+
+    <string name="tab_alarms">Alarmlar</string>
+    <string name="tab_map">Harita</string>
+    <string name="nav_menu">Menü</string>
+    <string name="nav_settings">Ayarlar</string>
+    <string name="nav_about">Hakkında</string>
+    <string name="nav_rate_us">Bizi Değerlendirin</string>
+    <string name="nav_share_app">Uygulamayı Paylaş</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <string name="permission_location_title">Konum Erişimi Gerekli</string>
+    <string name="permission_location_body">StationAlarm, uygulama kapalıyken veya telefon kilitliyken hedefinize yaklaştığınızda alarmı çalabilmek için \'Her zaman izin ver\' konum erişimi gerektirir.</string>
+    <string name="permission_location_steps">• Aşağıdaki \'Ayarlar\'a dokunun\n• \'İzinler\'e dokunun\n• \'Konum\'u seçin\n• \'Her zaman izin ver\'i seçin</string>
+    <string name="permission_notifications_title">Bildirimleri Etkinleştir</string>
+    <string name="permission_notifications_body">StationAlarm, telefon kilitliyken alarm göstermek için bildirim iznine ihtiyaç duyar. Bu izin olmadan alarm arka planda sessizce çalabilir ve durağınızı kaçırabilirsiniz.</string>
+
+    <string name="gps_disabled_title">GPS Devre Dışı</string>
+    <string name="gps_disabled_body">Doğru takip için StationAlarm\'ın konum hizmetlerini açmasına izin verin.</string>
+    <string name="gps_disabled_turn_on">GPS\'i Aç</string>
+
+    <string name="volume_low_title">Alarm sesi düşük</string>
+    <string name="volume_low_body">Alarm sesiniz %50\'nin altında. Alarmın sizi güvenilir şekilde uyandırması için şimdi yükseltin.</string>
+    <string name="volume_low_increase">Maksimuma yükselt</string>
+    <string name="volume_low_keep">Mevcut seviyede bırak</string>
+
+    <string name="battery_sheet_title">Alarm güvenilirliğini koruyun</string>
+    <string name="battery_sheet_body">Az önce bir alarm kurdunuz — gerçekten çalmasını sağlayalım. Pil istisnası olmadan Android, StationAlarm\'ı uyku moduna alabilir ve alarmınız geç çalabilir ya da hiç çalmayabilir.</string>
+    <string name="battery_sheet_open">Ayarları aç</string>
+    <string name="battery_sheet_skip">Şimdilik geç</string>
+    <string name="battery_sheet_dont_ask_again">Bir daha sorma</string>
+
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">StationAlarm\'ı deneyin — tren ve mekanlar için konum tabanlı alarm uygulaması.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">StationAlarm\'ı Paylaş</string>
+
+    <string name="home_search_placeholder">Alarm eklemek için istasyon arayın…</string>
+    <string name="home_clear">Temizle</string>
+    <string name="home_hint_type_more">En az 2 karakter girin</string>
+    <string name="home_hint_no_stations">İstasyon bulunamadı</string>
+    <string name="home_empty_title">Henüz alarm yok</string>
+    <string name="home_empty_body">Yukarıdan bir istasyon arayın veya haritaya pin bırakın.</string>
+    <string name="home_empty_open_map">Haritayı aç</string>
+    <string name="home_remove_title">Alarm silinsin mi?</string>
+    <string name="home_remove_body_format">Bu, %s izlemeyi durduracak.</string>
+
+    <string name="card_badge_alarm">Alarm</string>
+    <string name="card_badge_notify">Bildirim</string>
+    <string name="card_badge_ringing">Çalıyor</string>
+    <string name="card_badge_paused">Duraklatıldı</string>
+    <string name="card_alerts_within_format">%s içinde uyarı</string>
+    <string name="card_last_triggered_format">Son tetikleme: %s</string>
+    <string name="card_paused_body">Duraklatıldı — devam ettirmek için anahtarı açın</string>
+    <string name="card_locating">Konumlanıyor…</string>
+    <string name="card_reminder_format">"%s"</string>
+    <string name="card_action_edit">Düzenle</string>
+    <string name="card_action_map">Harita</string>
+    <string name="card_action_remove">Alarmı kaldır</string>
+    <string name="card_action_rename">Alarmı yeniden adlandır</string>
+    <string name="card_action_save_name">Adı kaydet</string>
+    <string name="card_action_cancel_rename">Yeniden adlandırmayı iptal et</string>
+
+    <string name="time_today_format">Bugün %s</string>
+    <string name="time_yesterday_format">Dün %s</string>
+
+    <string name="alarm_config_name_label">Alarm adı</string>
+    <string name="alarm_config_default_name">Alarm</string>
+    <string name="alarm_config_section_distance">Uyarı mesafesi</string>
+    <string name="alarm_config_ring_when_within">Şu mesafe içinde çal:</string>
+    <string name="alarm_config_reminder_label">Hatırlatma notu (isteğe bağlı)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">Alarm çaldığında hatırlatmayı göster</string>
+    <string name="alarm_config_reminder_toggle_subtitle">Alarm ekranında ve bildirimde gösterilir.</string>
+    <string name="alarm_config_section_alert_by">Şununla uyar:</string>
+    <string name="alarm_config_channel_notify">Bildirim</string>
+    <string name="alarm_config_channel_vibrate">Titreşim</string>
+    <string name="alarm_config_channel_sound">Ses</string>
+    <string name="alarm_config_set">Alarm kur</string>
+    <string name="alarm_config_update">Alarmı güncelle</string>
+
+    <string name="map_search_placeholder">Yer, simge yapı, adres arayın…</string>
+    <string name="map_search_clear">Temizle</string>
+    <string name="map_search_attribution">LocationIQ.com ile arama</string>
+    <string name="map_my_location">Konumum</string>
+    <string name="map_pin_dropped_default">Bırakılan Pin</string>
+    <string name="map_pin_loading_address">Adres yükleniyor...</string>
+    <string name="map_perimeter">Çevre</string>
+    <string name="map_set_alarm">Alarm Kur</string>
+    <string name="map_view_focus_radius_format">Uyarı yarıçapı: %s km</string>
+    <string name="map_hint_railway_station">Hindistan · Demiryolu İstasyonu</string>
+
+    <string name="alarm_screen_wake_up">Uyanın!</string>
+    <string name="alarm_screen_arrived_at">Şuraya ulaşıldı:</string>
+    <string name="alarm_screen_dismiss">Kapat</string>
+    <string name="alarm_screen_press_button_hint">Kapatmak için herhangi bir fiziksel düğmeye basın</string>
+    <string name="alarm_screen_default_destination">Hedef</string>
+
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_distance_unit">Mesafe Birimi</string>
+    <string name="settings_distance_km">Kilometre</string>
+    <string name="settings_distance_miles">Mil</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Sistem varsayılanı</string>
+    <string name="settings_theme_light">Açık</string>
+    <string name="settings_theme_dark">Koyu</string>
+    <string name="settings_language">Dil</string>
+    <string name="settings_language_system">Sistem varsayılanı</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">Yakında daha fazla dil.</string>
+    <string name="settings_alarm_sound">Alarm Sesi</string>
+    <string name="settings_alarm_sound_current_format">Mevcut: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ Ses kullanılamıyor — düzeltmek için yeniden seçin.</string>
+    <string name="settings_alarm_sound_change">Değiştir</string>
+    <string name="settings_alarm_sound_reselect">Yeniden seç</string>
+    <string name="settings_alarm_sound_reset">Sıfırla</string>
+    <string name="settings_alarm_sound_test">Alarmı test et (3sn)</string>
+    <string name="settings_alarm_sound_default_name">Varsayılan alarm</string>
+    <string name="settings_alarm_sound_custom_name">Özel ses</string>
+    <string name="settings_sound_picker_title">Alarm Sesi Seç</string>
+    <string name="settings_sound_picker_body">Alarm sesiniz için bir kaynak seçin.</string>
+    <string name="settings_sound_picker_system">Sistem zil sesleri</string>
+    <string name="settings_sound_picker_file">Yerel dosya</string>
+    <string name="settings_sound_picker_select_title">Alarm sesi seçin</string>
+    <string name="settings_audio_routing">Ses Yönlendirme</string>
+    <string name="settings_ring_speaker_title">Kulaklıkla hoparlörü çaldır</string>
+    <string name="settings_ring_speaker_subtitle">Kablolu veya Bluetooth ses bağlıyken telefon hoparlörünü yüksek tutun.</string>
+    <string name="settings_escalating_title">Sessiz başlayıp tam ses seviyesine yüksel</string>
+    <string name="settings_escalating_subtitle_format">Doğal uyanış için %ds içinde kademeli olarak artar</string>
+    <string name="settings_ramp_duration_format">Artış süresi: %ds</string>
+    <string name="settings_ramp_15s">15sn</string>
+    <string name="settings_ramp_60s">60sn</string>
+    <string name="settings_alarm_duration">Alarm Süresi</string>
+    <string name="settings_alarm_duration_subtitle">Alarm otomatik durmadan önce ne kadar süre çalar.</string>
+    <string name="settings_alarm_duration_format">Çalma süresi: %d dk</string>
+    <string name="settings_alarm_duration_min">1 dk</string>
+    <string name="settings_alarm_duration_max">15 dk</string>
+    <string name="settings_background_running">Arka Plan Çalışması</string>
+    <string name="settings_battery_exemption">Pil istisnası</string>
+    <string name="settings_battery_exempt_yes">Kısıtsız — alarmlar güvenilir şekilde çalacak</string>
+    <string name="settings_battery_exempt_no">Kısıtlı — alarmlar kaçırılabilir</string>
+    <string name="settings_battery_open">Aç</string>
+    <string name="settings_debug_logs">Hata Ayıklama Günlükleri</string>
+    <string name="settings_debug_logs_subtitle">Alarm sorunlarını teşhis etmek için günlükleri paylaşın.</string>
+    <string name="settings_debug_logs_app">Uygulama günlükleri</string>
+    <string name="settings_debug_logs_gps">GPS günlükleri</string>
+
+    <string name="about_title">Hakkında</string>
+    <string name="about_version_format">Sürüm %s</string>
+    <string name="about_privacy">Gizlilik Politikası</string>
+    <string name="about_terms">Kullanım Koşulları</string>
+    <string name="about_licenses">Açık Kaynak Lisansları</string>
+    <string name="about_made_with_love">Gezginler için ♥ ile yapıldı.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <string name="snackbar_alarm_set_format">%s için alarm kuruldu</string>
+    <string name="snackbar_alarm_updated_format">%s için alarm güncellendi</string>
+    <string name="snackbar_no_recent_fix">Son konum yok — açık bir alana geçmeyi deneyin.</string>
+    <string name="snackbar_couldnt_read_location">Konumunuz okunamadı.</string>
+
+    <string name="error_search_timed_out">Arama zaman aşımına uğradı — bağlantınızı kontrol edin.</string>
+    <string name="error_no_internet">İnternet bağlantısı yok.</string>
+    <string name="error_too_many_requests">Çok fazla istek — bir süre sonra tekrar deneyin.</string>
+    <string name="error_search_down">Arama servisi çalışmıyor — kısa süre sonra tekrar deneyin.</string>
+    <string name="error_search_unavailable_format">Arama kullanılamıyor (%d).</string>
+    <string name="error_search_unavailable">Arama kullanılamıyor.</string>
+
+    <string name="notif_channel_service">Station Alarm Servisi</string>
+    <string name="notif_channel_service_desc">Takip durumunu gösterir</string>
+    <string name="notif_channel_alerts">Station Alarm Uyarıları</string>
+    <string name="notif_channel_alerts_desc">Yüksek öncelikli alarm uyarıları</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">Tümünü durdur</string>
+    <string name="notif_alert_title_format">İstasyona Ulaşıldı: %s</string>
+    <string name="notif_alert_body_default">Hedefinize ulaştınız.</string>
+    <string name="notif_alert_body_reminder_format">Hatırlatma: %s</string>
+    <string name="notif_alert_dismiss">Kapat</string>
+    <string name="notif_watchdog_title">GPS aranıyor…</string>
+    <string name="notif_watchdog_body_format">Hâlâ takip ediliyor — son sinyal %dm önce.</string>
+    <string name="notif_watchdog_default_body">Hâlâ takip ediliyor — sinyal döndüğünde devam edecek.</string>
+    <string name="notif_watchdog_location_off_title">Konum kapalı</string>
+    <string name="notif_watchdog_location_off_body">Konumu etkinleştirmek için dokunun — alarm o zamana kadar duraklatıldı.</string>
+    <string name="notif_audio_failure_title">Alarm sessizce çaldı</string>
+    <string name="notif_audio_failure_body_format">%s\'de ses sistemi hatası — yalnızca titreşim.</string>
+    <string name="notif_boot_restart_title">Yeniden başlatma gerekli</string>
+    <string name="notif_boot_restart_body">Alarmlarınızı yeniden etkinleştirmek için StationAlarm\'ı açın.</string>
+    <string name="notif_nearest_format">En yakın istasyon: %1$s — %2$s km</string>
+    <string name="notif_monitoring_count_format">%d istasyon izleniyor...</string>
+    <string name="notif_monitoring_default">İstasyonlar izleniyor...</string>
+    <string name="notif_alarm_ringing_count_format">Alarm çalıyor — %d istasyona ulaşıldı</string>
+
+    <string name="force_update_title">Güncelleme gerekli</string>
+    <string name="force_update_body">Alarmların güvenilir çalışması için daha yeni bir StationAlarm sürümü gereklidir. Devam etmek için lütfen güncelleyin.</string>
+    <string name="force_update_button">Şimdi güncelle</string>
+    <string name="maintenance_default_body">Hizmet geçici olarak kullanılamıyor. Üzerinde çalışıyoruz.</string>
+</resources>

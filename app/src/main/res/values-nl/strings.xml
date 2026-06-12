@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <string name="common_cancel">Annuleren</string>
+    <string name="common_remove">Verwijderen</string>
+    <string name="common_back">Terug</string>
+    <string name="common_open_settings">Instellingen openen</string>
+    <string name="common_not_now">Nu niet</string>
+
+    <string name="tab_alarms">Alarmen</string>
+    <string name="tab_map">Kaart</string>
+    <string name="nav_menu">Menu</string>
+    <string name="nav_settings">Instellingen</string>
+    <string name="nav_about">Over</string>
+    <string name="nav_rate_us">Beoordeel ons</string>
+    <string name="nav_share_app">App delen</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <string name="permission_location_title">Locatietoegang vereist</string>
+    <string name="permission_location_body">StationAlarm vereist \'Altijd toestaan\' locatietoegang om het alarm te laten afgaan wanneer je je bestemming nadert terwijl de app is gesloten of je telefoon is vergrendeld.</string>
+    <string name="permission_location_steps">• Tik op \'Instellingen\' hieronder\n• Tik op \'Toestemmingen\'\n• Selecteer \'Locatie\'\n• Kies \'Altijd toestaan\'</string>
+    <string name="permission_notifications_title">Meldingen inschakelen</string>
+    <string name="permission_notifications_body">StationAlarm heeft meldingstoestemming nodig om alarmen te tonen terwijl je telefoon vergrendeld is. Zonder dit kan het alarm stilletjes op de achtergrond afgaan en mis je je stop.</string>
+
+    <string name="gps_disabled_title">GPS uitgeschakeld</string>
+    <string name="gps_disabled_body">Sta StationAlarm toe om locatieservices in te schakelen voor nauwkeurige tracking.</string>
+    <string name="gps_disabled_turn_on">GPS inschakelen</string>
+
+    <string name="volume_low_title">Alarmvolume is laag</string>
+    <string name="volume_low_body">Uw alarmvolume is lager dan 50%. Zet het nu hoger zodat het alarm u betrouwbaar wekt.</string>
+    <string name="volume_low_increase">Naar maximum verhogen</string>
+    <string name="volume_low_keep">Huidig behouden</string>
+
+    <string name="battery_sheet_title">Houd alarmen betrouwbaar</string>
+    <string name="battery_sheet_body">U heeft zojuist een alarm ingesteld — laten we ervoor zorgen dat het u ook wekt. Zonder een batterij-uitzondering kan Android StationAlarm in slaap sturen en kan uw alarm te laat of helemaal niet afgaan.</string>
+    <string name="battery_sheet_open">Instellingen openen</string>
+    <string name="battery_sheet_skip">Nu overslaan</string>
+    <string name="battery_sheet_dont_ask_again">Niet meer vragen</string>
+
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">Probeer StationAlarm — een locatiegebaseerde alarm-app voor treinen en plaatsen.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">StationAlarm delen</string>
+
+    <string name="home_search_placeholder">Zoek een station om alarm toe te voegen…</string>
+    <string name="home_clear">Wissen</string>
+    <string name="home_hint_type_more">Typ minimaal 2 tekens</string>
+    <string name="home_hint_no_stations">Geen stations gevonden</string>
+    <string name="home_empty_title">Nog geen alarmen</string>
+    <string name="home_empty_body">Zoek hierboven een station of zet een speld op de kaart.</string>
+    <string name="home_empty_open_map">Kaart openen</string>
+    <string name="home_remove_title">Alarm verwijderen?</string>
+    <string name="home_remove_body_format">Dit stopt de bewaking van %s.</string>
+
+    <string name="card_badge_alarm">Alarm</string>
+    <string name="card_badge_notify">Melding</string>
+    <string name="card_badge_ringing">Rinkelen</string>
+    <string name="card_badge_paused">Gepauzeerd</string>
+    <string name="card_alerts_within_format">Alarm binnen %s</string>
+    <string name="card_last_triggered_format">Laatste activering: %s</string>
+    <string name="card_paused_body">Gepauzeerd — schakelaar omzetten om te hervatten</string>
+    <string name="card_locating">Localiseren…</string>
+    <string name="card_reminder_format">"%s"</string>
+    <string name="card_action_edit">Bewerken</string>
+    <string name="card_action_map">Kaart</string>
+    <string name="card_action_remove">Alarm verwijderen</string>
+    <string name="card_action_rename">Alarm hernoemen</string>
+    <string name="card_action_save_name">Naam opslaan</string>
+    <string name="card_action_cancel_rename">Hernoemen annuleren</string>
+
+    <string name="time_today_format">Vandaag %s</string>
+    <string name="time_yesterday_format">Gisteren %s</string>
+
+    <string name="alarm_config_name_label">Alarmnaam</string>
+    <string name="alarm_config_default_name">Alarm</string>
+    <string name="alarm_config_section_distance">Waarschuwingsafstand</string>
+    <string name="alarm_config_ring_when_within">Rinkelen wanneer binnen</string>
+    <string name="alarm_config_reminder_label">Herinneringsnota (optioneel)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">Herinnering tonen bij activeren alarm</string>
+    <string name="alarm_config_reminder_toggle_subtitle">Weergegeven op het alarmscherm en de melding.</string>
+    <string name="alarm_config_section_alert_by">Waarschuwen via</string>
+    <string name="alarm_config_channel_notify">Melding</string>
+    <string name="alarm_config_channel_vibrate">Trillen</string>
+    <string name="alarm_config_channel_sound">Geluid</string>
+    <string name="alarm_config_set">Alarm instellen</string>
+    <string name="alarm_config_update">Alarm bijwerken</string>
+
+    <string name="map_search_placeholder">Zoek een plaats, bezienswaardigheid, adres…</string>
+    <string name="map_search_clear">Wissen</string>
+    <string name="map_search_attribution">Zoeken via LocationIQ.com</string>
+    <string name="map_my_location">Mijn locatie</string>
+    <string name="map_pin_dropped_default">Speld geplaatst</string>
+    <string name="map_pin_loading_address">Adres laden...</string>
+    <string name="map_perimeter">Omtrek</string>
+    <string name="map_set_alarm">Alarm instellen</string>
+    <string name="map_view_focus_radius_format">Waarschuwingsradius: %s km</string>
+    <string name="map_hint_railway_station">India · Treinstation</string>
+
+    <string name="alarm_screen_wake_up">Wakker worden!</string>
+    <string name="alarm_screen_arrived_at">Aangekomen bij</string>
+    <string name="alarm_screen_dismiss">Sluiten</string>
+    <string name="alarm_screen_press_button_hint">Druk op een fysieke knop om te sluiten</string>
+    <string name="alarm_screen_default_destination">Bestemming</string>
+
+    <string name="settings_title">Instellingen</string>
+    <string name="settings_distance_unit">Afstandseenheid</string>
+    <string name="settings_distance_km">Kilometer</string>
+    <string name="settings_distance_miles">Mijlen</string>
+    <string name="settings_theme">Thema</string>
+    <string name="settings_theme_system">Systeemstandaard</string>
+    <string name="settings_theme_light">Licht</string>
+    <string name="settings_theme_dark">Donker</string>
+    <string name="settings_language">Taal</string>
+    <string name="settings_language_system">Systeemstandaard</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">Meer talen komen eraan.</string>
+    <string name="settings_alarm_sound">Alarmgeluid</string>
+    <string name="settings_alarm_sound_current_format">Huidig: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ Geluid niet beschikbaar — opnieuw selecteren om te corrigeren.</string>
+    <string name="settings_alarm_sound_change">Wijzigen</string>
+    <string name="settings_alarm_sound_reselect">Opnieuw selecteren</string>
+    <string name="settings_alarm_sound_reset">Resetten</string>
+    <string name="settings_alarm_sound_test">Alarm testen (3s)</string>
+    <string name="settings_alarm_sound_default_name">Standaardalarm</string>
+    <string name="settings_alarm_sound_custom_name">Aangepast geluid</string>
+    <string name="settings_sound_picker_title">Alarmgeluid kiezen</string>
+    <string name="settings_sound_picker_body">Kies een bron voor uw alarmgeluid.</string>
+    <string name="settings_sound_picker_system">Systeemringtones</string>
+    <string name="settings_sound_picker_file">Lokaal bestand</string>
+    <string name="settings_sound_picker_select_title">Alarmgeluid selecteren</string>
+    <string name="settings_audio_routing">Audiorouting</string>
+    <string name="settings_ring_speaker_title">Luidspreker met koptelefoon laten rinkelen</string>
+    <string name="settings_ring_speaker_subtitle">De telefoonluidspreker luid houden wanneer bekabelde of Bluetooth-audio is verbonden.</string>
+    <string name="settings_escalating_title">Zacht beginnen, opbouwen tot vol volume</string>
+    <string name="settings_escalating_subtitle_format">Neemt geleidelijk toe over %ds voor een natuurlijk ontwaken</string>
+    <string name="settings_ramp_duration_format">Opbouwduur: %ds</string>
+    <string name="settings_ramp_15s">15s</string>
+    <string name="settings_ramp_60s">60s</string>
+    <string name="settings_alarm_duration">Alarmduur</string>
+    <string name="settings_alarm_duration_subtitle">Hoe lang het alarm rinkelt voor automatisch stoppen.</string>
+    <string name="settings_alarm_duration_format">Rinkelt voor: %d min</string>
+    <string name="settings_alarm_duration_min">1 min</string>
+    <string name="settings_alarm_duration_max">15 min</string>
+    <string name="settings_background_running">Achtergronduitvoering</string>
+    <string name="settings_battery_exemption">Batterij-uitzondering</string>
+    <string name="settings_battery_exempt_yes">Onbeperkt — alarmen zullen betrouwbaar afgaan</string>
+    <string name="settings_battery_exempt_no">Beperkt — alarmen kunnen worden gemist</string>
+    <string name="settings_battery_open">Openen</string>
+    <string name="settings_debug_logs">Debug-logboeken</string>
+    <string name="settings_debug_logs_subtitle">Logboeken delen voor diagnose van alarmproblemen.</string>
+    <string name="settings_debug_logs_app">App-logboeken</string>
+    <string name="settings_debug_logs_gps">GPS-logboeken</string>
+
+    <string name="about_title">Over</string>
+    <string name="about_version_format">Versie %s</string>
+    <string name="about_privacy">Privacybeleid</string>
+    <string name="about_terms">Gebruiksvoorwaarden</string>
+    <string name="about_licenses">Open-sourcelicenties</string>
+    <string name="about_made_with_love">Gemaakt met ♥ voor reizigers.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <string name="snackbar_alarm_set_format">Alarm ingesteld voor %s</string>
+    <string name="snackbar_alarm_updated_format">Alarm bijgewerkt voor %s</string>
+    <string name="snackbar_no_recent_fix">Geen recente locatie — probeer naar een open gebied te gaan.</string>
+    <string name="snackbar_couldnt_read_location">Kon uw locatie niet lezen.</string>
+
+    <string name="error_search_timed_out">Zoekopdracht verlopen — controleer uw verbinding.</string>
+    <string name="error_no_internet">Geen internetverbinding.</string>
+    <string name="error_too_many_requests">Te veel verzoeken — probeer het over een moment opnieuw.</string>
+    <string name="error_search_down">Zoekservice is niet beschikbaar — probeer het binnenkort opnieuw.</string>
+    <string name="error_search_unavailable_format">Zoeken niet beschikbaar (%d).</string>
+    <string name="error_search_unavailable">Zoeken niet beschikbaar.</string>
+
+    <string name="notif_channel_service">Station Alarm Service</string>
+    <string name="notif_channel_service_desc">Toont trackingstatus</string>
+    <string name="notif_channel_alerts">Station Alarm Meldingen</string>
+    <string name="notif_channel_alerts_desc">Alarmmeldingen met hoge prioriteit</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">Alles stoppen</string>
+    <string name="notif_alert_title_format">Station bereikt: %s</string>
+    <string name="notif_alert_body_default">U bent op uw bestemming aangekomen.</string>
+    <string name="notif_alert_body_reminder_format">Herinnering: %s</string>
+    <string name="notif_alert_dismiss">Sluiten</string>
+    <string name="notif_watchdog_title">GPS zoeken…</string>
+    <string name="notif_watchdog_body_format">Nog steeds aan het tracken — laatste signaal %dm geleden.</string>
+    <string name="notif_watchdog_default_body">Nog steeds aan het tracken — hervat wanneer signaal terugkeert.</string>
+    <string name="notif_watchdog_location_off_title">Locatie is uitgeschakeld</string>
+    <string name="notif_watchdog_location_off_body">Tik om locatie in te schakelen — alarm is gepauzeerd.</string>
+    <string name="notif_audio_failure_title">Alarm zonder geluid afgegaan</string>
+    <string name="notif_audio_failure_body_format">Audiosysteemfout bij %s — alleen trillen.</string>
+    <string name="notif_boot_restart_title">Herstart vereist</string>
+    <string name="notif_boot_restart_body">Open StationAlarm om uw alarmen opnieuw in te stellen.</string>
+    <string name="notif_nearest_format">Dichtstbijzijnde station: %1$s — %2$s km</string>
+    <string name="notif_monitoring_count_format">%d station(s) bewaken...</string>
+    <string name="notif_monitoring_default">Stations bewaken...</string>
+    <string name="notif_alarm_ringing_count_format">Alarm rinkelt — %d station(s) bereikt</string>
+
+    <string name="force_update_title">Update vereist</string>
+    <string name="force_update_body">Een nieuwere versie van StationAlarm is vereist om alarmen betrouwbaar te laten werken. Update om door te gaan.</string>
+    <string name="force_update_button">Nu updaten</string>
+    <string name="maintenance_default_body">Service tijdelijk niet beschikbaar. We werken eraan.</string>
+</resources>
