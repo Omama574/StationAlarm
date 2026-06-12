@@ -237,6 +237,49 @@ End-to-end refactor in three layers so the app no longer cares which geocoder is
 
 **Pending deployment:** the Worker code at `https://stationalarm-geo.mohammedomama2005.workers.dev/` still speaks the OLD wire format. App search/reverse will fail at runtime until the Worker is updated in the Cloudflare dashboard. New `worker.js` was delivered in the chat — paste into the in-browser editor and click Deploy.
 
+### Session: Escalating Alarm, Battery UX, Alarm Pipeline Hardening & Observability (2026-05-17 – 2026-05-21)
+
+13 commits across 5 days shipped between the Bluetooth session and the Provider-Neutral Geocoding session. Covers escalating volume, battery onboarding, three alarm-pipeline reliability fixes from the hardening plan, DB v5→v6, two UX features, and a full observability layer.
+
+**Escalating alarm + low-volume warning (`5a0b9a0`):**
+- Alarm now ramps from 5% → 100% over a configurable window (default 30s, range 15–60s) instead of starting at full blast. Default ON.
+- `UserPreferences`: `escalating_alarm_enabled` + `escalating_alarm_ramp_secs` keys.
+- `AlarmAudioController`: mainHandler-based Runnable ramps `setVolume` each second; ramp teardown in `stopAlarmSound` and `finishTerminalFailure`.
+- `LocationService`: caches escalating prefs, passes to `playAlarmSound`.
+- `SettingsScreen`: toggle + snapping slider (15–60s, 5s steps) in Audio Routing card.
+- `AppRoot`: low-volume warning dialog after alarm confirmation (chains after battery sheet if both conditions apply).
+
+**Battery optimization onboarding (`cbc856f`):**
+- New `BatteryOptimizationSheet` bottom sheet + `BatteryOptimizationHelper` utility.
+- Prompts users to exempt the app from battery restrictions, ensuring `LocationService` survives on OEM-restricted devices (MIUI, OneUI, Realme).
+- Sheet shown after alarm confirmation when `isIgnoringBatteryOptimizations()` returns false.
+
+**Alarm pipeline reliability — 3 fixes from the hardening plan:**
+- **Ghost alarm prevention (`ac8b137`):** On process kill mid-alarm, `alertingStationIds` is lost but the DB row stays `ALERTING`. On service restart, `syncWithDatabase` diffed against the empty in-memory set and re-fired every `ALERTING` row without user interaction. Fix: `resetAllAlertingToMonitoring()` is now awaited before the flow subscribes — first emission reflects the cleared state. Also: each `preferences.first()` fallback in `fireAlert()` wrapped in try-catch with sensible default (corrupted DataStore previously cancelled `fireAlert` mid-execution with the wake lock held and the station still `ALERTING`).
+- **GeofenceBroadcastReceiver wake lock bridge (`077d570`):** CPU could suspend in the window between `goAsync()` finishing and `LocationService` acquiring its own wake lock. Under Doze/MIUI Deep Sleep this dropped geofence events entirely. Fix: 10-second `PARTIAL_WAKE_LOCK` acquired as the first line of `onReceive()`, released after `startForegroundService` completes. Also: `BackgroundServiceStartNotAllowed` and vendor security exceptions now caught — station reset to `MONITORING` so a later geofence trip can retry cleanly.
+- **Battery sheet "Don't ask again" (`7709c5d`):** Sheet was shown on every alarm set/edit if not exempted, training reflexive dismissal. Fix: `battery_opt_permanently_dismissed` boolean pref in `UserPreferences`; third button "Don't ask again" (error tint) on `BatteryOptimizationSheet`; `AppRoot` gates the sheet on `!batteryOptDismissed` in addition to the existing exemption check.
+
+**DB v5 → v6 + UX features:**
+- **Schema refactor (`81d6bc9`):** `saved_places` table dropped (vestige from an earlier favouriting plan; `PAUSED` state covers the same UX). `MIGRATION_5_6` drops the table and adds nullable `lastTriggeredAt` to `active_stations`. Removed: `SavedPlace.kt`, `SavedPlaceEntity.kt`, `SavedPlaceDao.kt`, `FavoritesBottomSheet.kt`, and all callers.
+- **Editable alarm name + last-triggered timestamp (`617fb7d`):** Bottom sheet pre-fills alarm name from search result/geocoded address ("Dropped Pin" → "Alarm"). Inline rename affordance on each station card (no extra screen). `markAlerting()` stamps `lastTriggeredAt`; card renders it as "Today HH:mm" / "Yesterday HH:mm" / "dd MMM HH:mm" via `java.time`.
+- **Configurable alarm duration (`70d8fe3`):** Settings → Alarm Duration: 60-second-step slider (60–900s, default 180s). `UserPreferences`: `alarm_duration_secs` with write-time `coerceIn`. `AlarmAudioController.startTimeout` takes `durationMs` as parameter (was hardcoded). Implemented as a coroutine watchdog inside the foreground `LocationService` (avoids `SCHEDULE_EXACT_ALARM` permission cost and Play Store review).
+
+**Reliability hardening (`4eb756c`):**
+- `LocationService` stops itself if `resetAllAlertingToMonitoring` throws on cold start (prevents ghost alarm re-fire from partial state).
+- Alarm notification channel: `setBypassDnd(true)` — `CATEGORY_ALARM` alone wasn't suppressing fullscreen intent under DND on locked Pixels.
+- Per-station `Mutex` (`ConcurrentHashMap<String, Mutex>`) in `StationRepository` guards `markAlerting`, `rearmStation`, and `updateActiveStationSettings` against interleaved DB writes + geofence operations on rapid toggle/edit.
+- New `markAlertingSync` (suspending) used by `GeofenceBroadcastReceiver` to avoid race with `resetToMonitoring` on the `startForegroundService`-failure path.
+- Firebase init wrapped in try-catch (malformed `google-services.json` or stale GMS no longer crashes the process).
+- osmdroid tile cache cut 50 MB → 5 MB (map tab rarely re-opened; 50 MB persistent storage was wasteful).
+
+**Observability:**
+- **Test alarm button (`0d8b084`):** `ACTION_TEST_ALARM` intent handled by `LocationService` — plays configured alarm sound for 3s at current routing setting, then stops. Surfaced as "Test alarm (3s)" in Settings → Alarm Sound. If no real alarms armed, service stops itself after test so the foreground notification doesn't linger. Also: `fireAlert()` stamps six Crashlytics custom keys at alarm start (`alarm_station_id`, `alarm_battery_exempt`, `alarm_gps_accuracy_m`, `alarm_audio_route`, `alarm_escalating`, `alarm_duration_secs`).
+- **Robolectric unit tests (`5212259`):** 19 new tests across 3 suites: `ActiveStationDaoTest` (reset scope, PAUSED guard, `updateStationName`, `setLastTriggeredAt`), `UserPreferencesTest` (alarm duration clamp), `MapSearchViewModelErrorTest` (network error → snackbar copy mapping for each branch). Deps added: Robolectric 4.11.1, `androidx.test` core-ktx + junit-ktx, `kotlinx-coroutines-test`.
+- **Crashlytics + Analytics (`46fd4cd`):** `Logger` gains `breadcrumb()` (CSV + Crashlytics breadcrumb) and `error()` (CSV + non-fatal exception). New `AnalyticsUtil` wraps `FirebaseAnalytics` with swallow-on-throw. Always-on Crashlytics keys at app start: `manufacturer`, `device_model`, `android_sdk`, `battery_exempt`, `alarms_count`. Analytics user properties: `manufacturer`, `android_sdk`, `alarms_count_band`. ~50 `Logger.log` call sites triaged across the alarm pipeline to `breadcrumb`/`error` as appropriate.
+- **Manual test plan (`62882af`):** `MANUAL_TEST_PLAN.md` added — 408 lines, ~110 test cases across 22 sections covering every user-facing change on `feature/glass-ui`. Includes 15-min smoke section and a sign-off table.
+
+---
+
 ### Session: Bluetooth/Headphone Audio Routing (2026-05-16)
 Implemented safety-first dual-route audio routing to ensure alarms ring through both the device speaker and external audio devices (Bluetooth/Wired) by default.
 
