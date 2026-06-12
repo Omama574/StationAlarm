@@ -1,6 +1,6 @@
 # StationAlarm — Project State
 
-> **Last updated:** 2026-05-21
+> **Last updated:** 2026-06-12
 > Update this file at the end of every session with what changed and what's next.
 
 ---
@@ -99,11 +99,39 @@ Station selected → StationConfigBottomSheet → radius/sound/vibrate config
 
 ## Localization
 
-- **Strings:** every user-facing literal lives in `res/values/strings.xml` (~180 entries grouped by screen).
+- **Strings:** every user-facing literal lives in `res/values/strings.xml` (~238 entries grouped by screen).
 - **Per-app locale:** `data/UserPreferences.appLocaleFlow` stores `"system"` (default) or a BCP 47 tag. `StationAlarmApplication.applyPersistedLocale()` reads it at process start and calls `AppCompatDelegate.setApplicationLocales(...)` BEFORE any Activity is created.
-- **Picker:** Settings → Language section. Currently lists `System default` + `English` (the only `values-*/` we ship). Drop in `values-hi/strings.xml` + add `<locale android:name="hi"/>` to `res/xml/locales_config.xml` to add Hindi.
+- **Picker:** Settings → Language section. Lists **22 options**: System default + 21 languages. `SettingsScreen.kt` `languageOptions` list drives the UI; `locales_config.xml` drives the Android 13+ system picker.
+- **Shipped locales (21):**
+
+| Code | Language | Folder |
+|---|---|---|
+| `en` | English | `values/` (base) |
+| `hi` | Hindi | `values-hi/` |
+| `es` | Spanish | `values-es/` |
+| `fr` | French | `values-fr/` |
+| `de` | German | `values-de/` |
+| `pt-BR` | Portuguese (Brazil) | `values-pt-rBR/` |
+| `pt-PT` | Portuguese (Portugal) | `values-pt-rPT/` |
+| `it` | Italian | `values-it/` |
+| `ru` | Russian | `values-ru/` |
+| `nl` | Dutch | `values-nl/` |
+| `tr` | Turkish | `values-tr/` |
+| `id` | Indonesian | `values-id/` |
+| `pl` | Polish | `values-pl/` |
+| `vi` | Vietnamese | `values-vi/` |
+| `ko` | Korean | `values-ko/` |
+| `ja` | Japanese | `values-ja/` |
+| `bn` | Bengali | `values-bn/` |
+| `ta` | Tamil | `values-ta/` |
+| `te` | Telugu | `values-te/` |
+| `mr` | Marathi | `values-mr/` |
+| `gu` | Gujarati | `values-gu/` |
+
+- **Invariant rule:** every `values-xx/strings.xml` must include all `settings_language_*` keys (all 22 options) so a user in any locale sees the full language picker — they should never need to revert to English to switch.
 - **System integration:** Android 13+ shows the per-app picker in system Settings → Apps → StationAlarm → Language (enabled via `android:localeConfig` and `AppLocalesMetadataHolderService`).
 - **Geocoding language hint:** `MapSearchViewModel.currentLang()` reads `Locale.getDefault().language` (post-override) and ships it as `lang=` on every `/search` and `/reverse` call. Worker translates per-provider (LocationIQ uses `Accept-Language` header).
+- **Adding a new language:** create `values-xx/strings.xml` (copy base English, translate all strings), add `<locale android:name="xx"/>` to `res/xml/locales_config.xml`, add `"xx" to stringResource(R.string.settings_language_xx)` to `SettingsScreen.kt` `languageOptions`, add `settings_language_xx` key to **every existing** `values-*/strings.xml` (including all 21 above).
 
 ---
 
@@ -154,6 +182,28 @@ Migrations:
 ---
 
 ## Session Log
+
+### Session: 21-Language Translation Pack (2026-06-12)
+
+Full translation coverage shipped across 19 new locale resource folders. Commit `2f47228` on `feature/glass-ui`.
+
+**Files created (19 new `values-xx/strings.xml`):**
+- European: `es`, `fr`, `de`, `pt-rBR`, `pt-rPT`, `it`, `ru`, `nl`
+- Global: `tr` (Turkish), `id` (Indonesian), `pl` (Polish), `vi` (Vietnamese), `ko` (Korean), `ja` (Japanese), `bn` (Bengali)
+- Indian regional: `ta` (Tamil), `te` (Telugu), `mr` (Marathi), `gu` (Gujarati)
+
+**Files modified:**
+- `res/xml/locales_config.xml` — added 11 new `<locale>` entries (tr, id, pl, vi, ko, ja, bn, ta, te, mr, gu); total now 21 locales + `en` base.
+- `res/values/strings.xml` — added 11 new `settings_language_*` keys (Turkish → Gujarati).
+- `res/values-hi/strings.xml` — added same 11 keys to Hindi file.
+- All 8 existing European files (es, fr, de, pt-rBR, pt-rPT, it, ru, nl) — back-filled the 11 new language name strings so their language pickers are complete.
+- `ui/screens/SettingsScreen.kt` — `languageOptions` expanded from 11 to 22 entries.
+
+**Invariant maintained:** every translation file includes all 22 `settings_language_*` keys so any user switching to any language still sees the full picker without reverting to English.
+
+**Compile check:** `./gradlew compileDebugKotlin` → `BUILD SUCCESSFUL`. Only pre-existing deprecation warning in `AlarmActivity.kt` (unrelated).
+
+---
 
 ### Session: Provider-Neutral Geocoding + Full i18n + Remote Config (2026-05-21)
 
@@ -354,8 +404,8 @@ Implemented all "TO-DO IMMEDIATELY" items from `plans/production-readiness.md`. 
 ### Must Do Before Play Store / Field Trust
 - **Create release keystore:** Generate `.keystore`, write `keystore.properties` (storeFile/storePassword/keyAlias/keyPassword) to project root, confirm `./gradlew assembleRelease` produces a signed AAB.
 - **Deploy legal pages:** Push `stationalarm-legal` repo to GitHub, connect Cloudflare Pages, verify `/privacy` + `/terms` load. Find-replace both placeholder tokens.
-- **Battery optimization onboarding:** First-launch dialog + deep-link to `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (prevents "missed alarm" reviews on MIUI/OneUI).
-- **Localization:** Hardcoded strings → `strings.xml`. Foreground-service notification text in locked `LocationService.kt` still hardcodes "km" — only changes if explicitly approved.
+- **Battery optimization onboarding:** First-launch dialog + deep-link to `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (prevents "missed alarm" reviews on MIUI/OneUI). `battery_sheet_dont_ask_again` pref already in `UserPreferences` — sheet suppresses after first skip.
+- **Localization complete** ✓ 21 languages shipped. Next: proof-read Indian regional scripts with a native speaker before publishing.
 
 ### On-Device Verification (since last device sweep)
 - **Boot restore (Pass 2):** Reboot with armed stations + airplane mode → confirm `BootRestoreWorker` retries without starting the service; re-enable network → restore completes. Reboot 5+ times rapidly while offline → "Restart needed" notification appears.
