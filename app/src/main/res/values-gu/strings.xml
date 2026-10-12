@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <!-- Common -->
+    <string name="common_cancel">રદ કરો</string>
+    <string name="common_remove">દૂર કરો</string>
+    <string name="common_back">પાછળ</string>
+    <string name="common_open_settings">સેટિંગ્સ ખોલો</string>
+    <string name="common_not_now">અત્યારે નહીં</string>
+
+    <!-- Tabs / navigation -->
+    <string name="tab_alarms">એલાર્મ</string>
+    <string name="tab_map">નકશો</string>
+    <string name="nav_menu">મેનૂ</string>
+    <string name="nav_settings">સેટિંગ્સ</string>
+    <string name="nav_about">વિશે</string>
+    <string name="nav_rate_us">અમને રેટ કરો</string>
+    <string name="nav_share_app">ઍપ શેર કરો</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <!-- Permission dialogs -->
+    <string name="permission_location_title">સ્થાન ઍક્સેસ જરૂરી છે</string>
+    <string name="permission_location_body">ઍપ બંધ હોય અથવા ફોન લૉક હોય ત્યારે ગંતવ્ય નજીક આવ્યે એલાર્મ વગાડવા StationAlarm ને \'હંમેશા પરવાનગી\' સ્થાન ઍક્સેસ જરૂરી છે.</string>
+    <string name="permission_location_steps">• \'સેટિંગ્સ\' ખોલો\n• \'પરવાનગીઓ\' ટૅપ કરો\n• \'સ્થાન\' પસંદ કરો\n• \'હંમેશા પરવાનગી આપો\' પસંદ કરો</string>
+    <string name="permission_notifications_title">સૂચનાઓ સક્ષમ કરો</string>
+    <string name="permission_notifications_body">ફોન લૉક હોય ત્યારે એલાર્મ બતાવવા StationAlarm ને સૂચના પરવાનગી જરૂરી છે. નહીં તો એલાર્મ શાંતિથી વાગશે અને તમે સ્ટેશન ચૂકી જશો.</string>
+
+    <!-- GPS dialog -->
+    <string name="gps_disabled_title">GPS બંધ છે</string>
+    <string name="gps_disabled_body">ચોક્કસ ટ્રૅકિંગ માટે સ્થાન સેવાઓ ચાલુ કરવા StationAlarm ને પરવાનગી આપો.</string>
+    <string name="gps_disabled_turn_on">GPS ચાલુ કરો</string>
+
+    <!-- Volume warning -->
+    <string name="volume_low_title">એલાર્મ વૉલ્યૂમ ઓછું છે</string>
+    <string name="volume_low_body">તમારું એલાર્મ વૉલ્યૂમ 50% કરતાં ઓછું છે. એલાર્મ વિશ્વસનીય રીતે જગાડવા હવે વધારો.</string>
+    <string name="volume_low_increase">મહત્તમ સુધી વધારો</string>
+    <string name="volume_low_keep">વર્તમાન રાખો</string>
+
+    <!-- Battery optimization sheet -->
+    <string name="battery_sheet_title">એલાર્મ વિશ્વસનીય રાખો</string>
+    <string name="battery_sheet_body">તમે એલાર્મ સેટ કર્યો — ખાતરી કરો કે તે ખરેખર જગાડશે. બૅટરી મુક્તિ વિના, Android StationAlarm ને ઊંઘાડી શકે છે અને એલાર્મ મોડો અથવા બિલકુલ નહીં વાગે.</string>
+    <string name="battery_sheet_open">સેટિંગ્સ ખોલો</string>
+    <string name="battery_sheet_skip">અત્યારે છોડો</string>
+    <string name="battery_sheet_dont_ask_again">ફરી ન પૂછો</string>
+
+    <!-- Share app -->
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">StationAlarm જુઓ — સ્થાન-આધારિત ટ્રેન/સ્થળ એલાર્મ ઍપ.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">StationAlarm શેર કરો</string>
+
+    <!-- Home / Alarms tab -->
+    <string name="home_search_placeholder">એલાર્મ ઉમેરવા સ્ટેશન શોધો…</string>
+    <string name="home_clear">સાફ કરો</string>
+    <string name="home_hint_type_more">ઓછામાં ઓછા 2 અક્ષરો ટાઈપ કરો</string>
+    <string name="home_hint_no_stations">કોઈ સ્ટેશન મળ્યાં નહીં</string>
+    <string name="home_empty_title">હજી કોઈ એલાર્મ નથી</string>
+    <string name="home_empty_body">ઉપર સ્ટેશન શોધો, અથવા નકશા પર પિન નાખો.</string>
+    <string name="home_empty_open_map">નકશો ખોલો</string>
+    <string name="home_remove_title">એલાર્મ કાઢવો?</string>
+    <string name="home_remove_body_format">આ %s ની દેખરેખ બંધ કરશે.</string>
+
+    <!-- Station card -->
+    <string name="card_badge_alarm">એલાર્મ</string>
+    <string name="card_badge_notify">સૂચિત</string>
+    <string name="card_badge_ringing">વાગી રહ્યો છે</string>
+    <string name="card_badge_paused">થોભાવ્યો</string>
+    <string name="card_alerts_within_format">%s ની અંદર ચેતવણી</string>
+    <string name="card_last_triggered_format">છેલ્લો: %s</string>
+    <string name="card_paused_body">થોભાવ્યો — ફરી શરૂ કરવા સ્વિચ દાબો</string>
+    <string name="card_locating">શોધી રહ્યું છે…</string>
+    <string name="card_reminder_format">"%s"</string>
+    <string name="card_action_edit">સંપાદિત કરો</string>
+    <string name="card_action_map">નકશો</string>
+    <string name="card_action_remove">એલાર્મ કાઢો</string>
+    <string name="card_action_rename">એલાર્મ નામ બદલો</string>
+    <string name="card_action_save_name">નામ સાચવો</string>
+    <string name="card_action_cancel_rename">નામ બદલ રદ</string>
+
+    <string name="time_today_format">આજ %s</string>
+    <string name="time_yesterday_format">ગઈ કાલ %s</string>
+
+    <!-- Alarm config bottom sheet -->
+    <string name="alarm_config_name_label">એલાર્મ નામ</string>
+    <string name="alarm_config_default_name">એલાર્મ</string>
+    <string name="alarm_config_section_distance">ચેતવણી અંતર</string>
+    <string name="alarm_config_ring_when_within">ની અંદર વાગશે</string>
+    <string name="alarm_config_reminder_label">રીમાઇન્ડર નોંધ (વૈકલ્પિક)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">એલાર્મ વાગ્યે રીમાઇન્ડર બતાવો</string>
+    <string name="alarm_config_reminder_toggle_subtitle">એલાર્મ સ્ક્રીન અને સૂચના પર બતાવાશે.</string>
+    <string name="alarm_config_section_alert_by">ચેતવણી રીત</string>
+    <string name="alarm_config_channel_notify">સૂચના</string>
+    <string name="alarm_config_channel_vibrate">કંપન</string>
+    <string name="alarm_config_channel_sound">ધ્વની</string>
+    <string name="alarm_config_set">એલાર્મ સેટ કરો</string>
+    <string name="alarm_config_update">એલાર્મ અપડેટ કરો</string>
+
+    <!-- Map search -->
+    <string name="map_search_placeholder">સ્થળ, સ્થળ-ચિહ્ન, સરનામું શોધો…</string>
+    <string name="map_search_clear">સાફ કરો</string>
+    <string name="map_search_attribution">LocationIQ.com દ્વારા શોધ</string>
+    <string name="map_my_location">મારું સ્થાન</string>
+    <string name="map_pin_dropped_default">ડ્રૉપ કરેલ પિન</string>
+    <string name="map_pin_loading_address">સરનામું લોડ થઈ રહ્યું છે...</string>
+    <string name="map_perimeter">પરિઘ</string>
+    <string name="map_set_alarm">એલાર્મ સેટ કરો</string>
+    <string name="map_view_focus_radius_format">ચેતવણી ત્રિજ્યા: %s કિ.મી</string>
+    <string name="map_hint_railway_station">ભારત · રેલ્વે સ્ટેશન</string>
+
+    <!-- Alarm screen -->
+    <string name="alarm_screen_wake_up">ઊઠો!</string>
+    <string name="alarm_screen_arrived_at">પહોંચ્યા</string>
+    <string name="alarm_screen_dismiss">બંધ કરો</string>
+    <string name="alarm_screen_press_button_hint">બંધ કરવા કોઈ ભૌતિક બટન દાબો</string>
+    <string name="alarm_screen_default_destination">ગંતવ્ય</string>
+
+    <!-- Settings -->
+    <string name="settings_title">સેટિંગ્સ</string>
+    <string name="settings_distance_unit">અંતર એકમ</string>
+    <string name="settings_distance_km">કિલોમીટર</string>
+    <string name="settings_distance_miles">માઇલ</string>
+    <string name="settings_theme">થીમ</string>
+    <string name="settings_theme_system">સિસ્ટમ ડિફૉલ્ટ</string>
+    <string name="settings_theme_light">હળવો</string>
+    <string name="settings_theme_dark">ઘેરો</string>
+    <string name="settings_language">ભાષા</string>
+    <string name="settings_language_system">સિસ્ટમ ડિફૉલ્ટ</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">વધુ ભાષાઓ ટૂંક સમયમાં આવી રહી છે.</string>
+    <string name="settings_alarm_sound">એલાર્મ ધ્વની</string>
+    <string name="settings_alarm_sound_current_format">વર્તમાન: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ ધ્વની અનુપલબ્ધ — ઠીક કરવા ફરી પસંદ કરો.</string>
+    <string name="settings_alarm_sound_change">બદલો</string>
+    <string name="settings_alarm_sound_reselect">ફરી પસંદ કરો</string>
+    <string name="settings_alarm_sound_reset">રીસેટ</string>
+    <string name="settings_alarm_sound_test">એલાર્મ ટેસ્ટ (3સે)</string>
+    <string name="settings_alarm_sound_default_name">ડિફૉલ્ટ એલાર્મ</string>
+    <string name="settings_alarm_sound_custom_name">કસ્ટમ ધ્વની</string>
+    <string name="settings_sound_picker_title">એલાર્મ ધ્વની પસંદ કરો</string>
+    <string name="settings_sound_picker_body">તમારા એલાર્મ ધ્વની માટે સ્ત્રોત પસંદ કરો.</string>
+    <string name="settings_sound_picker_system">સિસ્ટમ રિંગટોન</string>
+    <string name="settings_sound_picker_file">સ્થાનિક ફાઇલ</string>
+    <string name="settings_sound_picker_select_title">એલાર્મ ધ્વની પસંદ કરો</string>
+    <string name="settings_audio_routing">ઑડિઓ રૂટિંગ</string>
+    <string name="settings_ring_speaker_title">હેડફોન સાથે સ્પીકર વગાડો</string>
+    <string name="settings_ring_speaker_subtitle">વાયર્ડ અથવા બ્લૂટૂથ ઑડિઓ કનેક્ટ હોય ત્યારે ફોન સ્પીકર ઊંચો રાખો.</string>
+    <string name="settings_escalating_title">ધીમેથી શરૂ, પૂર્ણ વૉલ્યૂમ સુધી વધો</string>
+    <string name="settings_escalating_subtitle_format">%d સેકન્ડ પર ધીમે ધીમે વધે છે</string>
+    <string name="settings_ramp_duration_format">રૅમ્પ સમયગાળો: %dસે</string>
+    <string name="settings_ramp_15s">15સે</string>
+    <string name="settings_ramp_60s">60સે</string>
+    <string name="settings_alarm_duration">એલાર્મ સમયગાળો</string>
+    <string name="settings_alarm_duration_subtitle">આપોઆપ બંધ થાય તે પહેલાં એલાર્મ કેટલો સમય વાગે.</string>
+    <string name="settings_alarm_duration_format">%d મિનિટ માટે વાગે</string>
+    <string name="settings_alarm_duration_min">1 મિનિટ</string>
+    <string name="settings_alarm_duration_max">15 મિનિટ</string>
+    <string name="settings_background_running">બૅકગ્રાઉન્ડ ચાલુ</string>
+    <string name="settings_battery_exemption">બૅટરી છૂટ</string>
+    <string name="settings_battery_exempt_yes">અમર્યાદિત — એલાર્મ વિશ્વસનીય રીતે વાગશે</string>
+    <string name="settings_battery_exempt_no">પ્રતિબંધિત — એલાર્મ ચૂકી જઈ શકે</string>
+    <string name="settings_battery_open">ખોલો</string>
+    <string name="settings_debug_logs">ડીબગ લૉગ</string>
+    <string name="settings_debug_logs_subtitle">એલાર્મ સમસ્યાઓ શોધવા માટે લૉગ શેર કરો.</string>
+    <string name="settings_debug_logs_app">ઍપ લૉગ</string>
+    <string name="settings_debug_logs_gps">GPS લૉગ</string>
+
+    <!-- About screen -->
+    <string name="about_title">વિશે</string>
+    <string name="about_version_format">સંસ્કરણ %s</string>
+    <string name="about_privacy">ગોપનીયતા નીતિ</string>
+    <string name="about_terms">ઉપયોગ શરતો</string>
+    <string name="about_licenses">ઓપન સોર્સ લાઇસન્સ</string>
+    <string name="about_made_with_love">પ્રવાસીઓ માટે ♥ સાથે બનાવ્યું.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <!-- Snackbars -->
+    <string name="snackbar_alarm_set_format">%s માટે એલાર્મ સેટ</string>
+    <string name="snackbar_alarm_updated_format">%s માટે એલાર્મ અપડેટ</string>
+    <string name="snackbar_no_recent_fix">તાજેતરનું સ્થાન ઠીક નથી — ખુલ્લા વિસ્તારમાં જાઓ.</string>
+    <string name="snackbar_couldnt_read_location">તમારું સ્થાન વાંચી શક્યા નહીં.</string>
+
+    <!-- Network errors -->
+    <string name="error_search_timed_out">શોધ સમય સમાપ્ત — તમારું જોડાણ તપાસો.</string>
+    <string name="error_no_internet">ઇન્ટરનેટ જોડાણ નથી.</string>
+    <string name="error_too_many_requests">ઘણી વિનંતીઓ — ટૂંક સમયમાં ફરી પ્રયાસ કરો.</string>
+    <string name="error_search_down">શોધ સેવા ડાઉન — ટૂંક સમયમાં ફરી પ્રયાસ કરો.</string>
+    <string name="error_search_unavailable_format">શોધ અનુપલબ્ધ (%d).</string>
+    <string name="error_search_unavailable">શોધ અનુપલબ્ધ.</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_service">સ્ટેશન એલાર્મ સેવા</string>
+    <string name="notif_channel_service_desc">ટ્રૅકિંગ સ્થિતિ બતાવે છે</string>
+    <string name="notif_channel_alerts">સ્ટેશન એલાર્મ ચેતવણી</string>
+    <string name="notif_channel_alerts_desc">ઉચ્ચ-પ્રાધાન્ય એલાર્મ ચેતવણી</string>
+    <string name="notif_foreground_title">સ્ટેશન એલાર્મ</string>
+    <string name="notif_foreground_stop_all">બધા બંધ</string>
+    <string name="notif_alert_title_format">સ્ટેશન પહોંચ્યા: %s</string>
+    <string name="notif_alert_body_default">તમે તમારા ગંતવ્ય સ્થળ પર પહોંચ્યા છો.</string>
+    <string name="notif_alert_body_reminder_format">રીમાઇન્ડર: %s</string>
+    <string name="notif_alert_dismiss">બંધ કરો</string>
+    <string name="notif_watchdog_title">GPS શોધી રહ્યું છે…</string>
+    <string name="notif_watchdog_body_format">હજી ટ્રૅકિંગ — છેલ્લું ઠીક %d મિ. પહેલાં.</string>
+    <string name="notif_watchdog_default_body">હજી ટ્રૅકિંગ — ઠીક આવ્યે ફરી શરૂ.</string>
+    <string name="notif_watchdog_location_off_title">સ્થાન બંધ છે</string>
+    <string name="notif_watchdog_location_off_body">સ્થાન સક્ષમ કરવા ટૅપ કરો — ત્યાં સુધી એલાર્મ રોકાઈ ગયો.</string>
+    <string name="notif_audio_failure_title">એલાર્મ શાંતિથી ફૂટ્યો</string>
+    <string name="notif_audio_failure_body_format">%s પર ઑડિઓ સિસ્ટમ ભૂલ — ફક્ત કંપન.</string>
+    <string name="notif_boot_restart_title">ફરી શરૂ કરવું જરૂરી</string>
+    <string name="notif_boot_restart_body">તમારા એલાર્મ ફરી સક્ષમ કરવા StationAlarm ખોલો.</string>
+    <string name="notif_nearest_format">નજીકનું સ્ટેશન: %1$s — %2$s કિ.મી</string>
+    <string name="notif_monitoring_count_format">%d સ્ટેશન(ો) ટ્રૅક થઈ રહ્યાં...</string>
+    <string name="notif_monitoring_default">સ્ટેશનો ટ્રૅક થઈ રહ્યાં...</string>
+    <string name="notif_alarm_ringing_count_format">એલાર્મ વાગ્યો — %d સ્ટેશન(ો) પહોંચ્યાં</string>
+
+    <!-- Remote config -->
+    <string name="force_update_title">અપડેટ જરૂરી</string>
+    <string name="force_update_body">એલાર્મ વિશ્વસનીય રીતે ચાલુ રાખવા StationAlarm નું નવું સંસ્કરણ જરૂરી છે. કૃપા કરીને અપડેટ કરો.</string>
+    <string name="force_update_button">હવે અપડેટ કરો</string>
+    <string name="maintenance_default_body">સેવા અસ્થાયી અનુપલબ્ધ. અમે કામ કરી રહ્યા છીએ.</string>
+</resources>

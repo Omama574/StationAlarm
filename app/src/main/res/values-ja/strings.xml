@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <string name="common_cancel">キャンセル</string>
+    <string name="common_remove">削除</string>
+    <string name="common_back">戻る</string>
+    <string name="common_open_settings">設定を開く</string>
+    <string name="common_not_now">後で</string>
+
+    <string name="tab_alarms">アラーム</string>
+    <string name="tab_map">地図</string>
+    <string name="nav_menu">メニュー</string>
+    <string name="nav_settings">設定</string>
+    <string name="nav_about">アプリについて</string>
+    <string name="nav_rate_us">評価する</string>
+    <string name="nav_share_app">アプリをシェア</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <string name="permission_location_title">位置情報へのアクセスが必要</string>
+    <string name="permission_location_body">StationAlarmは、アプリが閉じているときや画面がロックされているときでも目的地に近づいたらアラームを鳴らすために、「常に許可」の位置情報アクセスが必要です。</string>
+    <string name="permission_location_steps">• 下の「設定」をタップ\n• 「権限」をタップ\n• 「位置情報」を選択\n• 「常に許可」を選択</string>
+    <string name="permission_notifications_title">通知を有効にする</string>
+    <string name="permission_notifications_body">StationAlarmは画面ロック中にアラームを表示するために通知権限が必要です。この権限がないと、アラームがバックグラウンドで無音で鳴り、降りる駅を逃す可能性があります。</string>
+
+    <string name="gps_disabled_title">GPSがオフです</string>
+    <string name="gps_disabled_body">正確な追跡のため、StationAlarmが位置情報サービスをオンにできるように許可してください。</string>
+    <string name="gps_disabled_turn_on">GPSをオンにする</string>
+
+    <string name="volume_low_title">アラーム音量が低い</string>
+    <string name="volume_low_body">アラーム音量が50%未満です。確実に起きられるよう今すぐ上げてください。</string>
+    <string name="volume_low_increase">最大に上げる</string>
+    <string name="volume_low_keep">現在のまま</string>
+
+    <string name="battery_sheet_title">アラームの信頼性を保つ</string>
+    <string name="battery_sheet_body">アラームを設定しました — 確実に鳴るようにしましょう。バッテリーの最適化除外がないと、AndroidがStationAlarmをスリープさせ、アラームが遅れたり鳴らなかったりする可能性があります。</string>
+    <string name="battery_sheet_open">設定を開く</string>
+    <string name="battery_sheet_skip">後で</string>
+    <string name="battery_sheet_dont_ask_again">次から表示しない</string>
+
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">StationAlarmを使ってみてください — 電車や場所のための位置情報アラームアプリ。\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">StationAlarmをシェア</string>
+
+    <string name="home_search_placeholder">アラームを追加する駅を検索…</string>
+    <string name="home_clear">クリア</string>
+    <string name="home_hint_type_more">2文字以上入力してください</string>
+    <string name="home_hint_no_stations">駅が見つかりません</string>
+    <string name="home_empty_title">アラームなし</string>
+    <string name="home_empty_body">上で駅を検索するか、地図にピンを立ててください。</string>
+    <string name="home_empty_open_map">地図を開く</string>
+    <string name="home_remove_title">アラームを削除しますか？</string>
+    <string name="home_remove_body_format">%sの監視を停止します。</string>
+
+    <string name="card_badge_alarm">アラーム</string>
+    <string name="card_badge_notify">通知</string>
+    <string name="card_badge_ringing">鳴動中</string>
+    <string name="card_badge_paused">一時停止中</string>
+    <string name="card_alerts_within_format">%s以内で通知</string>
+    <string name="card_last_triggered_format">最終通知: %s</string>
+    <string name="card_paused_body">一時停止中 — スイッチをオンにして再開</string>
+    <string name="card_locating">位置を特定中…</string>
+    <string name="card_reminder_format">「%s」</string>
+    <string name="card_action_edit">編集</string>
+    <string name="card_action_map">地図</string>
+    <string name="card_action_remove">アラームを削除</string>
+    <string name="card_action_rename">アラームの名前を変更</string>
+    <string name="card_action_save_name">名前を保存</string>
+    <string name="card_action_cancel_rename">名前変更をキャンセル</string>
+
+    <string name="time_today_format">今日 %s</string>
+    <string name="time_yesterday_format">昨日 %s</string>
+
+    <string name="alarm_config_name_label">アラーム名</string>
+    <string name="alarm_config_default_name">アラーム</string>
+    <string name="alarm_config_section_distance">通知距離</string>
+    <string name="alarm_config_ring_when_within">この距離内で鳴る</string>
+    <string name="alarm_config_reminder_label">リマインダーメモ（任意）</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">アラーム起動時にメモを表示</string>
+    <string name="alarm_config_reminder_toggle_subtitle">アラーム画面と通知に表示されます。</string>
+    <string name="alarm_config_section_alert_by">通知方法</string>
+    <string name="alarm_config_channel_notify">通知</string>
+    <string name="alarm_config_channel_vibrate">バイブ</string>
+    <string name="alarm_config_channel_sound">サウンド</string>
+    <string name="alarm_config_set">アラームをセット</string>
+    <string name="alarm_config_update">アラームを更新</string>
+
+    <string name="map_search_placeholder">場所、ランドマーク、住所を検索…</string>
+    <string name="map_search_clear">クリア</string>
+    <string name="map_search_attribution">LocationIQ.comで検索</string>
+    <string name="map_my_location">現在地</string>
+    <string name="map_pin_dropped_default">ピン</string>
+    <string name="map_pin_loading_address">住所を読み込み中...</string>
+    <string name="map_perimeter">範囲</string>
+    <string name="map_set_alarm">アラームをセット</string>
+    <string name="map_view_focus_radius_format">通知範囲: %s km</string>
+    <string name="map_hint_railway_station">インド · 鉄道駅</string>
+
+    <string name="alarm_screen_wake_up">起きてください！</string>
+    <string name="alarm_screen_arrived_at">到着:</string>
+    <string name="alarm_screen_dismiss">アラームを止める</string>
+    <string name="alarm_screen_press_button_hint">物理ボタンを押してアラームを止める</string>
+    <string name="alarm_screen_default_destination">目的地</string>
+
+    <string name="settings_title">設定</string>
+    <string name="settings_distance_unit">距離の単位</string>
+    <string name="settings_distance_km">キロメートル</string>
+    <string name="settings_distance_miles">マイル</string>
+    <string name="settings_theme">テーマ</string>
+    <string name="settings_theme_system">システム標準</string>
+    <string name="settings_theme_light">ライト</string>
+    <string name="settings_theme_dark">ダーク</string>
+    <string name="settings_language">言語</string>
+    <string name="settings_language_system">システム標準</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">他の言語も近日追加予定。</string>
+    <string name="settings_alarm_sound">アラーム音</string>
+    <string name="settings_alarm_sound_current_format">現在: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ サウンドが利用不可 — 再選択して修正してください。</string>
+    <string name="settings_alarm_sound_change">変更</string>
+    <string name="settings_alarm_sound_reselect">再選択</string>
+    <string name="settings_alarm_sound_reset">リセット</string>
+    <string name="settings_alarm_sound_test">アラームをテスト (3秒)</string>
+    <string name="settings_alarm_sound_default_name">デフォルトアラーム</string>
+    <string name="settings_alarm_sound_custom_name">カスタムサウンド</string>
+    <string name="settings_sound_picker_title">アラーム音を選択</string>
+    <string name="settings_sound_picker_body">アラーム音のソースを選択してください。</string>
+    <string name="settings_sound_picker_system">システム着信音</string>
+    <string name="settings_sound_picker_file">ローカルファイル</string>
+    <string name="settings_sound_picker_select_title">アラーム音を選択</string>
+    <string name="settings_audio_routing">オーディオルーティング</string>
+    <string name="settings_ring_speaker_title">イヤホン接続中もスピーカーで鳴らす</string>
+    <string name="settings_ring_speaker_subtitle">有線またはBluetoothオーディオ接続中も本体スピーカーを大音量に保ちます。</string>
+    <string name="settings_escalating_title">小さく始めて最大音量まで上げる</string>
+    <string name="settings_escalating_subtitle_format">自然な目覚めのために%d秒かけて徐々に増加</string>
+    <string name="settings_ramp_duration_format">増加時間: %d秒</string>
+    <string name="settings_ramp_15s">15秒</string>
+    <string name="settings_ramp_60s">60秒</string>
+    <string name="settings_alarm_duration">アラーム継続時間</string>
+    <string name="settings_alarm_duration_subtitle">自動停止までアラームが鳴る時間。</string>
+    <string name="settings_alarm_duration_format">鳴る時間: %d分</string>
+    <string name="settings_alarm_duration_min">1分</string>
+    <string name="settings_alarm_duration_max">15分</string>
+    <string name="settings_background_running">バックグラウンド動作</string>
+    <string name="settings_battery_exemption">バッテリー最適化の除外</string>
+    <string name="settings_battery_exempt_yes">制限なし — アラームは確実に鳴ります</string>
+    <string name="settings_battery_exempt_no">制限あり — アラームが鳴らない場合があります</string>
+    <string name="settings_battery_open">開く</string>
+    <string name="settings_debug_logs">デバッグログ</string>
+    <string name="settings_debug_logs_subtitle">アラームの問題を診断するためにログを共有。</string>
+    <string name="settings_debug_logs_app">アプリログ</string>
+    <string name="settings_debug_logs_gps">GPSログ</string>
+
+    <string name="about_title">アプリについて</string>
+    <string name="about_version_format">バージョン %s</string>
+    <string name="about_privacy">プライバシーポリシー</string>
+    <string name="about_terms">利用規約</string>
+    <string name="about_licenses">オープンソースライセンス</string>
+    <string name="about_made_with_love">旅行者のために ♥ を込めて。</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <string name="snackbar_alarm_set_format">%sのアラームをセット</string>
+    <string name="snackbar_alarm_updated_format">%sのアラームを更新</string>
+    <string name="snackbar_no_recent_fix">最近の位置情報なし — 開けた場所に移動してみてください。</string>
+    <string name="snackbar_couldnt_read_location">位置情報を読み取れませんでした。</string>
+
+    <string name="error_search_timed_out">検索がタイムアウト — 接続を確認してください。</string>
+    <string name="error_no_internet">インターネット接続なし。</string>
+    <string name="error_too_many_requests">リクエストが多すぎます — しばらくしてから再試行してください。</string>
+    <string name="error_search_down">検索サービスが停止中 — しばらくしてから再試行してください。</string>
+    <string name="error_search_unavailable_format">検索利用不可 (%d)。</string>
+    <string name="error_search_unavailable">検索利用不可。</string>
+
+    <string name="notif_channel_service">Station Alarm サービス</string>
+    <string name="notif_channel_service_desc">追跡状態を表示</string>
+    <string name="notif_channel_alerts">Station Alarm アラート</string>
+    <string name="notif_channel_alerts_desc">高優先度アラームアラート</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">すべて停止</string>
+    <string name="notif_alert_title_format">駅に到着: %s</string>
+    <string name="notif_alert_body_default">目的地に到着しました。</string>
+    <string name="notif_alert_body_reminder_format">メモ: %s</string>
+    <string name="notif_alert_dismiss">止める</string>
+    <string name="notif_watchdog_title">GPSを検索中…</string>
+    <string name="notif_watchdog_body_format">追跡中 — 最終信号 %d分前。</string>
+    <string name="notif_watchdog_default_body">追跡中 — 信号が回復したら再開します。</string>
+    <string name="notif_watchdog_location_off_title">位置情報がオフです</string>
+    <string name="notif_watchdog_location_off_body">位置情報をオンにするにはタップ — それまでアラーム一時停止。</string>
+    <string name="notif_audio_failure_title">アラームが無音で鳴りました</string>
+    <string name="notif_audio_failure_body_format">%s でオーディオエラー — バイブのみ。</string>
+    <string name="notif_boot_restart_title">再起動が必要です</string>
+    <string name="notif_boot_restart_body">StationAlarmを開いてアラームを再アクティブ化してください。</string>
+    <string name="notif_nearest_format">最寄り駅: %1$s — %2$s km</string>
+    <string name="notif_monitoring_count_format">%d駅を監視中...</string>
+    <string name="notif_monitoring_default">駅を監視中...</string>
+    <string name="notif_alarm_ringing_count_format">アラーム鳴動中 — %d駅に到着</string>
+
+    <string name="force_update_title">アップデートが必要です</string>
+    <string name="force_update_body">アラームを確実に動作させるために、最新バージョンのStationAlarmが必要です。続けるにはアップデートしてください。</string>
+    <string name="force_update_button">今すぐアップデート</string>
+    <string name="maintenance_default_body">サービスが一時的に利用できません。対応中です。</string>
+</resources>

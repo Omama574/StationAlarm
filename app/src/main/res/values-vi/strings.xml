@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <string name="common_cancel">Huỷ</string>
+    <string name="common_remove">Xoá</string>
+    <string name="common_back">Quay lại</string>
+    <string name="common_open_settings">Mở cài đặt</string>
+    <string name="common_not_now">Không phải bây giờ</string>
+
+    <string name="tab_alarms">Báo thức</string>
+    <string name="tab_map">Bản đồ</string>
+    <string name="nav_menu">Menu</string>
+    <string name="nav_settings">Cài đặt</string>
+    <string name="nav_about">Giới thiệu</string>
+    <string name="nav_rate_us">Đánh giá ứng dụng</string>
+    <string name="nav_share_app">Chia sẻ ứng dụng</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <string name="permission_location_title">Cần quyền truy cập vị trí</string>
+    <string name="permission_location_body">StationAlarm cần quyền truy cập vị trí \'Luôn cho phép\' để phát báo thức khi bạn đến gần điểm đến, dù ứng dụng đã đóng hay điện thoại đang khoá.</string>
+    <string name="permission_location_steps">• Nhấn \'Cài đặt\' bên dưới\n• Nhấn \'Quyền\'\n• Chọn \'Vị trí\'\n• Chọn \'Luôn cho phép\'</string>
+    <string name="permission_notifications_title">Bật thông báo</string>
+    <string name="permission_notifications_body">StationAlarm cần quyền thông báo để hiển thị báo thức khi điện thoại đang khoá. Nếu không có, báo thức có thể phát trong nền mà bạn không hay và bạn sẽ lỡ điểm dừng.</string>
+
+    <string name="gps_disabled_title">GPS đang tắt</string>
+    <string name="gps_disabled_body">Vui lòng cho phép StationAlarm bật dịch vụ vị trí để theo dõi chính xác.</string>
+    <string name="gps_disabled_turn_on">Bật GPS</string>
+
+    <string name="volume_low_title">Âm lượng báo thức thấp</string>
+    <string name="volume_low_body">Âm lượng báo thức của bạn dưới 50%. Hãy tăng lên ngay để báo thức đánh thức bạn đúng cách.</string>
+    <string name="volume_low_increase">Tăng lên tối đa</string>
+    <string name="volume_low_keep">Giữ nguyên</string>
+
+    <string name="battery_sheet_title">Giữ báo thức đáng tin cậy</string>
+    <string name="battery_sheet_body">Bạn vừa đặt báo thức — hãy đảm bảo nó thực sự hoạt động. Không có ngoại lệ pin, Android có thể cho StationAlarm vào chế độ ngủ và báo thức có thể bị trễ hoặc không kêu.</string>
+    <string name="battery_sheet_open">Mở cài đặt</string>
+    <string name="battery_sheet_skip">Bỏ qua lần này</string>
+    <string name="battery_sheet_dont_ask_again">Đừng hỏi lại</string>
+
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">Thử StationAlarm — ứng dụng báo thức theo vị trí cho tàu hoả và địa điểm.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">Chia sẻ StationAlarm</string>
+
+    <string name="home_search_placeholder">Tìm ga để thêm báo thức…</string>
+    <string name="home_clear">Xoá</string>
+    <string name="home_hint_type_more">Nhập ít nhất 2 ký tự</string>
+    <string name="home_hint_no_stations">Không tìm thấy ga nào</string>
+    <string name="home_empty_title">Chưa có báo thức</string>
+    <string name="home_empty_body">Tìm ga phía trên hoặc ghim điểm trên bản đồ.</string>
+    <string name="home_empty_open_map">Mở bản đồ</string>
+    <string name="home_remove_title">Xoá báo thức?</string>
+    <string name="home_remove_body_format">Thao tác này sẽ dừng theo dõi %s.</string>
+
+    <string name="card_badge_alarm">Báo thức</string>
+    <string name="card_badge_notify">Thông báo</string>
+    <string name="card_badge_ringing">Đang kêu</string>
+    <string name="card_badge_paused">Đã tạm dừng</string>
+    <string name="card_alerts_within_format">Cảnh báo trong vòng %s</string>
+    <string name="card_last_triggered_format">Lần kích hoạt cuối: %s</string>
+    <string name="card_paused_body">Đã tạm dừng — bật công tắc để tiếp tục</string>
+    <string name="card_locating">Đang định vị…</string>
+    <string name="card_reminder_format">"%s"</string>
+    <string name="card_action_edit">Chỉnh sửa</string>
+    <string name="card_action_map">Bản đồ</string>
+    <string name="card_action_remove">Xoá báo thức</string>
+    <string name="card_action_rename">Đổi tên báo thức</string>
+    <string name="card_action_save_name">Lưu tên</string>
+    <string name="card_action_cancel_rename">Huỷ đổi tên</string>
+
+    <string name="time_today_format">Hôm nay %s</string>
+    <string name="time_yesterday_format">Hôm qua %s</string>
+
+    <string name="alarm_config_name_label">Tên báo thức</string>
+    <string name="alarm_config_default_name">Báo thức</string>
+    <string name="alarm_config_section_distance">Khoảng cách cảnh báo</string>
+    <string name="alarm_config_ring_when_within">Kêu khi trong vòng</string>
+    <string name="alarm_config_reminder_label">Ghi chú nhắc nhở (tuỳ chọn)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">Hiển thị nhắc nhở khi báo thức kêu</string>
+    <string name="alarm_config_reminder_toggle_subtitle">Hiển thị trên màn hình báo thức và thông báo.</string>
+    <string name="alarm_config_section_alert_by">Cảnh báo qua</string>
+    <string name="alarm_config_channel_notify">Thông báo</string>
+    <string name="alarm_config_channel_vibrate">Rung</string>
+    <string name="alarm_config_channel_sound">Âm thanh</string>
+    <string name="alarm_config_set">Đặt báo thức</string>
+    <string name="alarm_config_update">Cập nhật báo thức</string>
+
+    <string name="map_search_placeholder">Tìm địa điểm, cột mốc, địa chỉ…</string>
+    <string name="map_search_clear">Xoá</string>
+    <string name="map_search_attribution">Tìm kiếm bởi LocationIQ.com</string>
+    <string name="map_my_location">Vị trí của tôi</string>
+    <string name="map_pin_dropped_default">Điểm ghim</string>
+    <string name="map_pin_loading_address">Đang tải địa chỉ...</string>
+    <string name="map_perimeter">Bán kính</string>
+    <string name="map_set_alarm">Đặt Báo Thức</string>
+    <string name="map_view_focus_radius_format">Bán kính cảnh báo: %s km</string>
+    <string name="map_hint_railway_station">Ấn Độ · Ga tàu hoả</string>
+
+    <string name="alarm_screen_wake_up">Dậy thôi!</string>
+    <string name="alarm_screen_arrived_at">Đã đến</string>
+    <string name="alarm_screen_dismiss">Tắt báo thức</string>
+    <string name="alarm_screen_press_button_hint">Nhấn bất kỳ nút vật lý nào để tắt</string>
+    <string name="alarm_screen_default_destination">Điểm đến</string>
+
+    <string name="settings_title">Cài đặt</string>
+    <string name="settings_distance_unit">Đơn vị khoảng cách</string>
+    <string name="settings_distance_km">Kilômét</string>
+    <string name="settings_distance_miles">Dặm</string>
+    <string name="settings_theme">Giao diện</string>
+    <string name="settings_theme_system">Mặc định hệ thống</string>
+    <string name="settings_theme_light">Sáng</string>
+    <string name="settings_theme_dark">Tối</string>
+    <string name="settings_language">Ngôn ngữ</string>
+    <string name="settings_language_system">Mặc định hệ thống</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">Sắp có thêm ngôn ngữ.</string>
+    <string name="settings_alarm_sound">Âm thanh báo thức</string>
+    <string name="settings_alarm_sound_current_format">Hiện tại: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ Âm thanh không khả dụng — chọn lại để sửa.</string>
+    <string name="settings_alarm_sound_change">Thay đổi</string>
+    <string name="settings_alarm_sound_reselect">Chọn lại</string>
+    <string name="settings_alarm_sound_reset">Đặt lại</string>
+    <string name="settings_alarm_sound_test">Thử báo thức (3s)</string>
+    <string name="settings_alarm_sound_default_name">Báo thức mặc định</string>
+    <string name="settings_alarm_sound_custom_name">Âm thanh tuỳ chỉnh</string>
+    <string name="settings_sound_picker_title">Chọn âm thanh báo thức</string>
+    <string name="settings_sound_picker_body">Chọn nguồn âm thanh cho báo thức.</string>
+    <string name="settings_sound_picker_system">Nhạc chuông hệ thống</string>
+    <string name="settings_sound_picker_file">Tệp cục bộ</string>
+    <string name="settings_sound_picker_select_title">Chọn âm thanh báo thức</string>
+    <string name="settings_audio_routing">Định tuyến âm thanh</string>
+    <string name="settings_ring_speaker_title">Phát loa ngoài khi dùng tai nghe</string>
+    <string name="settings_ring_speaker_subtitle">Giữ loa điện thoại to khi kết nối tai nghe có dây hoặc Bluetooth.</string>
+    <string name="settings_escalating_title">Bắt đầu nhỏ, tăng dần đến âm lượng tối đa</string>
+    <string name="settings_escalating_subtitle_format">Tăng dần trong %ds để thức dậy tự nhiên</string>
+    <string name="settings_ramp_duration_format">Thời gian tăng: %ds</string>
+    <string name="settings_ramp_15s">15s</string>
+    <string name="settings_ramp_60s">60s</string>
+    <string name="settings_alarm_duration">Thời lượng báo thức</string>
+    <string name="settings_alarm_duration_subtitle">Báo thức kêu bao lâu trước khi tự tắt.</string>
+    <string name="settings_alarm_duration_format">Kêu trong: %d phút</string>
+    <string name="settings_alarm_duration_min">1 phút</string>
+    <string name="settings_alarm_duration_max">15 phút</string>
+    <string name="settings_background_running">Chạy nền</string>
+    <string name="settings_battery_exemption">Ngoại lệ pin</string>
+    <string name="settings_battery_exempt_yes">Không giới hạn — báo thức sẽ kêu đúng giờ</string>
+    <string name="settings_battery_exempt_no">Bị giới hạn — báo thức có thể bị bỏ lỡ</string>
+    <string name="settings_battery_open">Mở</string>
+    <string name="settings_debug_logs">Nhật ký gỡ lỗi</string>
+    <string name="settings_debug_logs_subtitle">Chia sẻ nhật ký để chẩn đoán sự cố báo thức.</string>
+    <string name="settings_debug_logs_app">Nhật ký ứng dụng</string>
+    <string name="settings_debug_logs_gps">Nhật ký GPS</string>
+
+    <string name="about_title">Giới thiệu</string>
+    <string name="about_version_format">Phiên bản %s</string>
+    <string name="about_privacy">Chính sách quyền riêng tư</string>
+    <string name="about_terms">Điều khoản sử dụng</string>
+    <string name="about_licenses">Giấy phép mã nguồn mở</string>
+    <string name="about_made_with_love">Tạo ra với ♥ cho người du lịch.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <string name="snackbar_alarm_set_format">Đã đặt báo thức cho %s</string>
+    <string name="snackbar_alarm_updated_format">Đã cập nhật báo thức cho %s</string>
+    <string name="snackbar_no_recent_fix">Không có vị trí gần đây — thử di chuyển ra khu vực thoáng.</string>
+    <string name="snackbar_couldnt_read_location">Không thể đọc vị trí của bạn.</string>
+
+    <string name="error_search_timed_out">Tìm kiếm hết thời gian — kiểm tra kết nối.</string>
+    <string name="error_no_internet">Không có kết nối internet.</string>
+    <string name="error_too_many_requests">Quá nhiều yêu cầu — thử lại sau một chút.</string>
+    <string name="error_search_down">Dịch vụ tìm kiếm ngừng hoạt động — thử lại sớm.</string>
+    <string name="error_search_unavailable_format">Tìm kiếm không khả dụng (%d).</string>
+    <string name="error_search_unavailable">Tìm kiếm không khả dụng.</string>
+
+    <string name="notif_channel_service">Dịch vụ Station Alarm</string>
+    <string name="notif_channel_service_desc">Hiển thị trạng thái theo dõi</string>
+    <string name="notif_channel_alerts">Cảnh báo Station Alarm</string>
+    <string name="notif_channel_alerts_desc">Cảnh báo báo thức ưu tiên cao</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">Dừng tất cả</string>
+    <string name="notif_alert_title_format">Đã đến ga: %s</string>
+    <string name="notif_alert_body_default">Bạn đã đến điểm đến.</string>
+    <string name="notif_alert_body_reminder_format">Nhắc nhở: %s</string>
+    <string name="notif_alert_dismiss">Tắt</string>
+    <string name="notif_watchdog_title">Đang tìm GPS…</string>
+    <string name="notif_watchdog_body_format">Vẫn đang theo dõi — tín hiệu cuối %dm trước.</string>
+    <string name="notif_watchdog_default_body">Vẫn đang theo dõi — sẽ tiếp tục khi tín hiệu trở lại.</string>
+    <string name="notif_watchdog_location_off_title">Vị trí đang tắt</string>
+    <string name="notif_watchdog_location_off_body">Nhấn để bật vị trí — báo thức đang tạm dừng.</string>
+    <string name="notif_audio_failure_title">Báo thức kêu không có âm thanh</string>
+    <string name="notif_audio_failure_body_format">Lỗi hệ thống âm thanh lúc %s — chỉ rung.</string>
+    <string name="notif_boot_restart_title">Cần khởi động lại</string>
+    <string name="notif_boot_restart_body">Mở StationAlarm để kích hoạt lại báo thức.</string>
+    <string name="notif_nearest_format">Ga gần nhất: %1$s — %2$s km</string>
+    <string name="notif_monitoring_count_format">Đang theo dõi %d ga...</string>
+    <string name="notif_monitoring_default">Đang theo dõi các ga...</string>
+    <string name="notif_alarm_ringing_count_format">Báo thức đang kêu — đã đến %d ga</string>
+
+    <string name="force_update_title">Cần cập nhật</string>
+    <string name="force_update_body">Cần phiên bản StationAlarm mới hơn để báo thức hoạt động đáng tin cậy. Vui lòng cập nhật để tiếp tục.</string>
+    <string name="force_update_button">Cập nhật ngay</string>
+    <string name="maintenance_default_body">Dịch vụ tạm thời không khả dụng. Chúng tôi đang khắc phục.</string>
+</resources>

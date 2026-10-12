@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <string name="common_cancel">취소</string>
+    <string name="common_remove">삭제</string>
+    <string name="common_back">뒤로</string>
+    <string name="common_open_settings">설정 열기</string>
+    <string name="common_not_now">나중에</string>
+
+    <string name="tab_alarms">알람</string>
+    <string name="tab_map">지도</string>
+    <string name="nav_menu">메뉴</string>
+    <string name="nav_settings">설정</string>
+    <string name="nav_about">앱 정보</string>
+    <string name="nav_rate_us">평가하기</string>
+    <string name="nav_share_app">앱 공유</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <string name="permission_location_title">위치 접근 권한 필요</string>
+    <string name="permission_location_body">StationAlarm은 앱이 닫혀 있거나 화면이 잠긴 상태에서도 목적지에 가까워지면 알람을 울리기 위해 \'항상 허용\' 위치 권한이 필요합니다.</string>
+    <string name="permission_location_steps">• 아래 \'설정\'을 탭하세요\n• \'권한\'을 탭하세요\n• \'위치\'를 선택하세요\n• \'항상 허용\'을 선택하세요</string>
+    <string name="permission_notifications_title">알림 활성화</string>
+    <string name="permission_notifications_body">StationAlarm은 화면이 잠긴 상태에서 알람을 표시하려면 알림 권한이 필요합니다. 권한 없이는 알람이 백그라운드에서 무음으로 울려 목적지를 놓칠 수 있습니다.</string>
+
+    <string name="gps_disabled_title">GPS 꺼짐</string>
+    <string name="gps_disabled_body">정확한 추적을 위해 StationAlarm이 위치 서비스를 켤 수 있도록 허용해 주세요.</string>
+    <string name="gps_disabled_turn_on">GPS 켜기</string>
+
+    <string name="volume_low_title">알람 볼륨이 낮습니다</string>
+    <string name="volume_low_body">알람 볼륨이 50% 미만입니다. 알람이 확실히 깨울 수 있도록 지금 높여 주세요.</string>
+    <string name="volume_low_increase">최대로 높이기</string>
+    <string name="volume_low_keep">현재 유지</string>
+
+    <string name="battery_sheet_title">알람 신뢰성 유지</string>
+    <string name="battery_sheet_body">알람을 설정했습니다 — 실제로 울리는지 확인해 봅시다. 배터리 예외 없이는 Android가 StationAlarm을 절전 모드로 전환해 알람이 늦게 울리거나 아예 울리지 않을 수 있습니다.</string>
+    <string name="battery_sheet_open">설정 열기</string>
+    <string name="battery_sheet_skip">지금은 건너뛰기</string>
+    <string name="battery_sheet_dont_ask_again">다시 묻지 않기</string>
+
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">StationAlarm을 사용해 보세요 — 기차 및 장소를 위한 위치 기반 알람 앱.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">StationAlarm 공유</string>
+
+    <string name="home_search_placeholder">알람 추가할 역 검색…</string>
+    <string name="home_clear">지우기</string>
+    <string name="home_hint_type_more">2자 이상 입력하세요</string>
+    <string name="home_hint_no_stations">역을 찾을 수 없습니다</string>
+    <string name="home_empty_title">알람 없음</string>
+    <string name="home_empty_body">위에서 역을 검색하거나 지도에 핀을 꽂아 보세요.</string>
+    <string name="home_empty_open_map">지도 열기</string>
+    <string name="home_remove_title">알람 삭제?</string>
+    <string name="home_remove_body_format">%s 모니터링이 중지됩니다.</string>
+
+    <string name="card_badge_alarm">알람</string>
+    <string name="card_badge_notify">알림</string>
+    <string name="card_badge_ringing">울리는 중</string>
+    <string name="card_badge_paused">일시정지</string>
+    <string name="card_alerts_within_format">%s 내 경고</string>
+    <string name="card_last_triggered_format">마지막 알림: %s</string>
+    <string name="card_paused_body">일시정지됨 — 스위치를 켜서 재개하세요</string>
+    <string name="card_locating">위치 찾는 중…</string>
+    <string name="card_reminder_format">"%s"</string>
+    <string name="card_action_edit">편집</string>
+    <string name="card_action_map">지도</string>
+    <string name="card_action_remove">알람 삭제</string>
+    <string name="card_action_rename">알람 이름 변경</string>
+    <string name="card_action_save_name">이름 저장</string>
+    <string name="card_action_cancel_rename">이름 변경 취소</string>
+
+    <string name="time_today_format">오늘 %s</string>
+    <string name="time_yesterday_format">어제 %s</string>
+
+    <string name="alarm_config_name_label">알람 이름</string>
+    <string name="alarm_config_default_name">알람</string>
+    <string name="alarm_config_section_distance">경고 거리</string>
+    <string name="alarm_config_ring_when_within">이 거리 안에서 울리기</string>
+    <string name="alarm_config_reminder_label">메모 (선택사항)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">알람 울릴 때 메모 표시</string>
+    <string name="alarm_config_reminder_toggle_subtitle">알람 화면 및 알림에 표시됩니다.</string>
+    <string name="alarm_config_section_alert_by">알림 방식</string>
+    <string name="alarm_config_channel_notify">알림</string>
+    <string name="alarm_config_channel_vibrate">진동</string>
+    <string name="alarm_config_channel_sound">소리</string>
+    <string name="alarm_config_set">알람 설정</string>
+    <string name="alarm_config_update">알람 업데이트</string>
+
+    <string name="map_search_placeholder">장소, 랜드마크, 주소 검색…</string>
+    <string name="map_search_clear">지우기</string>
+    <string name="map_search_attribution">LocationIQ.com으로 검색</string>
+    <string name="map_my_location">내 위치</string>
+    <string name="map_pin_dropped_default">핀 꽂힘</string>
+    <string name="map_pin_loading_address">주소 로딩 중...</string>
+    <string name="map_perimeter">반경</string>
+    <string name="map_set_alarm">알람 설정</string>
+    <string name="map_view_focus_radius_format">경고 반경: %s km</string>
+    <string name="map_hint_railway_station">인도 · 철도역</string>
+
+    <string name="alarm_screen_wake_up">일어나세요!</string>
+    <string name="alarm_screen_arrived_at">도착:</string>
+    <string name="alarm_screen_dismiss">알람 끄기</string>
+    <string name="alarm_screen_press_button_hint">아무 물리 버튼이나 눌러 끄기</string>
+    <string name="alarm_screen_default_destination">목적지</string>
+
+    <string name="settings_title">설정</string>
+    <string name="settings_distance_unit">거리 단위</string>
+    <string name="settings_distance_km">킬로미터</string>
+    <string name="settings_distance_miles">마일</string>
+    <string name="settings_theme">테마</string>
+    <string name="settings_theme_system">시스템 기본값</string>
+    <string name="settings_theme_light">밝게</string>
+    <string name="settings_theme_dark">어둡게</string>
+    <string name="settings_language">언어</string>
+    <string name="settings_language_system">시스템 기본값</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">더 많은 언어가 곧 추가됩니다.</string>
+    <string name="settings_alarm_sound">알람 소리</string>
+    <string name="settings_alarm_sound_current_format">현재: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ 소리를 사용할 수 없습니다 — 다시 선택해 수정하세요.</string>
+    <string name="settings_alarm_sound_change">변경</string>
+    <string name="settings_alarm_sound_reselect">다시 선택</string>
+    <string name="settings_alarm_sound_reset">초기화</string>
+    <string name="settings_alarm_sound_test">알람 테스트 (3초)</string>
+    <string name="settings_alarm_sound_default_name">기본 알람</string>
+    <string name="settings_alarm_sound_custom_name">사용자 지정 소리</string>
+    <string name="settings_sound_picker_title">알람 소리 선택</string>
+    <string name="settings_sound_picker_body">알람 소리의 출처를 선택하세요.</string>
+    <string name="settings_sound_picker_system">시스템 벨소리</string>
+    <string name="settings_sound_picker_file">로컬 파일</string>
+    <string name="settings_sound_picker_select_title">알람 소리 선택</string>
+    <string name="settings_audio_routing">오디오 라우팅</string>
+    <string name="settings_ring_speaker_title">이어폰 연결 시 스피커도 울리기</string>
+    <string name="settings_ring_speaker_subtitle">유선 또는 블루투스 오디오 연결 시 휴대폰 스피커도 크게 유지합니다.</string>
+    <string name="settings_escalating_title">작게 시작해 최대 볼륨까지 높이기</string>
+    <string name="settings_escalating_subtitle_format">자연스러운 기상을 위해 %d초에 걸쳐 점진적으로 증가</string>
+    <string name="settings_ramp_duration_format">증가 시간: %d초</string>
+    <string name="settings_ramp_15s">15초</string>
+    <string name="settings_ramp_60s">60초</string>
+    <string name="settings_alarm_duration">알람 지속 시간</string>
+    <string name="settings_alarm_duration_subtitle">자동 종료 전 알람이 울리는 시간.</string>
+    <string name="settings_alarm_duration_format">울리는 시간: %d분</string>
+    <string name="settings_alarm_duration_min">1분</string>
+    <string name="settings_alarm_duration_max">15분</string>
+    <string name="settings_background_running">백그라운드 실행</string>
+    <string name="settings_battery_exemption">배터리 최적화 예외</string>
+    <string name="settings_battery_exempt_yes">제한 없음 — 알람이 안정적으로 울립니다</string>
+    <string name="settings_battery_exempt_no">제한됨 — 알람이 누락될 수 있습니다</string>
+    <string name="settings_battery_open">열기</string>
+    <string name="settings_debug_logs">디버그 로그</string>
+    <string name="settings_debug_logs_subtitle">알람 문제 진단을 위해 로그를 공유하세요.</string>
+    <string name="settings_debug_logs_app">앱 로그</string>
+    <string name="settings_debug_logs_gps">GPS 로그</string>
+
+    <string name="about_title">앱 정보</string>
+    <string name="about_version_format">버전 %s</string>
+    <string name="about_privacy">개인정보 처리방침</string>
+    <string name="about_terms">이용약관</string>
+    <string name="about_licenses">오픈소스 라이선스</string>
+    <string name="about_made_with_love">여행자를 위해 ♥로 만들었습니다.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <string name="snackbar_alarm_set_format">%s 알람 설정됨</string>
+    <string name="snackbar_alarm_updated_format">%s 알람 업데이트됨</string>
+    <string name="snackbar_no_recent_fix">최근 위치 없음 — 탁 트인 공간으로 이동해 보세요.</string>
+    <string name="snackbar_couldnt_read_location">위치를 읽을 수 없습니다.</string>
+
+    <string name="error_search_timed_out">검색 시간 초과 — 연결을 확인하세요.</string>
+    <string name="error_no_internet">인터넷 연결 없음.</string>
+    <string name="error_too_many_requests">요청이 너무 많습니다 — 잠시 후 다시 시도하세요.</string>
+    <string name="error_search_down">검색 서비스 이용 불가 — 잠시 후 다시 시도하세요.</string>
+    <string name="error_search_unavailable_format">검색 이용 불가 (%d).</string>
+    <string name="error_search_unavailable">검색 이용 불가.</string>
+
+    <string name="notif_channel_service">Station Alarm 서비스</string>
+    <string name="notif_channel_service_desc">추적 상태 표시</string>
+    <string name="notif_channel_alerts">Station Alarm 경고</string>
+    <string name="notif_channel_alerts_desc">높은 우선순위 알람 경고</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">모두 중지</string>
+    <string name="notif_alert_title_format">역 도착: %s</string>
+    <string name="notif_alert_body_default">목적지에 도착했습니다.</string>
+    <string name="notif_alert_body_reminder_format">메모: %s</string>
+    <string name="notif_alert_dismiss">끄기</string>
+    <string name="notif_watchdog_title">GPS 검색 중…</string>
+    <string name="notif_watchdog_body_format">추적 중 — 마지막 신호 %d분 전.</string>
+    <string name="notif_watchdog_default_body">추적 중 — 신호가 돌아오면 재개됩니다.</string>
+    <string name="notif_watchdog_location_off_title">위치가 꺼져 있습니다</string>
+    <string name="notif_watchdog_location_off_body">위치를 켜려면 탭하세요 — 그때까지 알람 일시정지.</string>
+    <string name="notif_audio_failure_title">알람이 무음으로 울렸습니다</string>
+    <string name="notif_audio_failure_body_format">%s 오디오 오류 — 진동만 작동.</string>
+    <string name="notif_boot_restart_title">재시작 필요</string>
+    <string name="notif_boot_restart_body">StationAlarm을 열어 알람을 다시 활성화하세요.</string>
+    <string name="notif_nearest_format">가장 가까운 역: %1$s — %2$s km</string>
+    <string name="notif_monitoring_count_format">역 %d개 모니터링 중...</string>
+    <string name="notif_monitoring_default">역 모니터링 중...</string>
+    <string name="notif_alarm_ringing_count_format">알람 울리는 중 — %d개 역 도달</string>
+
+    <string name="force_update_title">업데이트 필요</string>
+    <string name="force_update_body">알람이 안정적으로 작동하려면 최신 버전의 StationAlarm이 필요합니다. 계속하려면 업데이트하세요.</string>
+    <string name="force_update_button">지금 업데이트</string>
+    <string name="maintenance_default_body">서비스를 일시적으로 사용할 수 없습니다. 작업 중입니다.</string>
+</resources>

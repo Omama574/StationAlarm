@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <string name="common_cancel">Anuluj</string>
+    <string name="common_remove">Usuń</string>
+    <string name="common_back">Wstecz</string>
+    <string name="common_open_settings">Otwórz ustawienia</string>
+    <string name="common_not_now">Nie teraz</string>
+
+    <string name="tab_alarms">Alarmy</string>
+    <string name="tab_map">Mapa</string>
+    <string name="nav_menu">Menu</string>
+    <string name="nav_settings">Ustawienia</string>
+    <string name="nav_about">O aplikacji</string>
+    <string name="nav_rate_us">Oceń nas</string>
+    <string name="nav_share_app">Udostępnij aplikację</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <string name="permission_location_title">Wymagany dostęp do lokalizacji</string>
+    <string name="permission_location_body">StationAlarm wymaga dostępu do lokalizacji \'Zawsze zezwalaj\', aby uruchomić alarm po zbliżeniu się do celu, gdy aplikacja jest zamknięta lub telefon zablokowany.</string>
+    <string name="permission_location_steps">• Dotknij \'Ustawienia\' poniżej\n• Dotknij \'Uprawnienia\'\n• Wybierz \'Lokalizacja\'\n• Wybierz \'Zawsze zezwalaj\'</string>
+    <string name="permission_notifications_title">Włącz powiadomienia</string>
+    <string name="permission_notifications_body">StationAlarm potrzebuje uprawnienia do powiadomień, aby wyświetlać alarmy przy zablokowanym telefonie. Bez niego alarm może dzwonić cicho w tle i przegapisz swój przystanek.</string>
+
+    <string name="gps_disabled_title">GPS wyłączony</string>
+    <string name="gps_disabled_body">Zezwól StationAlarm na włączenie usług lokalizacji w celu dokładnego śledzenia.</string>
+    <string name="gps_disabled_turn_on">Włącz GPS</string>
+
+    <string name="volume_low_title">Głośność alarmu jest niska</string>
+    <string name="volume_low_body">Głośność alarmu jest poniżej 50%. Zwiększ ją teraz, żeby alarm niezawodnie cię obudził.</string>
+    <string name="volume_low_increase">Zwiększ do maksimum</string>
+    <string name="volume_low_keep">Zachowaj bieżący poziom</string>
+
+    <string name="battery_sheet_title">Zachowaj niezawodność alarmów</string>
+    <string name="battery_sheet_body">Właśnie ustawiłeś alarm — upewnijmy się, że zadziała. Bez wyjątku baterii Android może uśpić StationAlarm i alarm może uruchomić się z opóźnieniem lub wcale.</string>
+    <string name="battery_sheet_open">Otwórz ustawienia</string>
+    <string name="battery_sheet_skip">Pomiń na razie</string>
+    <string name="battery_sheet_dont_ask_again">Nie pytaj ponownie</string>
+
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">Wypróbuj StationAlarm — alarm oparty na lokalizacji dla pociągów i miejsc.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">Udostępnij StationAlarm</string>
+
+    <string name="home_search_placeholder">Wyszukaj stację, aby dodać alarm…</string>
+    <string name="home_clear">Wyczyść</string>
+    <string name="home_hint_type_more">Wpisz co najmniej 2 znaki</string>
+    <string name="home_hint_no_stations">Nie znaleziono stacji</string>
+    <string name="home_empty_title">Brak alarmów</string>
+    <string name="home_empty_body">Wyszukaj stację powyżej lub umieść pin na mapie.</string>
+    <string name="home_empty_open_map">Otwórz mapę</string>
+    <string name="home_remove_title">Usunąć alarm?</string>
+    <string name="home_remove_body_format">Spowoduje to zatrzymanie monitorowania %s.</string>
+
+    <string name="card_badge_alarm">Alarm</string>
+    <string name="card_badge_notify">Powiadomienie</string>
+    <string name="card_badge_ringing">Dzwoni</string>
+    <string name="card_badge_paused">Wstrzymany</string>
+    <string name="card_alerts_within_format">Alert w odległości %s</string>
+    <string name="card_last_triggered_format">Ostatnio wyzwolony: %s</string>
+    <string name="card_paused_body">Wstrzymany — przesuń przełącznik, aby wznowić</string>
+    <string name="card_locating">Lokalizowanie…</string>
+    <string name="card_reminder_format">„%s"</string>
+    <string name="card_action_edit">Edytuj</string>
+    <string name="card_action_map">Mapa</string>
+    <string name="card_action_remove">Usuń alarm</string>
+    <string name="card_action_rename">Zmień nazwę alarmu</string>
+    <string name="card_action_save_name">Zapisz nazwę</string>
+    <string name="card_action_cancel_rename">Anuluj zmianę nazwy</string>
+
+    <string name="time_today_format">Dziś %s</string>
+    <string name="time_yesterday_format">Wczoraj %s</string>
+
+    <string name="alarm_config_name_label">Nazwa alarmu</string>
+    <string name="alarm_config_default_name">Alarm</string>
+    <string name="alarm_config_section_distance">Odległość alertu</string>
+    <string name="alarm_config_ring_when_within">Dzwoń w odległości</string>
+    <string name="alarm_config_reminder_label">Notatka przypomnienia (opcjonalna)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">Pokaż przypomnienie po uruchomieniu alarmu</string>
+    <string name="alarm_config_reminder_toggle_subtitle">Wyświetlane na ekranie alarmu i w powiadomieniu.</string>
+    <string name="alarm_config_section_alert_by">Alertuj przez</string>
+    <string name="alarm_config_channel_notify">Powiadomienie</string>
+    <string name="alarm_config_channel_vibrate">Wibracja</string>
+    <string name="alarm_config_channel_sound">Dźwięk</string>
+    <string name="alarm_config_set">Ustaw alarm</string>
+    <string name="alarm_config_update">Zaktualizuj alarm</string>
+
+    <string name="map_search_placeholder">Szukaj miejsca, punktu orientacyjnego, adresu…</string>
+    <string name="map_search_clear">Wyczyść</string>
+    <string name="map_search_attribution">Wyszukiwanie przez LocationIQ.com</string>
+    <string name="map_my_location">Moja lokalizacja</string>
+    <string name="map_pin_dropped_default">Upuszczony pin</string>
+    <string name="map_pin_loading_address">Ładowanie adresu...</string>
+    <string name="map_perimeter">Obwód</string>
+    <string name="map_set_alarm">Ustaw Alarm</string>
+    <string name="map_view_focus_radius_format">Promień alertu: %s km</string>
+    <string name="map_hint_railway_station">Indie · Stacja kolejowa</string>
+
+    <string name="alarm_screen_wake_up">Wstawaj!</string>
+    <string name="alarm_screen_arrived_at">Dotarłeś do</string>
+    <string name="alarm_screen_dismiss">Zatrzymaj</string>
+    <string name="alarm_screen_press_button_hint">Naciśnij dowolny przycisk fizyczny, aby zatrzymać</string>
+    <string name="alarm_screen_default_destination">Cel podróży</string>
+
+    <string name="settings_title">Ustawienia</string>
+    <string name="settings_distance_unit">Jednostka odległości</string>
+    <string name="settings_distance_km">Kilometry</string>
+    <string name="settings_distance_miles">Mile</string>
+    <string name="settings_theme">Motyw</string>
+    <string name="settings_theme_system">Domyślny systemowy</string>
+    <string name="settings_theme_light">Jasny</string>
+    <string name="settings_theme_dark">Ciemny</string>
+    <string name="settings_language">Język</string>
+    <string name="settings_language_system">Domyślny systemowy</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">Więcej języków wkrótce.</string>
+    <string name="settings_alarm_sound">Dźwięk alarmu</string>
+    <string name="settings_alarm_sound_current_format">Bieżący: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ Dźwięk niedostępny — wybierz ponownie, aby naprawić.</string>
+    <string name="settings_alarm_sound_change">Zmień</string>
+    <string name="settings_alarm_sound_reselect">Wybierz ponownie</string>
+    <string name="settings_alarm_sound_reset">Resetuj</string>
+    <string name="settings_alarm_sound_test">Testuj alarm (3s)</string>
+    <string name="settings_alarm_sound_default_name">Domyślny alarm</string>
+    <string name="settings_alarm_sound_custom_name">Niestandardowy dźwięk</string>
+    <string name="settings_sound_picker_title">Wybierz dźwięk alarmu</string>
+    <string name="settings_sound_picker_body">Wybierz źródło dźwięku alarmu.</string>
+    <string name="settings_sound_picker_system">Dzwonki systemowe</string>
+    <string name="settings_sound_picker_file">Plik lokalny</string>
+    <string name="settings_sound_picker_select_title">Wybierz dźwięk alarmu</string>
+    <string name="settings_audio_routing">Routing dźwięku</string>
+    <string name="settings_ring_speaker_title">Dzwoń przez głośnik ze słuchawkami</string>
+    <string name="settings_ring_speaker_subtitle">Utrzymuj głośnik telefonu na pełnym poziomie przy podłączonym przewodowym lub Bluetooth audio.</string>
+    <string name="settings_escalating_title">Zacznij cicho, narastaj do pełnej głośności</string>
+    <string name="settings_escalating_subtitle_format">Stopniowo narasta przez %ds dla naturalnego budzenia</string>
+    <string name="settings_ramp_duration_format">Czas narastania: %ds</string>
+    <string name="settings_ramp_15s">15s</string>
+    <string name="settings_ramp_60s">60s</string>
+    <string name="settings_alarm_duration">Czas trwania alarmu</string>
+    <string name="settings_alarm_duration_subtitle">Jak długo alarm dzwoni przed automatycznym zatrzymaniem.</string>
+    <string name="settings_alarm_duration_format">Dzwoni przez: %d min</string>
+    <string name="settings_alarm_duration_min">1 min</string>
+    <string name="settings_alarm_duration_max">15 min</string>
+    <string name="settings_background_running">Działanie w tle</string>
+    <string name="settings_battery_exemption">Wyjątek baterii</string>
+    <string name="settings_battery_exempt_yes">Bez ograniczeń — alarmy będą działać niezawodnie</string>
+    <string name="settings_battery_exempt_no">Ograniczony — alarmy mogą być pominięte</string>
+    <string name="settings_battery_open">Otwórz</string>
+    <string name="settings_debug_logs">Dzienniki debugowania</string>
+    <string name="settings_debug_logs_subtitle">Udostępnij dzienniki, aby zdiagnozować problemy z alarmem.</string>
+    <string name="settings_debug_logs_app">Dzienniki aplikacji</string>
+    <string name="settings_debug_logs_gps">Dzienniki GPS</string>
+
+    <string name="about_title">O aplikacji</string>
+    <string name="about_version_format">Wersja %s</string>
+    <string name="about_privacy">Polityka prywatności</string>
+    <string name="about_terms">Warunki użytkowania</string>
+    <string name="about_licenses">Licencje open source</string>
+    <string name="about_made_with_love">Zrobione z ♥ dla podróżnych.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <string name="snackbar_alarm_set_format">Alarm ustawiony dla %s</string>
+    <string name="snackbar_alarm_updated_format">Alarm zaktualizowany dla %s</string>
+    <string name="snackbar_no_recent_fix">Brak ostatniej lokalizacji — spróbuj przejść na otwartą przestrzeń.</string>
+    <string name="snackbar_couldnt_read_location">Nie można odczytać lokalizacji.</string>
+
+    <string name="error_search_timed_out">Wyszukiwanie przekroczyło limit czasu — sprawdź połączenie.</string>
+    <string name="error_no_internet">Brak połączenia z internetem.</string>
+    <string name="error_too_many_requests">Zbyt wiele żądań — spróbuj ponownie za chwilę.</string>
+    <string name="error_search_down">Usługa wyszukiwania jest niedostępna — spróbuj ponownie wkrótce.</string>
+    <string name="error_search_unavailable_format">Wyszukiwanie niedostępne (%d).</string>
+    <string name="error_search_unavailable">Wyszukiwanie niedostępne.</string>
+
+    <string name="notif_channel_service">Usługa Station Alarm</string>
+    <string name="notif_channel_service_desc">Pokazuje status śledzenia</string>
+    <string name="notif_channel_alerts">Alerty Station Alarm</string>
+    <string name="notif_channel_alerts_desc">Alerty alarmowe o wysokim priorytecie</string>
+    <string name="notif_foreground_title">Station Alarm</string>
+    <string name="notif_foreground_stop_all">Zatrzymaj wszystko</string>
+    <string name="notif_alert_title_format">Stacja osiągnięta: %s</string>
+    <string name="notif_alert_body_default">Dotarłeś do celu podróży.</string>
+    <string name="notif_alert_body_reminder_format">Przypomnienie: %s</string>
+    <string name="notif_alert_dismiss">Zatrzymaj</string>
+    <string name="notif_watchdog_title">Szukanie GPS…</string>
+    <string name="notif_watchdog_body_format">Nadal śledzę — ostatni sygnał %dm temu.</string>
+    <string name="notif_watchdog_default_body">Nadal śledzę — wznowi się po powrocie sygnału.</string>
+    <string name="notif_watchdog_location_off_title">Lokalizacja jest wyłączona</string>
+    <string name="notif_watchdog_location_off_body">Dotknij, aby włączyć lokalizację — alarm jest wstrzymany.</string>
+    <string name="notif_audio_failure_title">Alarm uruchomił się bezgłośnie</string>
+    <string name="notif_audio_failure_body_format">Błąd systemu audio o %s — tylko wibracja.</string>
+    <string name="notif_boot_restart_title">Wymagane ponowne uruchomienie</string>
+    <string name="notif_boot_restart_body">Otwórz StationAlarm, aby ponownie aktywować alarmy.</string>
+    <string name="notif_nearest_format">Najbliższa stacja: %1$s — %2$s km</string>
+    <string name="notif_monitoring_count_format">Monitorowanie %d stacji...</string>
+    <string name="notif_monitoring_default">Monitorowanie stacji...</string>
+    <string name="notif_alarm_ringing_count_format">Alarm dzwoni — osiągnięto %d stacji</string>
+
+    <string name="force_update_title">Wymagana aktualizacja</string>
+    <string name="force_update_body">Nowsza wersja StationAlarm jest wymagana, aby alarmy działały niezawodnie. Zaktualizuj, aby kontynuować.</string>
+    <string name="force_update_button">Aktualizuj teraz</string>
+    <string name="maintenance_default_body">Usługa tymczasowo niedostępna. Pracujemy nad tym.</string>
+</resources>

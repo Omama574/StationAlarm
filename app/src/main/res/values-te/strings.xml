@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StationAlarm</string>
+
+    <!-- Common -->
+    <string name="common_cancel">రద్దు</string>
+    <string name="common_remove">తొలగించు</string>
+    <string name="common_back">వెనుకకు</string>
+    <string name="common_open_settings">సెట్టింగులు తెరువు</string>
+    <string name="common_not_now">ఇప్పుడు వద్దు</string>
+
+    <!-- Tabs / navigation -->
+    <string name="tab_alarms">అలారాలు</string>
+    <string name="tab_map">మ్యాప్</string>
+    <string name="nav_menu">మెను</string>
+    <string name="nav_settings">సెట్టింగులు</string>
+    <string name="nav_about">గురించి</string>
+    <string name="nav_rate_us">మాకు రేటింగ్ ఇవ్వండి</string>
+    <string name="nav_share_app">యాప్ షేర్ చేయండి</string>
+    <string name="nav_drawer_app_version_format">v%s</string>
+
+    <!-- Permission dialogs -->
+    <string name="permission_location_title">లొకేషన్ యాక్సెస్ అవసరం</string>
+    <string name="permission_location_body">యాప్ మూసివేసినప్పుడు లేదా ఫోన్ లాక్ అయినప్పుడు మీరు గమ్యస్థానానికి చేరుకున్నప్పుడు అలారం వినిపించడానికి StationAlarm కి \'ఎల్లప్పుడూ అనుమతించు\' లొకేషన్ యాక్సెస్ అవసరం.</string>
+    <string name="permission_location_steps">• \'సెట్టింగులు\' తెరువు\n• \'అనుమతులు\' నొక్కండి\n• \'లొకేషన్\' ఎంచుకోండి\n• \'ఎల్లప్పుడూ అనుమతించు\' ఎంచుకోండి</string>
+    <string name="permission_notifications_title">నోటిఫికేషన్లు ఆన్ చేయండి</string>
+    <string name="permission_notifications_body">మీ ఫోన్ లాక్ అయినప్పుడు అలారాలు చూపించడానికి StationAlarm కి నోటిఫికేషన్ అనుమతి అవసరం. లేకపోతే అలారం బ్యాక్‌గ్రౌండ్‌లో నిశ్శబ్దంగా మోగి మీరు స్టేషన్ మిస్ అవుతారు.</string>
+
+    <!-- GPS dialog -->
+    <string name="gps_disabled_title">GPS ఆఫ్ అయింది</string>
+    <string name="gps_disabled_body">ఖచ్చితమైన ట్రాకింగ్ కోసం లొకేషన్ సర్వీసులు ఆన్ చేయడానికి StationAlarm ని అనుమతించండి.</string>
+    <string name="gps_disabled_turn_on">GPS ఆన్ చేయండి</string>
+
+    <!-- Volume warning -->
+    <string name="volume_low_title">అలారం వాల్యూమ్ తక్కువగా ఉంది</string>
+    <string name="volume_low_body">మీ అలారం వాల్యూమ్ 50% కంటే తక్కువగా ఉంది. అలారం నమ్మకంగా మేల్కొల్పడానికి ఇప్పుడే పెంచండి.</string>
+    <string name="volume_low_increase">గరిష్టానికి పెంచు</string>
+    <string name="volume_low_keep">ప్రస్తుతది ఉంచు</string>
+
+    <!-- Battery optimization sheet -->
+    <string name="battery_sheet_title">అలారాలు విశ్వసనీయంగా ఉంచండి</string>
+    <string name="battery_sheet_body">మీరు అలారం సెట్ చేశారు — ఇది మిమ్మల్ని నిజంగా లేపుతుందని నిర్ధారించుకోండి. బ్యాటరీ మినహాయింపు లేకుండా, Android StationAlarm ని నిద్రపుచ్చవచ్చు మరియు మీ అలారం ఆలస్యంగా వస్తుంది లేదా అస్సలు వినిపించదు.</string>
+    <string name="battery_sheet_open">సెట్టింగులు తెరువు</string>
+    <string name="battery_sheet_skip">ఇప్పుడు దాటవేయి</string>
+    <string name="battery_sheet_dont_ask_again">మళ్ళీ అడగవద్దు</string>
+
+    <!-- Share app -->
+    <string name="share_app_subject">StationAlarm</string>
+    <string name="share_app_text_format">StationAlarm చూడండి — లొకేషన్ ఆధారిత రైలు/ప్లేస్ అలారం యాప్.\nhttps://play.google.com/store/apps/details?id=%s</string>
+    <string name="share_app_chooser_title">StationAlarm షేర్ చేయండి</string>
+
+    <!-- Home / Alarms tab -->
+    <string name="home_search_placeholder">అలారం జోడించడానికి స్టేషన్ వెతకండి…</string>
+    <string name="home_clear">క్లియర్</string>
+    <string name="home_hint_type_more">కనీసం 2 అక్షరాలు టైప్ చేయండి</string>
+    <string name="home_hint_no_stations">స్టేషన్లు కనుగొనబడలేదు</string>
+    <string name="home_empty_title">ఇంకా అలారాలు లేవు</string>
+    <string name="home_empty_body">పైన స్టేషన్ వెతకండి, లేదా మ్యాప్‌లో పిన్ వేయండి.</string>
+    <string name="home_empty_open_map">మ్యాప్ తెరువు</string>
+    <string name="home_remove_title">అలారం తీసివేయాలా?</string>
+    <string name="home_remove_body_format">ఇది %s మానిటరింగ్ ఆపుతుంది.</string>
+
+    <!-- Station card -->
+    <string name="card_badge_alarm">అలారం</string>
+    <string name="card_badge_notify">నోటిఫై</string>
+    <string name="card_badge_ringing">రింగ్ అవుతోంది</string>
+    <string name="card_badge_paused">పాజ్ చేయబడింది</string>
+    <string name="card_alerts_within_format">%s లోపల అలర్ట్</string>
+    <string name="card_last_triggered_format">చివరిసారి: %s</string>
+    <string name="card_paused_body">పాజ్ చేయబడింది — రెజ్యూమ్ చేయడానికి స్విచ్ నొక్కండి</string>
+    <string name="card_locating">లొకేటింగ్…</string>
+    <string name="card_reminder_format">"%s"</string>
+    <string name="card_action_edit">సవరించు</string>
+    <string name="card_action_map">మ్యాప్</string>
+    <string name="card_action_remove">అలారం తీసివేయి</string>
+    <string name="card_action_rename">అలారం పేరు మార్చు</string>
+    <string name="card_action_save_name">పేరు సేవ్ చేయి</string>
+    <string name="card_action_cancel_rename">పేరు మార్పు రద్దు</string>
+
+    <string name="time_today_format">ఈరోజు %s</string>
+    <string name="time_yesterday_format">నిన్న %s</string>
+
+    <!-- Alarm config bottom sheet -->
+    <string name="alarm_config_name_label">అలారం పేరు</string>
+    <string name="alarm_config_default_name">అలారం</string>
+    <string name="alarm_config_section_distance">అలర్ట్ దూరం</string>
+    <string name="alarm_config_ring_when_within">లోపల రింగ్ అవుతుంది</string>
+    <string name="alarm_config_reminder_label">రిమైండర్ నోట్ (ఐచ్ఛికం)</string>
+    <string name="alarm_config_reminder_counter_format">%1$d / %2$d</string>
+    <string name="alarm_config_reminder_toggle_title">అలారం ఫైర్ అయినప్పుడు రిమైండర్ చూపించు</string>
+    <string name="alarm_config_reminder_toggle_subtitle">అలారం స్క్రీన్ మరియు నోటిఫికేషన్‌లో చూపబడుతుంది.</string>
+    <string name="alarm_config_section_alert_by">అలర్ట్ విధానం</string>
+    <string name="alarm_config_channel_notify">నోటిఫై</string>
+    <string name="alarm_config_channel_vibrate">వైబ్రేట్</string>
+    <string name="alarm_config_channel_sound">సౌండ్</string>
+    <string name="alarm_config_set">అలారం సెట్ చేయి</string>
+    <string name="alarm_config_update">అలారం అప్‌డేట్ చేయి</string>
+
+    <!-- Map search -->
+    <string name="map_search_placeholder">స్థలం, లాండ్‌మార్క్, చిరునామా వెతకండి…</string>
+    <string name="map_search_clear">క్లియర్</string>
+    <string name="map_search_attribution">LocationIQ.com ద్వారా వెతుకు</string>
+    <string name="map_my_location">నా లొకేషన్</string>
+    <string name="map_pin_dropped_default">డ్రాప్డ్ పిన్</string>
+    <string name="map_pin_loading_address">చిరునామా లోడవుతోంది...</string>
+    <string name="map_perimeter">పరిధి</string>
+    <string name="map_set_alarm">అలారం సెట్ చేయి</string>
+    <string name="map_view_focus_radius_format">అలర్ట్ రేడియస్: %s కి.మీ</string>
+    <string name="map_hint_railway_station">భారతదేశం · రైల్వే స్టేషన్</string>
+
+    <!-- Alarm screen -->
+    <string name="alarm_screen_wake_up">లేవండి!</string>
+    <string name="alarm_screen_arrived_at">చేరుకున్నారు</string>
+    <string name="alarm_screen_dismiss">డిస్మిస్</string>
+    <string name="alarm_screen_press_button_hint">డిస్మిస్ చేయడానికి ఏదైనా భౌతిక బటన్ నొక్కండి</string>
+    <string name="alarm_screen_default_destination">గమ్యస్థానం</string>
+
+    <!-- Settings -->
+    <string name="settings_title">సెట్టింగులు</string>
+    <string name="settings_distance_unit">దూర యూనిట్</string>
+    <string name="settings_distance_km">కిలోమీటర్లు</string>
+    <string name="settings_distance_miles">మైళ్ళు</string>
+    <string name="settings_theme">థీమ్</string>
+    <string name="settings_theme_system">సిస్టమ్ డిఫాల్ట్</string>
+    <string name="settings_theme_light">లైట్</string>
+    <string name="settings_theme_dark">డార్క్</string>
+    <string name="settings_language">భాష</string>
+    <string name="settings_language_system">సిస్టమ్ డిఫాల్ట్</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hindi">हिन्दी</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_portuguese_br">Português (Brasil)</string>
+    <string name="settings_language_portuguese_pt">Português (Portugal)</string>
+    <string name="settings_language_italian">Italiano</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_dutch">Nederlands</string>
+    <string name="settings_language_turkish">Türkçe</string>
+    <string name="settings_language_indonesian">Bahasa Indonesia</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_language_vietnamese">Tiếng Việt</string>
+    <string name="settings_language_korean">한국어</string>
+    <string name="settings_language_japanese">日本語</string>
+    <string name="settings_language_bengali">বাংলা</string>
+    <string name="settings_language_tamil">தமிழ்</string>
+    <string name="settings_language_telugu">తెలుగు</string>
+    <string name="settings_language_marathi">मराठी</string>
+    <string name="settings_language_gujarati">ગુજરાતી</string>
+    <string name="settings_language_more_coming">మరిన్ని భాషలు త్వరలో వస్తున్నాయి.</string>
+    <string name="settings_alarm_sound">అలారం సౌండ్</string>
+    <string name="settings_alarm_sound_current_format">ప్రస్తుతం: %s</string>
+    <string name="settings_alarm_sound_unavailable">⚠ సౌండ్ అందుబాటులో లేదు — సరిచేయడానికి మళ్ళీ ఎంచుకోండి.</string>
+    <string name="settings_alarm_sound_change">మార్చు</string>
+    <string name="settings_alarm_sound_reselect">మళ్ళీ ఎంచుకో</string>
+    <string name="settings_alarm_sound_reset">రీసెట్</string>
+    <string name="settings_alarm_sound_test">అలారం టెస్ట్ (3సె)</string>
+    <string name="settings_alarm_sound_default_name">డిఫాల్ట్ అలారం</string>
+    <string name="settings_alarm_sound_custom_name">కస్టమ్ సౌండ్</string>
+    <string name="settings_sound_picker_title">అలారం సౌండ్ ఎంచుకోండి</string>
+    <string name="settings_sound_picker_body">మీ అలారం సౌండ్ సోర్స్ ఎంచుకోండి.</string>
+    <string name="settings_sound_picker_system">సిస్టమ్ రింగ్‌టోన్లు</string>
+    <string name="settings_sound_picker_file">లోకల్ ఫైల్</string>
+    <string name="settings_sound_picker_select_title">అలారం సౌండ్ ఎంచుకోండి</string>
+    <string name="settings_audio_routing">ఆడియో రూటింగ్</string>
+    <string name="settings_ring_speaker_title">హెడ్‌ఫోన్‌లతో స్పీకర్ రింగ్ చేయి</string>
+    <string name="settings_ring_speaker_subtitle">వైర్డ్ లేదా బ్లూటూత్ ఆడియో కనెక్ట్ అయినప్పుడు ఫోన్ స్పీకర్ లౌడ్‌గా ఉంచు.</string>
+    <string name="settings_escalating_title">నెమ్మదిగా ప్రారంభించి, పూర్తి వాల్యూమ్‌కు పెంచు</string>
+    <string name="settings_escalating_subtitle_format">%dసెకెండ్లలో నెమ్మదిగా పెరుగుతుంది</string>
+    <string name="settings_ramp_duration_format">రాంప్ వ్యవధి: %dసె</string>
+    <string name="settings_ramp_15s">15సె</string>
+    <string name="settings_ramp_60s">60సె</string>
+    <string name="settings_alarm_duration">అలారం వ్యవధి</string>
+    <string name="settings_alarm_duration_subtitle">ఆటోమాటిక్‌గా ఆగే ముందు అలారం ఎంత సేపు రింగ్ అవుతుంది.</string>
+    <string name="settings_alarm_duration_format">రింగ్ వ్యవధి: %d నిమి</string>
+    <string name="settings_alarm_duration_min">1 నిమి</string>
+    <string name="settings_alarm_duration_max">15 నిమి</string>
+    <string name="settings_background_running">బ్యాక్‌గ్రౌండ్ రన్నింగ్</string>
+    <string name="settings_battery_exemption">బ్యాటరీ మినహాయింపు</string>
+    <string name="settings_battery_exempt_yes">అపరిమితం — అలారాలు విశ్వసనీయంగా ఫైర్ అవుతాయి</string>
+    <string name="settings_battery_exempt_no">నిరోధించబడింది — అలారాలు మిస్ అవుతాయి</string>
+    <string name="settings_battery_open">తెరువు</string>
+    <string name="settings_debug_logs">డీబగ్ లాగ్స్</string>
+    <string name="settings_debug_logs_subtitle">అలారం సమస్యలను నిర్ధారించడానికి లాగ్స్ షేర్ చేయండి.</string>
+    <string name="settings_debug_logs_app">యాప్ లాగ్స్</string>
+    <string name="settings_debug_logs_gps">GPS లాగ్స్</string>
+
+    <!-- About screen -->
+    <string name="about_title">గురించి</string>
+    <string name="about_version_format">వెర్షన్ %s</string>
+    <string name="about_privacy">గోప్యతా విధానం</string>
+    <string name="about_terms">వినియోగ నిబంధనలు</string>
+    <string name="about_licenses">ఓపెన్ సోర్స్ లైసెన్సులు</string>
+    <string name="about_made_with_love">ప్రయాణికుల కోసం ♥ తో తయారుచేయబడింది.</string>
+    <string name="about_copyright_format">© %d StationAlarm</string>
+
+    <!-- Snackbars -->
+    <string name="snackbar_alarm_set_format">%s కి అలారం సెట్ చేయబడింది</string>
+    <string name="snackbar_alarm_updated_format">%s కి అలారం అప్‌డేట్ చేయబడింది</string>
+    <string name="snackbar_no_recent_fix">ఇటీవల లొకేషన్ ఫిక్స్ లేదు — తెరిచిన ప్రదేశానికి వెళ్ళండి.</string>
+    <string name="snackbar_couldnt_read_location">మీ లొకేషన్ చదవలేకపోయాం.</string>
+
+    <!-- Network errors -->
+    <string name="error_search_timed_out">వెతుకులాట టైమ్‌అవుట్ — మీ కనెక్షన్ తనిఖీ చేయండి.</string>
+    <string name="error_no_internet">ఇంటర్నెట్ కనెక్షన్ లేదు.</string>
+    <string name="error_too_many_requests">చాలా అభ్యర్థనలు — కొన్ని నిమిషాల్లో మళ్ళీ ప్రయత్నించండి.</string>
+    <string name="error_search_down">వెతుకులాట సేవ డౌన్‌లో ఉంది — త్వరలో మళ్ళీ ప్రయత్నించండి.</string>
+    <string name="error_search_unavailable_format">వెతుకులాట అందుబాటులో లేదు (%d).</string>
+    <string name="error_search_unavailable">వెతుకులాట అందుబాటులో లేదు.</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_service">స్టేషన్ అలారం సర్వీస్</string>
+    <string name="notif_channel_service_desc">ట్రాకింగ్ స్థితిని చూపిస్తుంది</string>
+    <string name="notif_channel_alerts">స్టేషన్ అలారం అలర్ట్లు</string>
+    <string name="notif_channel_alerts_desc">హై ప్రయారిటీ అలారం అలర్ట్లు</string>
+    <string name="notif_foreground_title">స్టేషన్ అలారం</string>
+    <string name="notif_foreground_stop_all">అన్నీ ఆపు</string>
+    <string name="notif_alert_title_format">స్టేషన్ చేరుకున్నారు: %s</string>
+    <string name="notif_alert_body_default">మీరు మీ గమ్యస్థానానికి చేరుకున్నారు.</string>
+    <string name="notif_alert_body_reminder_format">రిమైండర్: %s</string>
+    <string name="notif_alert_dismiss">డిస్మిస్</string>
+    <string name="notif_watchdog_title">GPS కోసం వెతుకుతోంది…</string>
+    <string name="notif_watchdog_body_format">ఇంకా ట్రాకింగ్ — చివరి ఫిక్స్ %d నిమి ముందు.</string>
+    <string name="notif_watchdog_default_body">ఇంకా ట్రాకింగ్ — ఫిక్స్ వచ్చినప్పుడు రెజ్యూమ్ అవుతుంది.</string>
+    <string name="notif_watchdog_location_off_title">లొకేషన్ ఆఫ్ అయింది</string>
+    <string name="notif_watchdog_location_off_body">లొకేషన్ ఆన్ చేయడానికి నొక్కండి — అలారం పాజ్ చేయబడింది.</string>
+    <string name="notif_audio_failure_title">అలారం సైలెంట్‌గా ఫైర్ అయింది</string>
+    <string name="notif_audio_failure_body_format">%s వద్ద ఆడియో సిస్టమ్ ఎర్రర్ — వైబ్రేషన్ మాత్రమే.</string>
+    <string name="notif_boot_restart_title">రీస్టార్ట్ అవసరం</string>
+    <string name="notif_boot_restart_body">మీ అలారాలను మళ్ళీ యాక్టివేట్ చేయడానికి StationAlarm తెరువు.</string>
+    <string name="notif_nearest_format">సమీపంలోని స్టేషన్: %1$s — %2$s కి.మీ</string>
+    <string name="notif_monitoring_count_format">%d స్టేషన్(లు) మానిటర్ చేస్తోంది...</string>
+    <string name="notif_monitoring_default">స్టేషన్లు మానిటర్ చేస్తోంది...</string>
+    <string name="notif_alarm_ringing_count_format">అలారం రింగ్ అవుతోంది — %d స్టేషన్(లు) చేరుకున్నాయి</string>
+
+    <!-- Remote config -->
+    <string name="force_update_title">అప్‌డేట్ అవసరం</string>
+    <string name="force_update_body">అలారాలు విశ్వసనీయంగా పని చేయడానికి StationAlarm కొత్త వెర్షన్ అవసరం. దయచేసి అప్‌డేట్ చేసి కొనసాగించండి.</string>
+    <string name="force_update_button">ఇప్పుడు అప్‌డేట్ చేయి</string>
+    <string name="maintenance_default_body">సేవ తాత్కాలికంగా అందుబాటులో లేదు. మేము పని చేస్తున్నాం.</string>
+</resources>
