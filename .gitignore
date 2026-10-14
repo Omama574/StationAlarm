@@ -19,3 +19,11 @@ google-services.json
 keystore.properties
 *.keystore
 *.jks
+
+# Generated / tool output — not needed to build, test or run the app.
+# graphify writes its graph into the working tree; its docs say to ignore it or commit only what the team shares.
+/graphify-out/
+# graphify's agent skill/rules install (re-created by the graphify installer)
+/.agents/
+# IDE-local
+/.idea/markdown.xml
