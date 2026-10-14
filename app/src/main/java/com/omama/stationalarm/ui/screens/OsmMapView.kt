@@ -17,6 +17,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
@@ -96,6 +97,10 @@ internal fun OsmMapView(
                     }
                 }
                 overlays.add(0, MapEventsOverlay(receiver))
+                // OpenStreetMap's tile usage policy and the ODbL require "© OpenStreetMap contributors" to be
+                // visible wherever its tiles are shown. The overlay reads the notice from the tile source and
+                // is not removed by the Marker/Polygon clean-up in update{}.
+                overlays.add(CopyrightOverlay(ctx))
                 mapViewRef.value = this
                 onMapReady(this)
             }

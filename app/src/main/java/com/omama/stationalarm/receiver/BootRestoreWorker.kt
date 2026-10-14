@@ -33,8 +33,12 @@ class BootRestoreWorker(
     override suspend fun doWork(): Result {
         return try {
             val activeStations = StationRepository.getAllActiveStationsList()
-            if (activeStations.isEmpty()) {
-                Logger.log("BOOT_RESTORE", extra = "No active stations to restore")
+            // PAUSED rows are history, not work. Starting the foreground service for them only flashes a
+            // "Monitoring…" notification (the service stops itself again) and, on Android 15+, hit the
+            // boot-time foreground-type restriction for users whose only alarms were paused.
+            val armedCount = activeStations.count { it.status != "PAUSED" }
+            if (armedCount == 0) {
+                Logger.log("BOOT_RESTORE", extra = "No armed stations to restore")
                 return Result.success()
             }
 
@@ -72,9 +76,9 @@ class BootRestoreWorker(
             }
             ContextCompat.startForegroundService(applicationContext, serviceIntent)
 
-            Logger.breadcrumb("BOOT_RESTORE", extra = "Restored ${activeStations.size} stations OK")
+            Logger.breadcrumb("BOOT_RESTORE", extra = "Restored $armedCount stations OK")
             Analytics.event("boot_restore_ok") {
-                putInt("restored_count", activeStations.size)
+                putInt("restored_count", armedCount)
                 putInt("attempts", runAttemptCount)
             }
             Result.success()

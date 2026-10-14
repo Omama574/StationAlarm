@@ -8,6 +8,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.util.Logger
 import java.util.concurrent.TimeUnit
 
@@ -26,6 +27,22 @@ class GeofenceCleanupWorker(
 
     override suspend fun doWork(): Result {
         val stationId = inputData.getString(KEY_STATION_ID) ?: return Result.failure()
+
+        // This job can be queued hours before it runs (backoff starts at 30 s and grows). In the meantime the
+        // alarm may have been re-armed, or edited — which removes then re-adds its geofences. Geofence request
+        // IDs are per station, so removing them now would delete the LIVE ones and leave an armed alarm with no
+        // hardware wake-up. An armed station owns its geofences: nothing to clean up.
+        val armed = try {
+            StationRepository.isArmed(stationId)
+        } catch (e: Exception) {
+            Logger.error("GEOFENCE_CLEANUP_STATE_UNREADABLE", e, stationId)
+            return Result.retry()
+        }
+        if (armed) {
+            Logger.log("GEOFENCE_CLEANUP_SKIPPED", stationId, "station is armed again; its geofences are live")
+            return Result.success()
+        }
+
         val result = GeofenceManager.attemptRemoveGeofencesForStation(applicationContext, stationId)
         return if (result.isSuccess) {
             Logger.log("GEOFENCE_CLEANUP_OK", stationId, "via worker (attempt=$runAttemptCount)")

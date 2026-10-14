@@ -24,6 +24,12 @@
 -keep class com.omama.stationalarm.network.** { *; }
 # Station domain model is also deserialized from assets/stations.json
 -keep class com.omama.stationalarm.data.Station { *; }
+# StationData parses stations.json with `object : TypeToken<List<Station>>() {}`. R8 full mode strips the
+# generic signature of that anonymous subclass, so Gson throws "TypeToken must be created with a type
+# argument" and the offline station list silently fails to load (release builds only). Gson's own
+# recommended rules:
+-keep,allowobfuscation,allowshrinking class com.google.gson.reflect.TypeToken
+-keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken
 
 # ── Room ──────────────────────────────────────────────────────────────────────
 -keep class * extends androidx.room.RoomDatabase { *; }

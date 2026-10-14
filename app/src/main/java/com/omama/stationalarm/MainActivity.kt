@@ -60,7 +60,9 @@ class MainActivity : ComponentActivity() {
         if (hasAllLocationPermissions(this)) {
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 val active = StationRepository.getAllActiveStationsList()
-                if (active.isNotEmpty()) {
+                // Only armed alarms need the service. With paused rows alone it would start, flash a
+                // notification and stop again on every app open.
+                if (active.any { it.status != "PAUSED" }) {
                     StationRepository.reRegisterAllGeofences()
                     val intent = Intent(this@MainActivity, LocationService::class.java).apply {
                         action = LocationService.ACTION_START_FOR_ACTIVE_STATIONS

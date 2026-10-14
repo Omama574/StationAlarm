@@ -10,6 +10,7 @@ import com.omama.stationalarm.data.db.toEntity
 import com.omama.stationalarm.geofence.GeofenceManager
 import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.Logger
+import com.omama.stationalarm.util.StationIds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.sync.Mutex
@@ -103,7 +105,11 @@ object StationRepository {
     fun searchStations(query: String): List<Station> = StationData.searchStations(query)
     fun getAllStations(): List<Station> = StationData.getAllStations()
 
-    fun addActiveStation(activeStation: ActiveStation, customStation: Station? = null) {
+    fun addActiveStation(requested: ActiveStation, customStation: Station? = null) {
+        // Normalise the ID before anything touches Room or GMS. An '_' in it corrupts the geofence request-ID
+        // parse in GeofenceBroadcastReceiver and silently disables every hardware geofence for the alarm
+        // (see StationIds). Railway codes pass through unchanged.
+        val activeStation = requested.copy(stationId = StationIds.sanitize(requested.stationId))
         repositoryScope.launch {
             // Pre-flight the max-alarms cap before we touch any DB rows. Without
             // this, we'd insert into active_stations, hit the cap inside
@@ -199,8 +205,13 @@ object StationRepository {
 
     fun removeActiveStation(stationId: String) {
         repositoryScope.launch {
-            database.activeStationDao().delete(stationId)
-            GeofenceManager.removeGeofencesForStation(appContext, stationId)
+            // Same per-station lock as arm/re-arm/edit/alert: without it a delayed geofence removal here could
+            // land after a concurrent re-arm and delete the freshly registered geofences.
+            lockFor(stationId).withLock {
+                database.activeStationDao().delete(stationId)
+                GeofenceManager.removeGeofencesForStation(appContext, stationId)
+            }
+            clearDistance(stationId)
             Logger.breadcrumb("STATION_REMOVED", stationId)
             Analytics.event("alarm_removed")
         }
@@ -250,8 +261,11 @@ object StationRepository {
      *  Keeps the row in DB so user can re-arm from the Alarms tab. */
     fun dismissStation(stationId: String) {
         repositoryScope.launch {
-            database.activeStationDao().updateStatus(stationId, "PAUSED")
-            GeofenceManager.removeGeofencesForStation(appContext, stationId)
+            lockFor(stationId).withLock {
+                database.activeStationDao().updateStatus(stationId, "PAUSED")
+                GeofenceManager.removeGeofencesForStation(appContext, stationId)
+            }
+            clearDistance(stationId)
             Logger.breadcrumb("STATION_DISMISSED_TO_PAUSED", stationId)
             Analytics.event("alarm_dismissed")
         }
@@ -260,8 +274,13 @@ object StationRepository {
     /** Manually pause a station (toggle OFF). Removes geofences but keeps alarm data. */
     fun pauseStation(stationId: String) {
         repositoryScope.launch {
-            database.activeStationDao().updateStatus(stationId, "PAUSED")
-            GeofenceManager.removeGeofencesForStation(appContext, stationId)
+            // Locked like rearmStation: toggling OFF then quickly ON must not let this removal (or one of its
+            // retries) run after the re-arm has registered the new geofences.
+            lockFor(stationId).withLock {
+                database.activeStationDao().updateStatus(stationId, "PAUSED")
+                GeofenceManager.removeGeofencesForStation(appContext, stationId)
+            }
+            clearDistance(stationId)
             Logger.breadcrumb("STATION_PAUSED", stationId)
             Analytics.event("alarm_paused")
         }
@@ -271,6 +290,8 @@ object StationRepository {
     fun rearmStation(stationId: String) {
         repositoryScope.launch {
             lockFor(stationId).withLock {
+                // Forget the previous trip's distance so the card says "Locating…" until a fresh fix arrives.
+                clearDistance(stationId)
                 database.activeStationDao().updateStatus(stationId, "MONITORING")
                 val station = database.activeStationDao().getStationById(stationId)?.toDomainModel()
                     ?: return@withLock
@@ -306,9 +327,13 @@ object StationRepository {
     }
 
     fun updateStationDistances(distances: Map<String, Double>) {
-        val currentDistances = _distancesFlow.value.toMutableMap()
-        currentDistances.putAll(distances)
-        _distancesFlow.value = currentDistances
+        // update{} is an atomic compare-and-set loop; the previous read-modify-write could lose entries when
+        // two location callbacks finished on different threads at the same time.
+        _distancesFlow.update { it + distances }
+    }
+
+    private fun clearDistance(stationId: String) {
+        _distancesFlow.update { it - stationId }
     }
 
     suspend fun getAllActiveStationsList(): List<ActiveStation> {

@@ -10,6 +10,7 @@ import java.io.InputStreamReader
 object StationData {
 
     private var stations: List<Station>? = null
+    @Volatile private var index: StationIndex? = null
     private const val STATIONS_FILE = "stations.json"
 
     fun initialize(context: Context) {
@@ -20,7 +21,9 @@ object StationData {
             val type = object : TypeToken<List<Station>>() {}.type
             val parsed = Gson().fromJson<List<Station>?>(reader, type)
             reader.close()
-            stations = parsed ?: emptyList()
+            val loaded = parsed ?: emptyList()
+            stations = loaded
+            index = StationIndex(loaded)
             if (parsed.isNullOrEmpty()) {
                 // Empty parse is silent corruption — surface as non-fatal so we know.
                 Logger.error("STATION_DATA_EMPTY",
@@ -33,6 +36,7 @@ object StationData {
             Log.e("StationData", "Failed to load $STATIONS_FILE", e)
             Logger.error("STATION_DATA_LOAD_FAILED", e)
             stations = emptyList()
+            index = StationIndex(emptyList())
         }
     }
 
@@ -40,13 +44,10 @@ object StationData {
         return stations?.firstOrNull { it.id.equals(id, ignoreCase = true) }
     }
 
+    /** Best matches first (see [StationIndex]); empty until the JSON has loaded. */
     fun searchStations(query: String): List<Station> {
         if (query.isBlank()) return emptyList()
-        val lowerQuery = query.lowercase()
-        return stations?.filter {
-            it.id.lowercase().contains(lowerQuery) ||
-                    it.name.lowercase().contains(lowerQuery)
-        } ?: emptyList()
+        return index?.search(query) ?: emptyList()
     }
 
     fun getAllStations(): List<Station> = stations ?: emptyList()

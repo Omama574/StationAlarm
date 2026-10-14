@@ -12,8 +12,12 @@ import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.network.GeocodingClient
 import com.omama.stationalarm.repository.StationRepository
+import com.omama.stationalarm.util.GeoMath
+import com.omama.stationalarm.util.StationIds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
@@ -21,6 +25,10 @@ import retrofit2.HttpException
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.util.Locale
+
+// A reverse-geocode result closer than this to the tapped point is treated as "the thing the user tapped"
+// (building, station, POI) and the pin snaps to it. Anything farther keeps the tapped coordinates.
+private const val MAX_PIN_SNAP_KM = 0.15
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class MapSearchViewModel(application: Application) : AndroidViewModel(application) {
@@ -53,6 +61,15 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     private val _initialCenter = MutableStateFlow<GeoPoint?>(null)
     val initialCenter: StateFlow<GeoPoint?> = _initialCenter.asStateFlow()
 
+    // Bumped whenever the visible search state is reset (box cleared, result picked). A search that
+    // started before the bump finds the number changed and discards its answer instead of resurrecting
+    // stale results. Only touched on the main thread (viewModelScope runs on Dispatchers.Main.immediate).
+    private var searchGeneration = 0
+
+    // The in-flight reverse geocode for the most recent map tap, so a newer tap or a picked search
+    // result can cancel it.
+    private var reverseJob: Job? = null
+
     // ── Init ──────────────────────────────────────────────────────────────────
 
     init {
@@ -60,10 +77,15 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         // arrives mid-flight — without it, a slow Photon request kicked off
         // for "Mum" could resolve after the user has typed "Mumbai" and
         // overwrite the fresh result with stale data.
+        //
+        // distinctUntilChanged() runs BEFORE the length filter on purpose: with the filter first, the
+        // blank query that follows clearing the box or picking a result never reached it, so typing the
+        // same text again (e.g. "pune" after having picked a result for "pune") was dropped as a
+        // duplicate and showed no results.
         _query
             .debounce(500)          // 500ms — balances UX vs LocationIQ quota
-            .filter { it.length >= 3 }
             .distinctUntilChanged()
+            .filter { it.length >= 3 }
             .mapLatest { q -> performSearch(q) }
             .launchIn(viewModelScope)
         fetchAndEmitUserLocation(emitToCenter = true)
@@ -74,8 +96,12 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     fun onQueryChanged(q: String) {
         _query.value = q
         if (q.length < 3) {
+            // The pipeline above only sees queries of 3+ characters, so a shorter one cannot cancel a
+            // search that is already running — invalidate it explicitly.
+            searchGeneration++
             _searchResults.value = emptyList()
             _searchError.value = null
+            _isSearching.value = false
         }
     }
 
@@ -85,6 +111,8 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
      *   2. Cloudflare Worker (geocoding proxy) — live geocoding for everything else
      */
     private suspend fun performSearch(q: String) {
+        val generation = searchGeneration
+        var superseded = false
         _isSearching.value = true
         _searchError.value = null
         try {
@@ -93,14 +121,16 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
             if (indiaResults.isNotEmpty()) {
                 val railwayLabel = getApplication<Application>()
                     .getString(R.string.map_hint_railway_station)
-                _searchResults.value = indiaResults.take(8).map { station ->
-                    GeoSearchResult(
-                        id               = station.id,
-                        name             = station.name,
-                        formattedAddress = railwayLabel,
-                        lat              = station.lat,
-                        lon              = station.lon,
-                    )
+                if (generation == searchGeneration) {
+                    _searchResults.value = indiaResults.take(8).map { station ->
+                        GeoSearchResult(
+                            id               = station.id,
+                            name             = station.name,
+                            formattedAddress = railwayLabel,
+                            lat              = station.lat,
+                            lon              = station.lon,
+                        )
+                    }
                 }
                 return
             }
@@ -113,14 +143,25 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                 biasLon = bias?.longitude,
                 lang    = currentLang(),
             )
-            _searchResults.value = response.results.filter { it.hasValidCoords }
+            if (generation == searchGeneration) {
+                _searchResults.value = response.results.filter { it.hasValidCoords }
+            }
 
+        } catch (e: CancellationException) {
+            // mapLatest replaced this search with a newer one. CancellationException is an Exception, so
+            // without this branch the generic handler below reported every superseded search as
+            // "Search unavailable", cleared the results and switched the spinner off while the newer
+            // request was still running — visible whenever the user paused mid-word on a slow link.
+            superseded = true
+            throw e
         } catch (e: Exception) {
-            _searchError.value = errorMessageFor(e)
-            _searchResults.value = emptyList()
+            if (generation == searchGeneration) {
+                _searchError.value = errorMessageFor(e)
+                _searchResults.value = emptyList()
+            }
             android.util.Log.e("MapSearch", "Geocoding failed for '$q'", e)
         } finally {
-            _isSearching.value = false
+            if (!superseded && generation == searchGeneration) _isSearching.value = false
         }
     }
 
@@ -153,8 +194,12 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     // ── Map interactions ──────────────────────────────────────────────────────
 
     fun selectResult(result: GeoSearchResult) {
-        _selectedResult.value = result
+        searchGeneration++
+        reverseJob?.cancel()
+        // Geocoder IDs contain '_' (liq_481312177), which corrupts the geofence request ID parse — see StationIds.
+        _selectedResult.value = result.copy(id = StationIds.sanitize(result.id))
         _searchResults.value = emptyList()
+        _isSearching.value = false
         _query.value = ""
     }
 
@@ -169,28 +214,38 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         val droppedPinLabel = app.getString(R.string.map_pin_dropped_default)
         val loadingLabel = app.getString(R.string.map_pin_loading_address)
 
+        // Identifies THIS tap. A reverse geocode that is still running for an earlier tap — common on a train
+        // with a weak connection — must not overwrite the pin the user placed afterwards, nor a result they
+        // picked from search, otherwise the alarm ends up at the wrong place.
+        val pendingId = "manual-${System.currentTimeMillis()}"
         _selectedResult.value = GeoSearchResult(
-            id               = "manual-${System.currentTimeMillis()}",
+            id               = pendingId,
             name             = droppedPinLabel,
             formattedAddress = loadingLabel,
             lat              = lat,
             lon              = lon,
         )
 
-        viewModelScope.launch {
+        reverseJob?.cancel()
+        reverseJob = viewModelScope.launch {
             try {
                 val response = GeocodingClient.geocodingService.reverse(
                     lat  = lat,
                     lon  = lon,
                     lang = currentLang(),
                 )
+                if (_selectedResult.value?.id != pendingId) return@launch
                 val first = response.results.firstOrNull()
                 if (first != null) {
-                    // Use the Worker's lat/lon (snapped to the resolved address)
-                    // only if valid; otherwise stick with the tap point.
+                    // Take the geocoder's name/address, but keep the user's own point unless the geocoder's is
+                    // a close snap (the building/POI that was tapped). For a tap in open country the "nearest
+                    // address" can be kilometres away, and moving the pin there would silently move the alarm.
+                    val snapped = first.hasValidCoords &&
+                        GeoMath.distanceKm(lat, lon, first.lat, first.lon) <= MAX_PIN_SNAP_KM
                     _selectedResult.value = first.copy(
-                        lat = if (first.hasValidCoords) first.lat else lat,
-                        lon = if (first.hasValidCoords) first.lon else lon,
+                        id  = StationIds.sanitize(first.id),
+                        lat = if (snapped) first.lat else lat,
+                        lon = if (snapped) first.lon else lon,
                     )
                 } else {
                     // No address known here (e.g., middle of an ocean) — fall back to raw coords.
@@ -199,8 +254,11 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                         formattedAddress = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.w("MapSearch", "Reverse geocode failed", e)
+                if (_selectedResult.value?.id != pendingId) return@launch
                 _selectedResult.value = _selectedResult.value?.copy(
                     name             = droppedPinLabel,
                     formattedAddress = "${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}"
@@ -214,10 +272,13 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun clearSelection() {
+        searchGeneration++
+        reverseJob?.cancel()
         _selectedResult.value = null
         _radiusKm.value = 3.0
         _query.value = ""
         _searchResults.value = emptyList()
+        _isSearching.value = false
     }
 
     // ── "My Location" FAB ─────────────────────────────────────────────────────
