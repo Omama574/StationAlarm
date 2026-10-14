@@ -1,0 +1,931 @@
+diff --git a/app/src/main/java/com/omama/stationalarm/receiver/BootRestoreWorker.kt b/app/src/main/java/com/omama/stationalarm/receiver/BootRestoreWorker.kt
+index fa9fb16..0e7db60 100644
+--- a/app/src/main/java/com/omama/stationalarm/receiver/BootRestoreWorker.kt
++++ b/app/src/main/java/com/omama/stationalarm/receiver/BootRestoreWorker.kt
+@@ -36,19 +36,21 @@ class BootRestoreWorker(
+             // PAUSED rows are history, not work. Starting the foreground service for them only flashes a
+             // "Monitoring…" notification (the service stops itself again) and, on Android 15+, hit the
+             // boot-time foreground-type restriction for users whose only alarms were paused.
+-            val armedCount = activeStations.count { it.status != "PAUSED" }
+-            if (armedCount == 0) {
++            val armedBefore = activeStations.count { it.status != "PAUSED" }
++            if (armedBefore == 0) {
+                 Logger.log("BOOT_RESTORE", extra = "No armed stations to restore")
+                 return Result.success()
+             }
+ 
+-            // Any station stuck in ALERTING after a reboot is almost certainly
+-            // stale — the user may have already passed the station. Reset them
+-            // so they can fire again from MONITORING.
+-            for (station in activeStations) {
+-                if (station.status == "ALERTING") {
+-                    StationRepository.resetToMonitoring(station.stationId)
+-                }
++            // A row still ALERTING after a reboot is a ring that was interrupted (battery died, phone switched off)
++            // before the user acknowledged it. A recent one stays ALERTING so the service rings again; an old one is
++            // marked PAUSED. It used to be reset to MONITORING, which silently lost the ring and left the station
++            // armed to ring again on some later approach.
++            StationRepository.recoverInterruptedAlarms()
++            val armedCount = StationRepository.getAllActiveStationsList().count { it.status != "PAUSED" }
++            if (armedCount == 0) {
++                Logger.log("BOOT_RESTORE", extra = "Nothing armed after recovering interrupted alarms")
++                return Result.success()
+             }
+ 
+             val allOk = StationRepository.reRegisterAllGeofencesNow()
+diff --git a/app/src/main/java/com/omama/stationalarm/receiver/GeofenceBroadcastReceiver.kt b/app/src/main/java/com/omama/stationalarm/receiver/GeofenceBroadcastReceiver.kt
+index 4deab4d..3e10f83 100644
+--- a/app/src/main/java/com/omama/stationalarm/receiver/GeofenceBroadcastReceiver.kt
++++ b/app/src/main/java/com/omama/stationalarm/receiver/GeofenceBroadcastReceiver.kt
+@@ -88,14 +88,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
+             try {
+                 for (geofence in triggeringGeofences) {
+                     val requestId = geofence.requestId ?: continue
+-                    // Parse requestId: expected format "geofence_<stationId>_<layer>"
+-                    val parts = requestId.split("_", limit = 3)
+-                    if (parts.size != 3) {
++                    // Parse requestId "geofence_<stationId>_<layer>" from the END: the station ID may itself contain
++                    // underscores (geocoder IDs such as liq_481312177), which the old split("_", limit = 3) mis-split.
++                    val parsed = GeofenceIds.parse(requestId)
++                    if (parsed == null) {
+                         Log.w(TAG, "Invalid requestId format: $requestId")
+                         continue
+                     }
+-                    val stationId = parts[1]
+-                    val layer = parts[2]
++                    val stationId = parsed.stationId
++                    val layer = parsed.layer
+ 
+                     // Verify station is still armed (not deleted, not PAUSED).
+                     // PAUSED rows linger after dismissal while geofence removal is
+diff --git a/app/src/main/java/com/omama/stationalarm/receiver/GeofenceIds.kt b/app/src/main/java/com/omama/stationalarm/receiver/GeofenceIds.kt
+new file mode 100644
+index 0000000..1e2667b
+--- /dev/null
++++ b/app/src/main/java/com/omama/stationalarm/receiver/GeofenceIds.kt
+@@ -0,0 +1,32 @@
++package com.omama.stationalarm.receiver
++
++/**
++ * Parses geofence request IDs of the form `geofence_<stationId>_<layer>` (built in
++ * [com.omama.stationalarm.geofence.GeofenceManager.buildGeofence]).
++ *
++ * The previous parser used `split("_", limit = 3)`, which assumes the station ID contains no underscore. Geocoder
++ * IDs (`liq_481312177`) do, so for those alarms the receiver looked up station `liq`, found nothing armed, and
++ * dropped every hardware geofence event. The layer is always the text after the **last** underscore and always
++ * one of a known set, so parse from the end instead — which also keeps any alarm created before IDs were
++ * sanitised working.
++ */
++internal object GeofenceIds {
++
++    private const val PREFIX = "geofence_"
++
++    private val LAYERS = setOf(
++        "level1", "level2", "level3", "level4", "level5", "level6", "level7", "level8", "alert"
++    )
++
++    data class Parsed(val stationId: String, val layer: String)
++
++    fun parse(requestId: String): Parsed? {
++        if (!requestId.startsWith(PREFIX)) return null
++        val body = requestId.substring(PREFIX.length)
++        val cut = body.lastIndexOf('_')
++        if (cut <= 0 || cut == body.lastIndex) return null
++        val layer = body.substring(cut + 1)
++        if (layer !in LAYERS) return null
++        return Parsed(stationId = body.substring(0, cut), layer = layer)
++    }
++}
+diff --git a/app/src/main/java/com/omama/stationalarm/repository/StationRepository.kt b/app/src/main/java/com/omama/stationalarm/repository/StationRepository.kt
+index 4501786..bc9c801 100644
+--- a/app/src/main/java/com/omama/stationalarm/repository/StationRepository.kt
++++ b/app/src/main/java/com/omama/stationalarm/repository/StationRepository.kt
+@@ -9,6 +9,7 @@ import com.omama.stationalarm.data.db.toDomainModel
+ import com.omama.stationalarm.data.db.toEntity
+ import com.omama.stationalarm.geofence.GeofenceManager
+ import com.omama.stationalarm.util.Analytics
++import com.omama.stationalarm.util.AlarmRecovery
+ import com.omama.stationalarm.util.Logger
+ import com.omama.stationalarm.util.StationIds
+ import kotlinx.coroutines.CoroutineScope
+@@ -422,6 +423,34 @@ object StationRepository {
+         return count
+     }
+ 
++    /**
++     * See [AlarmRecovery]. Replaces [resetAllAlertingToMonitoring] at service start and at boot: a row that is
++     * still ALERTING was interrupted before the user acknowledged it. Recent ones stay ALERTING (the service
++     * rings again); old ones are marked PAUSED instead of being silently re-armed. Returns (resumed, consumed).
++     */
++    suspend fun recoverInterruptedAlarms(): Pair<Int, Int> {
++        val now = System.currentTimeMillis()
++        var resumed = 0
++        var consumed = 0
++        for (row in getAllActiveStationsList().filter { it.status == "ALERTING" }) {
++            when (AlarmRecovery.decide(row.lastTriggeredAt, now)) {
++                AlarmRecovery.Action.RESUME -> resumed++
++                AlarmRecovery.Action.CONSUME -> {
++                    database.activeStationDao().updateStatus(row.stationId, "PAUSED")
++                    consumed++
++                }
++            }
++        }
++        if (resumed > 0 || consumed > 0) {
++            Logger.breadcrumb("ALERTING_RECOVERED", extra = "resumed=$resumed consumed=$consumed")
++            Analytics.event("interrupted_alarm_recovered") {
++                putInt("resumed", resumed)
++                putInt("consumed", consumed)
++            }
++        }
++        return resumed to consumed
++    }
++
+     /** Update settings of an active station in-place (radius, notification prefs, reminder). */
+     fun updateActiveStationSettings(
+         stationId: String,
+diff --git a/app/src/main/java/com/omama/stationalarm/service/AlarmAudioController.kt b/app/src/main/java/com/omama/stationalarm/service/AlarmAudioController.kt
+index 2250f17..7491044 100644
+--- a/app/src/main/java/com/omama/stationalarm/service/AlarmAudioController.kt
++++ b/app/src/main/java/com/omama/stationalarm/service/AlarmAudioController.kt
+@@ -215,7 +215,9 @@ internal class AlarmAudioController(private val context: Context) {
+     private fun rebuildRoutes(audioManager: AudioManager) {
+         val uri = activeAlarmUri ?: return
+         val attributes = routedAudioAttributes ?: return
+-        val externalDevice = findExternalOutputDevice(audioManager)
++        // Routing a player to a specific device (setPreferredDevice) is API 28+. Below that there is one default
++        // route, so only the speaker/default player is used.
++        val externalDevice = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) findExternalOutputDevice(audioManager) else null
+         val shouldUseSpeaker = ringSpeakerWithHeadphones || externalDevice == null
+ 
+         if (shouldUseSpeaker) {
+@@ -267,7 +269,9 @@ internal class AlarmAudioController(private val context: Context) {
+             val mp = MediaPlayer()
+             mp.setDataSource(context, uri)
+             mp.setAudioAttributes(audioAttributes)
+-            if (preferredDevice != null) {
++            // MediaPlayer.setPreferredDevice needs API 28. Calling it on API 26/27 throws NoSuchMethodError, which
++            // the surrounding catch (Exception) does not catch — the service would die when the alarm is due.
++            if (preferredDevice != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                 if (!mp.setPreferredDevice(preferredDevice)) {
+                     Log.w(tag, "Preferred audio route was rejected: route=$route type=${preferredDevice.type}")
+                     mp.release()
+@@ -278,7 +282,12 @@ internal class AlarmAudioController(private val context: Context) {
+             mp.setOnPreparedListener {
+                 mp.setVolume(currentRampVolume, currentRampVolume)
+                 val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+-                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
++                try {
++                    audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
++                } catch (e: SecurityException) {
++                    // Some ROMs refuse volume changes while Do Not Disturb policy is active. Ring at the current volume.
++                    Log.w(tag, "Could not raise the alarm volume", e)
++                }
+                 mp.start()
+             }
+             mp.setOnErrorListener { _, what, extra ->
+diff --git a/app/src/main/java/com/omama/stationalarm/service/LocationService.kt b/app/src/main/java/com/omama/stationalarm/service/LocationService.kt
+index a850ec8..0439ffa 100644
+--- a/app/src/main/java/com/omama/stationalarm/service/LocationService.kt
++++ b/app/src/main/java/com/omama/stationalarm/service/LocationService.kt
+@@ -1,5 +1,6 @@
+ package com.omama.stationalarm.service
+ 
++import android.app.Notification
+ import android.app.Service
+ import android.content.Intent
+ import android.content.pm.PackageManager
+@@ -12,8 +13,11 @@ import android.os.Handler
+ import android.os.IBinder
+ import android.os.Looper
+ import android.os.PowerManager
++import android.os.SystemClock
+ import androidx.core.app.ActivityCompat
+ import com.google.android.gms.location.*
++import com.omama.stationalarm.service.gps.AlarmMath
++import com.omama.stationalarm.service.gps.FixFreshness
+ import com.omama.stationalarm.service.gps.FixQualityGate
+ import com.omama.stationalarm.service.gps.FlpClientGuardian
+ import com.omama.stationalarm.service.gps.GpsReliabilityCoordinator
+@@ -29,9 +33,11 @@ import com.omama.stationalarm.util.BatteryOptimizationHelper
+ import com.omama.stationalarm.util.Logger
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.async
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.launch
++import kotlinx.coroutines.withTimeoutOrNull
+ import kotlinx.coroutines.flow.first
+ import java.util.concurrent.ConcurrentHashMap
+ 
+@@ -71,6 +77,9 @@ class LocationService : Service() {
+     private val needsInitialEvaluation = ConcurrentHashMap.newKeySet<String>()
+     private val waitingForExit = ConcurrentHashMap.newKeySet<String>()
+ 
++    // Rejects stale / out-of-order fixes before they can drive an alarm decision (see FixFreshness).
++    private val fixGuard = FixFreshness()
++
+     // GPS reliability layers (Phase 2). Guardian wraps the FLP client;
+     // Coordinator manages cold-start, coarse fallback, and GNSS monitoring.
+     private lateinit var flpGuardian: FlpClientGuardian
+@@ -92,6 +101,9 @@ class LocationService : Service() {
+     // Flipped to false when all monitoring stops (alarm-only mode) so the GPS
+     // indicator disappears from the status bar while the alarm is ringing.
+     private var locationForegroundActive = true
++    // Set when the OS refused a foreground-type switch; stops updateForegroundNotification() retrying (and
++    // logging) on every update. Cleared by the next forced start.
++    private var typeSwitchRefused = false
+ 
+     private lateinit var audio: AlarmAudioController
+     private lateinit var wakeLocks: ServiceWakeLocks
+@@ -110,6 +122,11 @@ class LocationService : Service() {
+     @Volatile private var cachedAlarmDurationSecs: Int? = null
+ 
+     private var lastLocationTimeMs = 0L
++    // Last fix delivered by the Fused Location Provider specifically. lastLocationTimeMs is also refreshed by the
++    // coarse fallback, which hides an FLP stall from the watchdog; this one is not.
++    @Volatile private var lastFlpFixTimeMs = 0L
++    // Whether location services were off at the previous watchdog tick (to detect them coming back on).
++    private var locationWasOff = false
+     // Last reported accuracy in metres; used as a Crashlytics custom key when
+     // an alarm fires so a Doze/MIUI sleep-induced bad fix can be diagnosed.
+     @Volatile private var lastKnownAccuracyM: Float = -1f
+@@ -126,6 +143,27 @@ class LocationService : Service() {
+     private val watchdogRunnable = object : Runnable {
+         override fun run() {
+             if (isPolling && monitoringStations.isNotEmpty()) {
++                // The GPS wake lock has a 4 h timeout and was only re-taken when polling restarted. Overnight trips
++                // are longer, so top it up here (acquireGps() is a no-op while it is still held).
++                wakeLocks.acquireGps()
++
++                // Play Services drops every geofence when location services are switched off
++                // (GEOFENCE_NOT_AVAILABLE) and nothing re-registered them. Notice the "back on" edge and do it.
++                val locationOff = !isGpsProviderEnabled()
++                if (locationWasOff && !locationOff) {
++                    Logger.breadcrumb("LOCATION_BACK_ON", extra = "re-registering geofences")
++                    StationRepository.reRegisterAllGeofences()
++                }
++                locationWasOff = locationOff
++
++                // The coarse fallback refreshes lastLocationTimeMs, so handleWatchdogTick() can no longer see that FLP
++                // itself has gone quiet and the guardian would never repair it. Judge FLP on its own timestamp.
++                val flpStallMs = System.currentTimeMillis() - lastFlpFixTimeMs
++                if (gpsCoordinator.isCoarseArmed && flpStallMs > maxOf(60_000L, currentPollingIntervalMs * 3)) {
++                    Logger.log("WATCHDOG_FLP_STALL_MASKED", extra = "flpStall=${flpStallMs / 1000}s")
++                    kickSilentRecovery()
++                }
++
+                 handleWatchdogTick()
+             }
+             watchdogHandler.postDelayed(this, 30_000L)
+@@ -152,6 +190,7 @@ class LocationService : Service() {
+             onClientRecreated = { /* fusedLocationClient getter auto-delegates */ },
+             onRecoveryFix = { loc ->
+                 lastLocationTimeMs = System.currentTimeMillis()
++                lastFlpFixTimeMs = lastLocationTimeMs
+                 clearWatchdogState("guardian one-shot fix")
+                 processLocationUpdate(loc)
+             },
+@@ -195,6 +234,7 @@ class LocationService : Service() {
+         return object : LocationCallback() {
+             override fun onLocationResult(locationResult: LocationResult) {
+                 lastLocationTimeMs = System.currentTimeMillis()
++                lastFlpFixTimeMs = lastLocationTimeMs
+                 flpGuardian.onFixReceived()
+                 clearWatchdogState("fix arrived, clearing watchdog state")
+ 
+@@ -289,7 +329,7 @@ class LocationService : Service() {
+             // Required by Android: must call startForeground() within 5s of
+             // startForegroundService. The notification disappears with stopSelf()
+             // after the 3s test if no real alarms are armed.
+-            updateForegroundNotification(forceStartForeground = true)
++            updateForegroundNotification(forceStartForeground = true, preferLocationType = false)
+             handleTestAlarm()
+             return START_NOT_STICKY
+         }
+@@ -325,6 +365,7 @@ class LocationService : Service() {
+         if (!isPolling && monitoringStations.isNotEmpty()) {
+             startLocationUpdates()
+             lastLocationTimeMs = System.currentTimeMillis()
++            lastFlpFixTimeMs = lastLocationTimeMs
+             watchdogHandler.postDelayed(watchdogRunnable, 30_000L)
+         }
+ 
+@@ -378,15 +419,13 @@ class LocationService : Service() {
+      */
+     private fun syncWithDatabase() {
+         serviceScope.launch {
+-            // Process kill can leave a row stuck in ALERTING (alertingStationIds
+-            // is in-memory only). Without this reset, the first flow emission
+-            // below would diff dbAlertingIds - alertingStationIds (= dbAlertingIds
+-            // on cold start) and re-fire the alarm without user interaction.
+-            // Awaited before subscribing so the first emission reflects the
+-            // cleared state. Geofences were already removed at markAlerting()
+-            // time, so the user must enter the radius again to re-fire.
++            // A row still ALERTING at start-up was interrupted (process killed, battery died, crash) before
++            // the user acknowledged it; alertingStationIds is in-memory only, so the first emission below
++            // would otherwise treat every such row as "newly alerting". Decide each one NOW, before
++            // subscribing (see AlarmRecovery): a recent ring stays ALERTING and rings again; an old one is
++            // consumed (PAUSED) — it is no longer silently re-armed to ring on some later approach.
+             try {
+-                StationRepository.resetAllAlertingToMonitoring()
++                StationRepository.recoverInterruptedAlarms()
+             } catch (e: Exception) {
+                 // Hard-fail: if we can't clear ALERTING rows on cold start, the
+                 // diff in the first emission below will treat every ALERTING
+@@ -411,6 +450,14 @@ class LocationService : Service() {
+                     for (id in removedFromMonitoring) monitoringStations.remove(id)
+                     Logger.log("SYNC_MONITORING_PRUNED", extra = "Removed ${removedFromMonitoring.size}")
+                 }
++                // Stations already tracked keep their live distance but must pick up edited settings. This loop
++                // used to handle only new and removed IDs, so an edited radius was ignored by the GPS evaluator
++                // until the service restarted (the geofences used the new one — the two disagreed).
++                for (row in dbMonitoring) {
++                    monitoringStations.computeIfPresent(row.stationId) { _, old ->
++                        row.copy(currentDistanceKm = old.currentDistanceKm)
++                    }
++                }
+                 val currentMonitoringIds = monitoringStations.keys
+                 val newMonitoring = dbMonitoring.filter { it.stationId !in currentMonitoringIds }
+                 if (newMonitoring.isNotEmpty()) {
+@@ -447,11 +494,12 @@ class LocationService : Service() {
+                     if (!isPolling) {
+                         startLocationUpdates()
+                         lastLocationTimeMs = System.currentTimeMillis()
++                        lastFlpFixTimeMs = lastLocationTimeMs
+                         watchdogHandler.postDelayed(watchdogRunnable, 30_000L)
+                     }
+                     if (newMonitoring.isNotEmpty()) {
+                         getLastKnownLocation { loc ->
+-                            if (loc != null) {
++                            if (loc != null && fixGuard.isFresh(SystemClock.elapsedRealtimeNanos(), loc.elapsedRealtimeNanos)) {
+                                 for (s in newMonitoring) {
+                                     val station = s.getStation() ?: continue
+                                     s.currentDistanceKm = calculateDistance(loc.latitude, loc.longitude, station.lat, station.lon)
+@@ -489,6 +537,13 @@ class LocationService : Service() {
+     // ============================
+ 
+     private fun processLocationUpdate(location: Location) {
++        // A cached lastLocation can be hours old and can arrive AFTER a fresh fix; if it lies inside the radius it
++        // would ring the alarm. Drop stale and out-of-order fixes before they reach the decision below.
++        val freshness = fixGuard.check(SystemClock.elapsedRealtimeNanos(), location.elapsedRealtimeNanos)
++        if (freshness != FixFreshness.Verdict.OK) {
++            Logger.log("FIX_REJECTED", extra = freshness.name)
++            return
++        }
+         lastKnownAccuracyM = location.accuracy
+         serviceScope.launch(Dispatchers.Default) {
+             if (monitoringStations.isEmpty()) return@launch
+@@ -523,11 +578,13 @@ class LocationService : Service() {
+                         gateDecision.effectiveAccuracyMeters / 1000.0
+                     }
+                 }
+-                val effectiveDistance = distance - accuracyKm
++                val effectiveDistance = AlarmMath.effectiveDistanceKm(distance, accuracyKm, active.alertDistanceKm)
+ 
+                 if (needsInitialEvaluation.contains(active.stationId)) {
+                     needsInitialEvaluation.remove(active.stationId)
+-                    if (effectiveDistance <= active.alertDistanceKm) {
++                    // Only a fix that is SURELY inside (the far edge of its accuracy circle too) may silence the
++                    // alarm; an ambiguous one near the boundary must not.
++                    if (AlarmMath.isSurelyInside(distance, accuracyKm, active.alertDistanceKm)) {
+                         waitingForExit.add(active.stationId)
+                         Logger.log("WAITING_FOR_EXIT", active.stationId, "Re-armed while inside radius")
+                     }
+@@ -657,7 +714,12 @@ class LocationService : Service() {
+                 Logger.error("PREF_READ_FAILED", e, extra = "alarmSoundUri")
+                 ""
+             }
+-            val customUri: android.net.Uri? = resolveValidatedAlarmUri(customUriStr)
++            // openInputStream() on a cloud-backed document (e.g. Drive) can block for seconds, and fireAlert runs on
++            // the main dispatcher. Probe on IO and give up after 2 s (-> default alarm sound) so a stalled provider
++            // can neither freeze the main thread nor hold the alarm back.
++            val customUri: android.net.Uri? = withTimeoutOrNull(2_000L) {
++                serviceScope.async(Dispatchers.IO) { resolveValidatedAlarmUri(customUriStr) }.await()
++            }
+             val stationLabel = active.getStation()?.name ?: active.stationId
+             val ringSpeaker = cachedRingSpeakerWithHeadphones ?: try {
+                 UserPreferences.ringSpeakerWithHeadphonesFlow.first().also { cachedRingSpeakerWithHeadphones = it }
+@@ -694,7 +756,11 @@ class LocationService : Service() {
+             audio.startVibrator()
+         }
+ 
+-        if (startedNewAlarm) {
++        // (Re)start the countdown for every alert that rings or vibrates. It used to start only for the first
++        // alarm, so a second station that fired while the first was still ringing inherited the first one's
++        // deadline and was auto-dismissed (PAUSED) after whatever ring time was left. A silent alert
++        // (no sound, no vibration) does not extend someone else's ring.
++        if (startedNewAlarm || ((active.sound || active.vibrate) && (audio.isAlarmRinging || audio.isVibrating))) {
+             val durationSecs = cachedAlarmDurationSecs ?: try {
+                 UserPreferences.alarmDurationSecsFlow.first().also { cachedAlarmDurationSecs = it }
+             } catch (e: Exception) {
+@@ -775,6 +841,12 @@ class LocationService : Service() {
+      */
+     private fun handleTestAlarm() {
+         serviceScope.launch {
++            // The test ends with audio.stopAll(), which would also silence (and cancel the countdown of) a REAL
++            // alarm that happens to be ringing. A test must never touch a real alarm.
++            if (alertingStationIds.isNotEmpty() || audio.isAlarmRinging) {
++                Logger.log("TEST_ALARM_SKIPPED", extra = "real alarm active")
++                return@launch
++            }
+             val uriStr = cachedAlarmSoundUri ?: try {
+                 UserPreferences.alarmSoundUriFlow.first()
+             } catch (_: Exception) { "" }
+@@ -826,7 +898,10 @@ class LocationService : Service() {
+     //    NOTIFICATION ENGINE
+     // ============================
+ 
+-    private fun updateForegroundNotification(forceStartForeground: Boolean = false) {
++    private fun updateForegroundNotification(
++        forceStartForeground: Boolean = false,
++        preferLocationType: Boolean = true
++    ) {
+         val text = when {
+             monitoringStations.isNotEmpty() -> {
+                 val nearest = monitoringStations.values.minByOrNull { it.currentDistanceKm ?: Double.MAX_VALUE }
+@@ -845,25 +920,76 @@ class LocationService : Service() {
+         }
+         val notif = notifications.buildForeground(text)
+ 
+-        val newIsLocationActive = monitoringStations.isNotEmpty()
+-        val typeChanged = locationForegroundActive != newIsLocationActive
+-        locationForegroundActive = newIsLocationActive
++        // On a cold start (boot, geofence broadcast, app open) this runs before syncWithDatabase() has loaded any
++        // station, so monitoringStations is still empty. Choosing MEDIA_PLAYBACK in that moment is wrong and fatal on
++        // Android 15+ when the start came from BOOT_COMPLETED ("FGS type mediaPlayback not allowed to start from
++        // BOOT_COMPLETED"). A forced start therefore prefers LOCATION; MEDIA_PLAYBACK is only for an alarm that is
++        // ringing with nothing left to track. LOCATION also needs a location permission on Android 14+, otherwise
++        // startForeground() throws SecurityException.
++        val wantsLocation = monitoringStations.isNotEmpty() ||
++            (forceStartForeground && preferLocationType && alertingStationIds.isEmpty())
++        val newIsLocationActive = wantsLocation && hasLocationPermission()
++        if (forceStartForeground) typeSwitchRefused = false
++        val typeChanged = !typeSwitchRefused && locationForegroundActive != newIsLocationActive
+ 
+         if (forceStartForeground || typeChanged) {
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+-                val fgType = if (locationForegroundActive)
+-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+-                else
+-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+-                startForeground(ServiceNotifications.FOREGROUND_NOTIFICATION_ID, notif, fgType)
+-            } else {
+-                startForeground(ServiceNotifications.FOREGROUND_NOTIFICATION_ID, notif)
++            if (!startForegroundSafely(notif, newIsLocationActive)) {
++                if (forceStartForeground) {
++                    // Not allowed to be a foreground service at all. Stop cleanly: staying alive without
++                    // startForeground() makes the OS kill the process (ForegroundServiceDidNotStartInTimeException).
++                    Logger.error("FGS_START_REFUSED_STOPPING", IllegalStateException("no foreground type accepted"))
++                    stopSelf()
++                } else {
++                    // A later type switch was refused: keep the current foreground state and just refresh the text.
++                    typeSwitchRefused = true
++                    notifications.notifyForeground(notif)
++                }
++            } else if (!forceStartForeground && locationForegroundActive != newIsLocationActive) {
++                // The OS accepted only the other type (e.g. it refused MEDIA_PLAYBACK and we stayed on LOCATION).
++                // Do not retry — and log — the refused switch on every later update.
++                typeSwitchRefused = true
+             }
+         } else {
+             notifications.notifyForeground(notif)
+         }
+     }
+ 
++    private fun hasLocationPermission(): Boolean =
++        ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
++            ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
++
++    /**
++     * Calls startForeground() with the wanted type and, if the platform refuses it, with the other one.
++     * Returns false only when neither is accepted. Catches SecurityException (missing permission) and
++     * ForegroundServiceStartNotAllowedException (API 31+) so a platform refusal can never crash the service —
++     * especially not at the moment an alarm is due.
++     */
++    private fun startForegroundSafely(notif: Notification, locationType: Boolean): Boolean {
++        val id = ServiceNotifications.FOREGROUND_NOTIFICATION_ID
++        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
++            return try {
++                startForeground(id, notif)
++                locationForegroundActive = locationType
++                true
++            } catch (e: Exception) {
++                Logger.error("FGS_START_FAILED", e)
++                false
++            }
++        }
++        val location = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
++        val media = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
++        for (type in if (locationType) intArrayOf(location, media) else intArrayOf(media, location)) {
++            try {
++                startForeground(id, notif, type)
++                locationForegroundActive = (type == location)
++                return true
++            } catch (e: Exception) {
++                Logger.error("FGS_START_FAILED", e, extra = "type=$type")
++            }
++        }
++        return false
++    }
++
+     // ============================
+     //     GPS ENGINE
+     // ============================
+diff --git a/app/src/main/java/com/omama/stationalarm/service/ServiceNotifications.kt b/app/src/main/java/com/omama/stationalarm/service/ServiceNotifications.kt
+index a1f049c..a7ee8c7 100644
+--- a/app/src/main/java/com/omama/stationalarm/service/ServiceNotifications.kt
++++ b/app/src/main/java/com/omama/stationalarm/service/ServiceNotifications.kt
+@@ -28,7 +28,9 @@ internal class ServiceNotifications(private val context: Context) {
+         const val AUDIO_FAILURE_NOTIFICATION_ID = 12346
+         const val EXTRA_STATION_NAME = "stationName"
+         const val CHANNEL_ID = "location_channel"
+-        const val ALARM_CHANNEL_ID = "alarm_channel"
++        // v2: the original channel had the default notification sound and cannot be changed after creation.
++        const val ALARM_CHANNEL_ID = "alarm_channel_v2"
++        private const val LEGACY_ALARM_CHANNEL_ID = "alarm_channel"
+     }
+ 
+     private val manager: NotificationManager
+@@ -52,7 +54,12 @@ internal class ServiceNotifications(private val context: Context) {
+                 // a locked device. CATEGORY_ALARM alone isn't enough on stock
+                 // Pixels and most OEM ROMs.
+                 setBypassDnd(true)
++                // The alarm plays its own audio and vibration (and honours the per-alarm Sound / Vibrate
++                // switches). A default channel sound would add a second beep on top of it and ignore "Sound off".
++                setSound(null, null)
++                enableVibration(false)
+             }
++            manager.deleteNotificationChannel(LEGACY_ALARM_CHANNEL_ID)
+             manager.createNotificationChannel(channel)
+             manager.createNotificationChannel(alarmChannel)
+         }
+diff --git a/app/src/main/java/com/omama/stationalarm/service/gps/AlarmMath.kt b/app/src/main/java/com/omama/stationalarm/service/gps/AlarmMath.kt
+new file mode 100644
+index 0000000..8ea4942
+--- /dev/null
++++ b/app/src/main/java/com/omama/stationalarm/service/gps/AlarmMath.kt
+@@ -0,0 +1,38 @@
++package com.omama.stationalarm.service.gps
++
++/**
++ * Pure decision rules for the GPS alarm path, free of Android types so they can be unit-tested on the JVM.
++ * [com.omama.stationalarm.service.LocationService] delegates to these.
++ */
++object AlarmMath {
++
++    /** Most benefit of the doubt a fix's reported accuracy may buy, in km. */
++    const val MAX_ACCURACY_CREDIT_KM = 1.5
++
++    /** Most of the alert radius a fix's accuracy may buy. */
++    const val MAX_ACCURACY_CREDIT_FRACTION = 0.25
++
++    /**
++     * How many km closer than reality the alarm is allowed to *assume* the user is, because the fix is imprecise.
++     *
++     * The alarm is deliberately biased early (a late alarm is worse than an early one), but the bias used to be
++     * the full reported accuracy with no upper limit: a 5 km-accurate cell fix at 9.9 km from a 5 km alert radius
++     * rang the alarm 4.9 km early. The credit is now capped at a quarter of the radius and at 1.5 km. For a good GPS
++     * fix (tens of metres) nothing changes.
++     */
++    fun accuracyCreditKm(accuracyKm: Double, radiusKm: Double): Double =
++        minOf(accuracyKm, radiusKm * MAX_ACCURACY_CREDIT_FRACTION, MAX_ACCURACY_CREDIT_KM).coerceAtLeast(0.0)
++
++    /** The distance the alarm compares with the alert radius. */
++    fun effectiveDistanceKm(distanceKm: Double, accuracyKm: Double, radiusKm: Double): Double =
++        distanceKm - accuracyCreditKm(accuracyKm, radiusKm)
++
++    /**
++     * True only when even the far edge of the accuracy circle is inside the radius. This is the one case in
++     * which "the alarm was armed while already inside the radius" may suppress it until the user leaves; an
++     * ambiguous fix near the boundary must not (it used to, which could silence an alarm for a user who was
++     * in fact still approaching).
++     */
++    fun isSurelyInside(distanceKm: Double, accuracyKm: Double, radiusKm: Double): Boolean =
++        distanceKm + accuracyKm <= radiusKm
++}
+diff --git a/app/src/main/java/com/omama/stationalarm/service/gps/FixFreshness.kt b/app/src/main/java/com/omama/stationalarm/service/gps/FixFreshness.kt
+new file mode 100644
+index 0000000..bdb5d8c
+--- /dev/null
++++ b/app/src/main/java/com/omama/stationalarm/service/gps/FixFreshness.kt
+@@ -0,0 +1,36 @@
++package com.omama.stationalarm.service.gps
++
++/**
++ * Rejects fixes that must not drive an alarm decision because they are old or arrive out of order.
++ *
++ * Typical offender: the cached `lastLocation` read right after a reboot. It can be hours old, and it can be
++ * delivered *after* a fresh fix — if it happens to lie inside the alert radius it would ring the alarm.
++ *
++ * Times are `elapsedRealtimeNanos` (monotonic, immune to clock changes).
++ */
++class FixFreshness(private val maxAgeNs: Long = DEFAULT_MAX_AGE_NS) {
++
++    enum class Verdict { OK, STALE, OUT_OF_ORDER }
++
++    private var newestNs = 0L
++
++    /** Non-mutating: is a fix stamped [fixNs] recent enough to use at time [nowNs]? */
++    fun isFresh(nowNs: Long, fixNs: Long): Boolean = fixNs <= 0L || nowNs - fixNs <= maxAgeNs
++
++    /** Judges a fix and, if it is acceptable, remembers it as the newest one seen. */
++    @Synchronized
++    fun check(nowNs: Long, fixNs: Long): Verdict {
++        if (fixNs <= 0L) return Verdict.OK          // the provider did not stamp it; nothing to judge it by
++        if (nowNs - fixNs > maxAgeNs) return Verdict.STALE
++        if (fixNs < newestNs) return Verdict.OUT_OF_ORDER
++        // Never remember a timestamp later than "now": one fix stamped in the future by a faulty provider would
++        // otherwise make every real fix look out of order until the clock caught up, blinding the alarm.
++        newestNs = minOf(fixNs, nowNs)
++        return Verdict.OK
++    }
++
++    companion object {
++        /** Two minutes: at train speed, older than this the position is several km behind the train. */
++        const val DEFAULT_MAX_AGE_NS = 120_000_000_000L
++    }
++}
+diff --git a/app/src/main/java/com/omama/stationalarm/util/AlarmRecovery.kt b/app/src/main/java/com/omama/stationalarm/util/AlarmRecovery.kt
+new file mode 100644
+index 0000000..9dbd3e7
+--- /dev/null
++++ b/app/src/main/java/com/omama/stationalarm/util/AlarmRecovery.kt
+@@ -0,0 +1,28 @@
++package com.omama.stationalarm.util
++
++/**
++ * What to do with an alarm that is still `ALERTING` when the service (re)starts or the phone boots.
++ *
++ * `ALERTING` is only ever left by the user's Dismiss, a manual pause, the ring timeout or a delete — so a row
++ * that is still `ALERTING` at start-up means the ring was **interrupted** (process killed, battery died,
++ * crash) before the user acknowledged it. The previous behaviour reset every such row to `MONITORING`, which
++ * silently lost the unacknowledged ring and left the alarm armed to ring again on the next approach.
++ *
++ * Instead, using the already-persisted `lastTriggeredAt`:
++ *  - rang recently (within [MAX_AGE_MS]) -> [Action.RESUME]: keep it `ALERTING`, the service rings again;
++ *  - anything older (or unknown)        -> [Action.CONSUME]: it has run its course, mark it `PAUSED`
++ *    rather than re-arming it.
++ */
++object AlarmRecovery {
++
++    const val MAX_AGE_MS = 30 * 60_000L
++
++    enum class Action { RESUME, CONSUME }
++
++    fun decide(lastTriggeredAtMs: Long?, nowMs: Long, maxAgeMs: Long = MAX_AGE_MS): Action {
++        if (lastTriggeredAtMs == null) return Action.CONSUME
++        val ageMs = nowMs - lastTriggeredAtMs
++        // A negative age means the clock moved backwards; do not trust it.
++        return if (ageMs in 0..maxAgeMs) Action.RESUME else Action.CONSUME
++    }
++}
+diff --git a/app/src/test/java/com/omama/stationalarm/receiver/GeofenceIdsTest.kt b/app/src/test/java/com/omama/stationalarm/receiver/GeofenceIdsTest.kt
+new file mode 100644
+index 0000000..e869572
+--- /dev/null
++++ b/app/src/test/java/com/omama/stationalarm/receiver/GeofenceIdsTest.kt
+@@ -0,0 +1,50 @@
++package com.omama.stationalarm.receiver
++
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertNull
++import org.junit.Test
++
++class GeofenceIdsTest {
++
++    @Test
++    fun railwayCodeParses() {
++        assertEquals(GeofenceIds.Parsed("NDLS", "alert"), GeofenceIds.parse("geofence_NDLS_alert"))
++        assertEquals(GeofenceIds.Parsed("PUNE", "level5"), GeofenceIds.parse("geofence_PUNE_level5"))
++    }
++
++    @Test
++    fun geocoderIdWithUnderscoresParsesToTheWholeStationId() {
++        // The case the old split("_", limit = 3) got wrong: it returned station "liq", layer "481312177_alert".
++        assertEquals(
++            GeofenceIds.Parsed("liq_481312177", "alert"),
++            GeofenceIds.parse("geofence_liq_481312177_alert")
++        )
++        assertEquals(
++            GeofenceIds.Parsed("liq_rev_481312177", "level2"),
++            GeofenceIds.parse("geofence_liq_rev_481312177_level2")
++        )
++    }
++
++    @Test
++    fun sanitisedHyphenIdParses() {
++        assertEquals(GeofenceIds.Parsed("liq-481312177", "alert"), GeofenceIds.parse("geofence_liq-481312177_alert"))
++        assertEquals(GeofenceIds.Parsed("manual-1718000000000", "level8"), GeofenceIds.parse("geofence_manual-1718000000000_level8"))
++    }
++
++    @Test
++    fun everyLayerNameTheManagerCanProduceIsRecognised() {
++        for (layer in listOf("level1", "level2", "level3", "level4", "level5", "level6", "level7", "level8", "alert")) {
++            assertEquals(layer, GeofenceIds.parse("geofence_X_$layer")?.layer)
++        }
++    }
++
++    @Test
++    fun malformedIdsAreRejected() {
++        assertNull(GeofenceIds.parse(""))
++        assertNull(GeofenceIds.parse("NDLS_alert"))                // missing prefix
++        assertNull(GeofenceIds.parse("geofence_NDLS"))              // no layer
++        assertNull(GeofenceIds.parse("geofence__alert"))            // empty station id
++        assertNull(GeofenceIds.parse("geofence_NDLS_level9"))       // unknown layer
++        assertNull(GeofenceIds.parse("geofence_NDLS_"))             // empty layer
++    }
++}
+diff --git a/app/src/test/java/com/omama/stationalarm/service/gps/AlarmMathTest.kt b/app/src/test/java/com/omama/stationalarm/service/gps/AlarmMathTest.kt
+new file mode 100644
+index 0000000..70a297b
+--- /dev/null
++++ b/app/src/test/java/com/omama/stationalarm/service/gps/AlarmMathTest.kt
+@@ -0,0 +1,57 @@
++package com.omama.stationalarm.service.gps
++
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class AlarmMathTest {
++
++    @Test
++    fun goodGpsFixKeepsItsTinyCredit() {
++        assertEquals(0.02, AlarmMath.accuracyCreditKm(accuracyKm = 0.02, radiusKm = 5.0), 1e-9)
++    }
++
++    @Test
++    fun poorFixCreditIsCappedAtAQuarterOfTheRadius() {
++        assertEquals(1.25, AlarmMath.accuracyCreditKm(accuracyKm = 3.0, radiusKm = 5.0), 1e-9)
++        assertEquals(0.75, AlarmMath.accuracyCreditKm(accuracyKm = 3.0, radiusKm = 3.0), 1e-9)
++    }
++
++    @Test
++    fun creditIsNeverMoreThanOneAndAHalfKilometres() {
++        assertEquals(1.5, AlarmMath.accuracyCreditKm(accuracyKm = 10.0, radiusKm = 20.0), 1e-9)
++    }
++
++    @Test
++    fun negativeAccuracyGivesNoCredit() {
++        assertEquals(0.0, AlarmMath.accuracyCreditKm(accuracyKm = -1.0, radiusKm = 5.0), 1e-9)
++    }
++
++    @Test
++    fun aFiveKmAccurateFixNineKmAwayNoLongerRingsAFiveKmAlarm() {
++        // Old rule: 9.9 - 5.0 = 4.9 <= 5.0  -> rang 4.9 km early.
++        val effective = AlarmMath.effectiveDistanceKm(distanceKm = 9.9, accuracyKm = 5.0, radiusKm = 5.0)
++        assertTrue("effective=$effective", effective > 5.0)
++    }
++
++    @Test
++    fun aGoodFixStillRingsAtTheRadius() {
++        val effective = AlarmMath.effectiveDistanceKm(distanceKm = 5.01, accuracyKm = 0.02, radiusKm = 5.0)
++        assertTrue("effective=$effective", effective <= 5.0)
++    }
++
++    @Test
++    fun surelyInsideRequiresTheWholeAccuracyCircleInside() {
++        assertTrue(AlarmMath.isSurelyInside(distanceKm = 3.0, accuracyKm = 0.05, radiusKm = 5.0))
++        assertFalse(AlarmMath.isSurelyInside(distanceKm = 4.9, accuracyKm = 0.5, radiusKm = 5.0))   // ambiguous
++        assertFalse(AlarmMath.isSurelyInside(distanceKm = 6.0, accuracyKm = 0.02, radiusKm = 5.0))  // outside
++    }
++
++    @Test
++    fun anAmbiguousFixNearTheBoundaryDoesNotSuppressTheAlarm() {
++        // Approaching trip, first fix is a 1 km-accurate cell fix at 5.5 km from a 5 km radius.
++        // Old rule treated it as "inside" (5.5 - 1.0 <= 5) and waited for an exit that never came.
++        assertFalse(AlarmMath.isSurelyInside(distanceKm = 5.5, accuracyKm = 1.0, radiusKm = 5.0))
++    }
++}
+diff --git a/app/src/test/java/com/omama/stationalarm/service/gps/FixFreshnessTest.kt b/app/src/test/java/com/omama/stationalarm/service/gps/FixFreshnessTest.kt
+new file mode 100644
+index 0000000..b5583b1
+--- /dev/null
++++ b/app/src/test/java/com/omama/stationalarm/service/gps/FixFreshnessTest.kt
+@@ -0,0 +1,81 @@
++package com.omama.stationalarm.service.gps
++
++import com.omama.stationalarm.service.gps.FixFreshness.Verdict
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class FixFreshnessTest {
++
++    private val sec = 1_000_000_000L
++
++    // elapsedRealtime since boot: ~27 hours of uptime, so "hours ago" is still a positive timestamp.
++    private val now = 100_000 * sec
++
++    @Test
++    fun aFreshFixIsAccepted() {
++        assertEquals(Verdict.OK, FixFreshness().check(now, now - 5 * sec))
++    }
++
++    @Test
++    fun aFixExactlyAtTheLimitIsAcceptedAndOneNanosecondOverIsStale() {
++        val g = FixFreshness(maxAgeNs = 120 * sec)
++        assertEquals(Verdict.OK, g.check(now, now - 120 * sec))
++        assertEquals(Verdict.STALE, FixFreshness(maxAgeNs = 120 * sec).check(now, now - 120 * sec - 1))
++    }
++
++    @Test
++    fun aCachedFixFromHoursAgoIsStale() {
++        assertEquals(Verdict.STALE, FixFreshness().check(now, now - 3 * 3600 * sec))
++    }
++
++    @Test
++    fun anOlderFixArrivingAfterANewerOneIsRejected() {
++        val g = FixFreshness()
++        assertEquals(Verdict.OK, g.check(now, now - 2 * sec))
++        assertEquals(Verdict.OUT_OF_ORDER, g.check(now, now - 30 * sec))
++    }
++
++    @Test
++    fun aNewerFixAfterAnOlderOneIsAccepted() {
++        val g = FixFreshness()
++        assertEquals(Verdict.OK, g.check(now, now - 30 * sec))
++        assertEquals(Verdict.OK, g.check(now, now - 2 * sec))
++    }
++
++    @Test
++    fun aRejectedStaleFixDoesNotBecomeTheNewestOne() {
++        val g = FixFreshness()
++        assertEquals(Verdict.STALE, g.check(now, now - 600 * sec))
++        assertEquals(Verdict.OK, g.check(now, now - 20 * sec))
++    }
++
++    @Test
++    fun aDuplicateTimestampIsAccepted() {
++        val g = FixFreshness()
++        assertEquals(Verdict.OK, g.check(now, now - 5 * sec))
++        assertEquals(Verdict.OK, g.check(now, now - 5 * sec))
++    }
++
++    @Test
++    fun aFixStampedInTheFutureDoesNotBlindLaterFixes() {
++        val g = FixFreshness()
++        assertEquals(Verdict.OK, g.check(now, now + 600 * sec))   // faulty provider: 10 minutes ahead
++        assertEquals(Verdict.OK, g.check(now + 1 * sec, now + 1 * sec))  // the next real fix must still be accepted
++    }
++
++    @Test
++    fun anUnstampedFixIsNotJudged() {
++        assertEquals(Verdict.OK, FixFreshness().check(now, 0L))
++    }
++
++    @Test
++    fun isFreshDoesNotChangeState() {
++        val g = FixFreshness()
++        assertTrue(g.isFresh(now, now - 10 * sec))
++        assertFalse(g.isFresh(now, now - 500 * sec))
++        // Nothing was recorded, so an "older" fix is still fine afterwards.
++        assertEquals(Verdict.OK, g.check(now, now - 60 * sec))
++    }
++}
+diff --git a/app/src/test/java/com/omama/stationalarm/util/AlarmRecoveryTest.kt b/app/src/test/java/com/omama/stationalarm/util/AlarmRecoveryTest.kt
+new file mode 100644
+index 0000000..f156d21
+--- /dev/null
++++ b/app/src/test/java/com/omama/stationalarm/util/AlarmRecoveryTest.kt
+@@ -0,0 +1,37 @@
++package com.omama.stationalarm.util
++
++import com.omama.stationalarm.util.AlarmRecovery.Action
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++class AlarmRecoveryTest {
++
++    private val minute = 60_000L
++    private val now = 1_700_000_000_000L
++
++    @Test
++    fun anAlarmThatRangAMinuteAgoIsResumed() {
++        assertEquals(Action.RESUME, AlarmRecovery.decide(now - minute, now))
++    }
++
++    @Test
++    fun thirtyMinutesIsStillResumedAndThirtyOneIsConsumed() {
++        assertEquals(Action.RESUME, AlarmRecovery.decide(now - 30 * minute, now))
++        assertEquals(Action.CONSUME, AlarmRecovery.decide(now - 31 * minute, now))
++    }
++
++    @Test
++    fun anOldAlarmIsConsumedNotRearmed() {
++        assertEquals(Action.CONSUME, AlarmRecovery.decide(now - 5 * 60 * minute, now))
++    }
++
++    @Test
++    fun anUnknownTriggerTimeIsConsumed() {
++        assertEquals(Action.CONSUME, AlarmRecovery.decide(null, now))
++    }
++
++    @Test
++    fun aTimestampInTheFutureIsNotTrusted() {
++        assertEquals(Action.CONSUME, AlarmRecovery.decide(now + minute, now))
++    }
++}

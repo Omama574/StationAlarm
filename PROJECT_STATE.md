@@ -1,6 +1,6 @@
 # StationAlarm — Project State
 
-> **Last updated:** 2026-06-12
+> **Last updated:** 2026-10-14
 > Update this file at the end of every session with what changed and what's next.
 
 ---
@@ -183,6 +183,31 @@ Migrations:
 
 ## Session Log
 
+### Session: Play-readiness audit, static trace and non-locked fixes (2026-10-14)
+
+Full audit of the repo against Play publication, followed by a line-by-line static trace of the alarm engine and every user workflow. Reports live in the repo root and `docs/`:
+- `PLAY_STORE_READINESS.md` — blockers, the plan, what was reproduced on an emulator (Android 16, minified release build).
+- `docs/ALARM_ENGINE_TRACE.md` — workflow traces, misfire / missed-alarm catalogue, power-cycle matrix, the proposed locked-file changes.
+- `docs/DESIGN_AND_UX_REVIEW.md` — design decisions to make and UX proposals.
+
+**Decisions recorded**
+- **English only.** Per-language support is not being implemented. The 20 `values-xx` folders, the language picker, `UserPreferences` locale keys, `applyPersistedLocale()` and the manifest `localeConfig` are still in the tree; the removal plan with grep evidence is in the trace doc (appendix) — nothing deleted yet.
+- The offline station dataset's quality/aliases are out of scope.
+- Locked files were **not** touched. Proposed behaviour changes (L1–L12) await approval; see trace doc §8.
+
+**Fixed (non-locked files)** — each verified, 60/60 unit tests pass:
+- R8 stripped Gson's generic signature, so the minified release could not load `stations.json` (no station was ever found). Keep rules added; proven on the minified build.
+- Geofence request IDs are `geofence_<stationId>_<layer>` and the receiver splits on `_`; geocoder IDs (`liq_481312177`) contain `_`, so every hardware geofence event for Map-tab alarms was dropped. Station IDs are now sanitised (`StationIds`) at the view-model and the repository.
+- Station search is ranked (`StationIndex`): New Delhi was the 11th "delhi" match and cut off.
+- Map tab: same query typed twice showed nothing; a cancelled search flashed "Search unavailable"; a slow reverse-geocode could overwrite a newer pin; the reverse-geocode result moved the pin to a village centroid kilometres away (now snaps only within 150 m).
+- `GeofenceCleanupWorker` could delete the live geofences of an alarm re-armed after the cleanup was queued; pause/dismiss/remove now take the per-station lock; stale distance cleared on re-arm; atomic distance updates.
+- Boot worker and `MainActivity.onResume` no longer start the service when every alarm is paused.
+- AD_ID / ADSERVICES permissions stripped from the manifest; OSM attribution added to the map.
+
+**Known and open** (see the reports): boot crash on Android 15+ (first foreground type is `mediaPlayback`), `setPreferredDevice` crash on Android 8.x, interrupted rings being dropped and silently re-armed, edited radius ignored by the running service, privacy-policy URL does not resolve, default launcher icon, no release keystore.
+
+**Environment notes:** C: drive was 100 % full during the audit (Gradle failed with "not enough space"); builds and the emulator were run from `D:\sa_build` / `D:\sa_emu`. The Cloudflare Worker is live and speaks the 5-field contract (verified 2026-10-14).
+
 ### Session: 21-Language Translation Pack (2026-06-12)
 
 Full translation coverage shipped across 19 new locale resource folders. Commit `2f47228` on `feature/glass-ui`.
@@ -235,7 +260,7 @@ End-to-end refactor in three layers so the app no longer cares which geocoder is
 
 **Aggregate test status:** 39/39 unit tests pass across 6 suites (DAO, UserPreferences, UserPreferencesLocale, GeocodingResponseParse, MapSearchViewModelError, AppRemoteConfig).
 
-**Pending deployment:** the Worker code at `https://stationalarm-geo.mohammedomama2005.workers.dev/` still speaks the OLD wire format. App search/reverse will fail at runtime until the Worker is updated in the Cloudflare dashboard. New `worker.js` was delivered in the chat — paste into the in-browser editor and click Deploy.
+**Pending deployment:** the Worker code at `https://stationalarm-geo.mohammedomama2005.workers.dev/` still speaks the OLD wire format. App search/reverse will fail at runtime until the Worker is updated in the Cloudflare dashboard. New `worker.js` was delivered in the chat — paste into the in-browser editor and click Deploy. *(Resolved: verified live on 2026-10-14 — `/search` and `/reverse` return the 5-field shape.)*
 
 ### Session: Escalating Alarm, Battery UX, Alarm Pipeline Hardening & Observability (2026-05-17 – 2026-05-21)
 
