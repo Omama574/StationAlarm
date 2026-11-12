@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -15,7 +16,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omama.stationalarm.R
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.BatteryOptimizationHelper
+
+/** outcome: shown | open_settings | skipped | dont_ask_again | dismissed (swiped away / tapped outside). */
+private fun reportBatterySheet(outcome: String) {
+    Analytics.event("battery_sheet_outcome") { putString("outcome", outcome) }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,8 +32,14 @@ fun BatteryOptimizationSheet(
 ) {
     val context = LocalContext.current
 
+    // The caller composes this sheet only while it is visible, so this fires once per time it is shown.
+    LaunchedEffect(Unit) { reportBatterySheet("shown") }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            reportBatterySheet("dismissed")
+            onDismiss()
+        },
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
@@ -74,6 +87,7 @@ fun BatteryOptimizationSheet(
 
             Button(
                 onClick = {
+                    reportBatterySheet("open_settings")
                     BatteryOptimizationHelper.openBatterySettings(context)
                     onDismiss()
                 },
@@ -86,14 +100,20 @@ fun BatteryOptimizationSheet(
             Spacer(Modifier.height(8.dp))
 
             TextButton(
-                onClick = onDismiss,
+                onClick = {
+                    reportBatterySheet("skipped")
+                    onDismiss()
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.battery_sheet_skip), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             }
 
             TextButton(
-                onClick = onDontAskAgain,
+                onClick = {
+                    reportBatterySheet("dont_ask_again")
+                    onDontAskAgain()
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
