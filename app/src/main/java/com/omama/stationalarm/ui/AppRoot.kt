@@ -51,6 +51,7 @@ import com.omama.stationalarm.MainActivity
 import com.omama.stationalarm.data.Station
 import com.omama.stationalarm.data.UserPreferences
 import com.omama.stationalarm.service.LocationService
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.AppRemoteConfig
 import com.omama.stationalarm.ui.screens.AboutScreen
 import com.omama.stationalarm.ui.screens.HomeScreen
@@ -97,14 +98,31 @@ fun AppRoot() {
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    // Permission-funnel analytics: the result of each system prompt. A permanently denied permission makes the
+    // ON_RESUME handler below re-launch the request on every resume and get an instant "denied", so each
+    // (permission, result) pair is reported at most once per composition instead of once per resume.
+    val reportedPermissionResults = remember { mutableSetOf<String>() }
+    fun reportPermissionResult(permission: String, granted: Boolean) {
+        val result = if (granted) "granted" else "denied"
+        if (reportedPermissionResults.add("$permission:$result")) {
+            Analytics.event("permission_flow") {
+                putString("permission", permission)
+                putString("result", result)
+            }
+        }
+    }
+
     val fineLocationLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         hasFineLocation = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        // An interrupted request returns an empty map; only report permissions the result really contains.
+        permissions[Manifest.permission.ACCESS_FINE_LOCATION]?.let { reportPermissionResult("ACCESS_FINE_LOCATION", it) }
         if (notificationsRequired) {
             val granted = permissions[Manifest.permission.POST_NOTIFICATIONS]
             if (granted != null) {
                 hasNotificationsPermission = granted
+                reportPermissionResult("POST_NOTIFICATIONS", granted)
                 if (!granted) showNotificationRationale = true
             }
         }
@@ -117,6 +135,7 @@ fun AppRoot() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasBackgroundLocation = isGranted
+        reportPermissionResult("ACCESS_BACKGROUND_LOCATION", isGranted)
         showPermissionRationale = !isGranted
     }
 
@@ -450,6 +469,17 @@ fun AppNavigation(isGpsEnabled: () -> Boolean) {
         if (pagerState.currentPage == 1 && !isGpsEnabled()) {
             showGpsDialog = true
         }
+    }
+
+    // Which top-level screen the user is on, for usage analytics. Fires on first composition and whenever the
+    // screen or tab changes. Carries no content (no station names, queries or coordinates).
+    val screenName = when (currentScreen) {
+        Screen.Settings -> "settings"
+        Screen.About -> "about"
+        Screen.Main -> if (pagerState.currentPage == 1) "map" else "alarms"
+    }
+    LaunchedEffect(screenName) {
+        Analytics.event("screen_opened") { putString("screen", screenName) }
     }
 
     // Surface one-shot errors from StationRepository (e.g. max-alarms reached,

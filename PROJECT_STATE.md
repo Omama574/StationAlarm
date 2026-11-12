@@ -183,6 +183,26 @@ Migrations:
 
 ## Session Log
 
+### Session: Funnel analytics events, ads decision (2026-11-11)
+
+**Decision: ship without ads.** The AdMob research is not acted on; `AD_ID` / `ADSERVICES` stay stripped from the manifest and the Play declaration stays "no ads". Firebase Analytics + Crashlytics remain the only analytics (PostHog deliberately not added: extra SDK, extra data processor in the Data Safety form and privacy policy).
+
+**Added** (Firebase Analytics via the `Analytics` wrapper; locked files untouched). Params are enumerated/banded values only — never query text, coordinates, addresses or names (a test guards this):
+
+| Event | Params | Where | Answers |
+|---|---|---|---|
+| `search_performed` | `source` = offline \| api, `results` = 0 \| 1 \| 2-5 \| 6+ | `MapSearchViewModel` | how much traffic the geocoder quota really carries (api ÷ total) |
+| `geocode_failed` | `kind` = search \| reverse, `reason` = timeout \| network \| http_429 \| http_4xx \| http_5xx \| http_other \| other | `MapSearchViewModel` | quota exhaustion (`http_429`) and Worker health |
+| `map_pin_dropped` | — | `MapSearchViewModel` | reverse-geocode request count (one per tap) |
+| `permission_flow` | `permission` = ACCESS_FINE_LOCATION \| ACCESS_BACKGROUND_LOCATION \| POST_NOTIFICATIONS, `result` = granted \| denied | `AppRoot` | permission funnel; each pair reported once per composition |
+| `battery_sheet_outcome` | `outcome` = shown \| open_settings \| skipped \| dont_ask_again \| dismissed | `BatteryOptimizationSheet` | does the battery onboarding work |
+| `screen_opened` | `screen` = alarms \| map \| settings \| about | `AppRoot` | tab/screen usage |
+| `alarm_screen_shown` | — | `AlarmActivity` | compare with `alarm_fired`: how often the full-screen alarm UI is reached |
+
+Notes: searches cancelled mid-flight by a newer keystroke are not counted (so `search_performed(api)` + `geocode_failed(search)` slightly under-count provider requests). `permission_flow` reports system-prompt results only; a grant made later in system Settings is not reported. "App opened from alarm" was not added: the foreground-notification tap and the alarm notification live in the locked `ServiceNotifications.kt` and carry no distinguishing extra. `Analytics.eventSink` is a test seam.
+
+**Not verified in this session:** nothing was compiled or run (no Android SDK or Google Maven reachable from the sandbox). Run `./gradlew testDebugUnitTest` before merging. The live Cloudflare Worker could not be reached from the sandbox either (host not on the environment's allow-list), so `/search` and `/reverse` were not re-verified; the last confirmation is the 2026-10-14 check above.
+
 ### Session: Play-readiness audit, static trace and non-locked fixes (2026-10-14)
 
 Full audit of the repo against Play publication, followed by a line-by-line static trace of the alarm engine and every user workflow. Reports live in the repo root and `docs/`:

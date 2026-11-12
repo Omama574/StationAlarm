@@ -12,6 +12,7 @@ import com.omama.stationalarm.data.StationData
 import com.omama.stationalarm.network.GeoSearchResult
 import com.omama.stationalarm.network.GeocodingClient
 import com.omama.stationalarm.repository.StationRepository
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.GeoMath
 import com.omama.stationalarm.util.StationIds
 import kotlinx.coroutines.CancellationException
@@ -29,6 +30,31 @@ import java.util.Locale
 // A reverse-geocode result closer than this to the tapped point is treated as "the thing the user tapped"
 // (building, station, POI) and the pin snaps to it. Anything farther keeps the tapped coordinates.
 private const val MAX_PIN_SNAP_KM = 0.15
+
+/**
+ * Low-cardinality failure label for the `geocode_failed` analytics event. Deliberately coarse and never
+ * built from the exception message, the query or coordinates. Order matters: SocketTimeoutException is
+ * an IOException.
+ */
+internal fun geocodeFailureBand(e: Throwable): String = when (e) {
+    is SocketTimeoutException -> "timeout"
+    is IOException -> "network"
+    is HttpException -> when (e.code()) {
+        429 -> "http_429"
+        in 500..599 -> "http_5xx"
+        in 400..499 -> "http_4xx"
+        else -> "http_other"
+    }
+    else -> "other"
+}
+
+/** Result-count band for analytics, matching the banding convention documented in [Analytics]. */
+internal fun resultCountBand(count: Int): String = when {
+    count <= 0 -> "0"
+    count == 1 -> "1"
+    count <= 5 -> "2-5"
+    else -> "6+"
+}
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class MapSearchViewModel(application: Application) : AndroidViewModel(application) {
@@ -119,6 +145,12 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
             // ── Tier 1: India railway stations (offline) ──────────────────────
             val indiaResults = StationData.searchStations(q)
             if (indiaResults.isNotEmpty()) {
+                // Offline hit: no API request was made. Compare with source=api to see how much traffic the
+                // geocoder quota actually carries.
+                Analytics.event("search_performed") {
+                    putString("source", "offline")
+                    putString("results", resultCountBand(minOf(indiaResults.size, 8)))
+                }
                 val railwayLabel = getApplication<Application>()
                     .getString(R.string.map_hint_railway_station)
                 if (generation == searchGeneration) {
@@ -143,8 +175,15 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                 biasLon = bias?.longitude,
                 lang    = currentLang(),
             )
+            val usable = response.results.filter { it.hasValidCoords }
+            // Counted even if the user has already moved on (stale generation): the request was made and
+            // spent quota. Requests cancelled mid-flight by a newer keystroke are not counted here.
+            Analytics.event("search_performed") {
+                putString("source", "api")
+                putString("results", resultCountBand(usable.size))
+            }
             if (generation == searchGeneration) {
-                _searchResults.value = response.results.filter { it.hasValidCoords }
+                _searchResults.value = usable
             }
 
         } catch (e: CancellationException) {
@@ -155,6 +194,10 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
             superseded = true
             throw e
         } catch (e: Exception) {
+            Analytics.event("geocode_failed") {
+                putString("kind", "search")
+                putString("reason", geocodeFailureBand(e))
+            }
             if (generation == searchGeneration) {
                 _searchError.value = errorMessageFor(e)
                 _searchResults.value = emptyList()
@@ -214,6 +257,9 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
         val droppedPinLabel = app.getString(R.string.map_pin_dropped_default)
         val loadingLabel = app.getString(R.string.map_pin_loading_address)
 
+        // One tap = one reverse-geocode request, so this count tracks reverse-geocoder quota use.
+        Analytics.event("map_pin_dropped")
+
         // Identifies THIS tap. A reverse geocode that is still running for an earlier tap — common on a train
         // with a weak connection — must not overwrite the pin the user placed afterwards, nor a result they
         // picked from search, otherwise the alarm ends up at the wrong place.
@@ -258,6 +304,10 @@ class MapSearchViewModel(application: Application) : AndroidViewModel(applicatio
                 throw e
             } catch (e: Exception) {
                 android.util.Log.w("MapSearch", "Reverse geocode failed", e)
+                Analytics.event("geocode_failed") {
+                    putString("kind", "reverse")
+                    putString("reason", geocodeFailureBand(e))
+                }
                 if (_selectedResult.value?.id != pendingId) return@launch
                 _selectedResult.value = _selectedResult.value?.copy(
                     name             = droppedPinLabel,

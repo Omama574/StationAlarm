@@ -27,6 +27,7 @@ import com.omama.stationalarm.repository.StationRepository
 import com.omama.stationalarm.service.LocationService
 import com.omama.stationalarm.service.ServiceNotifications
 import com.omama.stationalarm.ui.theme.StationAlarmTheme
+import com.omama.stationalarm.util.Analytics
 import com.omama.stationalarm.util.Logger
 
 class AlarmActivity : ComponentActivity() {
@@ -54,6 +55,10 @@ class AlarmActivity : ComponentActivity() {
 
         stationId = intent.getStringExtra("stationId")
         initialStationName = intent.getStringExtra(ServiceNotifications.EXTRA_STATION_NAME)
+
+        // Counts alarm screens actually put in front of the user. Compare with alarm_fired to see how often the
+        // full-screen alarm UI is reached. Skipped on re-creation (e.g. rotation) so one alarm is one event.
+        if (savedInstanceState == null) Analytics.event("alarm_screen_shown")
 
         setContent {
             var activeStation by remember { mutableStateOf<com.omama.stationalarm.data.ActiveStation?>(null) }

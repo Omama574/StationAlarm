@@ -21,10 +21,19 @@ import com.google.firebase.analytics.FirebaseAnalytics
  *     Audience builder treats every distinct integer as its own bucket.
  *   - User properties (set once or on state change) capture device class
  *     and permission state so dashboards can be sliced by them.
+ *   - PRIVACY: params are enumerated or banded values only. Never put a
+ *     search query, coordinates, an address, a station or alarm name, or
+ *     free text in an event or user property.
  */
 object Analytics {
 
     @Volatile private var analytics: FirebaseAnalytics? = null
+
+    /**
+     * Test seam: when set, [event] hands the event to this sink instead of Firebase, so unit tests can
+     * assert what was reported without a Firebase project. Production code never sets it.
+     */
+    @Volatile internal var eventSink: ((name: String, params: Bundle?) -> Unit)? = null
 
     fun initialize(context: Context) {
         try {
@@ -38,6 +47,15 @@ object Analytics {
 
     /** Logs a Firebase Analytics event. Safe to call before [initialize] (no-op). */
     fun event(name: String, params: (Bundle.() -> Unit)? = null) {
+        val sink = eventSink
+        if (sink != null) {
+            try {
+                sink(name, if (params != null) Bundle().apply(params) else null)
+            } catch (_: Exception) {
+                // Same contract as the Firebase path: reporting never propagates failures upward.
+            }
+            return
+        }
         val fa = analytics ?: return
         try {
             val bundle = if (params != null) Bundle().apply(params) else null
